@@ -138,58 +138,65 @@ export default function EditProject({
 
               <div className="space-y-2">
                 <h3 className="text-sm font-medium">Configuration</h3>
-                <Accordion type="single" collapsible className="w-full">
-                  {Object.entries(projectConfigOptions).map(
-                    ([key, option]) => (
-                      <AccordionItem key={key} value={key}>
-                        <AccordionTrigger className="text-sm">
-                          <div className="flex items-center gap-2">
-                            <code className="text-xs bg-muted px-1 rounded">
-                              {key}
-                            </code>
-                            {option.shortdesc && (
-                              <span className="text-muted-foreground">
-                                {option.shortdesc}
-                              </span>
-                            )}
-                          </div>
-                        </AccordionTrigger>
-                        <AccordionContent>
-                          <FormField
-                            control={form.control}
-                            name={`config.${key}`}
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel className="text-xs">
-                                  {key}
-                                </FormLabel>
-                                <FormControl>
-                                  <Input
-                                    placeholder={
-                                      option.defaultdesc ||
-                                      `Enter value for ${key}`
-                                    }
-                                    {...field}
-                                    value={field.value ?? ""}
-                                    onChange={(e) =>
-                                      field.onChange(e.target.value)
-                                    }
-                                  />
-                                </FormControl>
-                                {option.longdesc && (
-                                  <FormDescription className="text-xs">
-                                    {option.longdesc}
-                                  </FormDescription>
-                                )}
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </AccordionContent>
-                      </AccordionItem>
-                    )
-                  )}
-                </Accordion>
+                {Object.keys(projectConfigOptions).length > 0 ? (
+                  <Accordion type="single" collapsible className="w-full">
+                    {Object.entries(projectConfigOptions).map(
+                      ([key, option]) => (
+                        <AccordionItem key={key} value={key}>
+                          <AccordionTrigger className="text-sm">
+                            <div className="flex items-center gap-2">
+                              <code className="text-xs bg-muted px-1 rounded">
+                                {key}
+                              </code>
+                              {option.shortdesc && (
+                                <span className="text-muted-foreground text-left">
+                                  {option.shortdesc}
+                                </span>
+                              )}
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent>
+                            <FormField
+                              control={form.control}
+                              name={`config.${key}`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel className="text-xs">
+                                    {key}
+                                  </FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      placeholder={
+                                        option.defaultdesc ||
+                                        `Enter value for ${key}`
+                                      }
+                                      {...field}
+                                      value={field.value ?? ""}
+                                      onChange={(e) =>
+                                        field.onChange(e.target.value)
+                                      }
+                                    />
+                                  </FormControl>
+                                  {option.longdesc && (
+                                    <FormDescription className="text-xs">
+                                      {option.longdesc}
+                                    </FormDescription>
+                                  )}
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </AccordionContent>
+                        </AccordionItem>
+                      )
+                    )}
+                  </Accordion>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No configuration options available. Configuration metadata
+                    could not be loaded from the server.
+                  </p>
+                )}
               </div>
 
               <DialogFooter>
