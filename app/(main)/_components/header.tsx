@@ -70,7 +70,7 @@ export function SiteHeader() {
               size="sm"
               variant="outline"
               onClick={() => setEditDialogOpen(true)}
-              title="Edit Project"
+              aria-label={`Edit project ${currentProject}`}
             >
               <PencilIcon className="size-4" />
               <span className="ml-2">Edit Project</span>
@@ -78,7 +78,7 @@ export function SiteHeader() {
           )}
         </div>
       </div>
-      {canEditCurrentProject && (
+      {currentProject !== ALL_PROJECTS_VALUE && (
         <EditProject
           projectName={currentProject}
           open={editDialogOpen}

@@ -56,19 +56,19 @@ export default function EditProject({
   const { data: configurableOptions, isLoading: optionsLoading } =
     useConfigurableOptions();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      description: "",
-      config: {},
-    },
     values: project
       ? {
           description: project.description || "",
           config: project.config || {},
         }
-      : undefined,
+      : {
+          description: "",
+          config: {},
+        },
   });
 
   const projectConfigOptions = configurableOptions?.configs.project || {};
@@ -77,23 +77,43 @@ export default function EditProject({
     setIsSubmitting(true);
     try {
       await updateProject(projectName, values.config, values.description);
+      // Revalidate the project data
       await mutate("/1.0/projects?recursion=1");
       await mutate(`/1.0/projects/${projectName}`);
-      toast.success("Project updated successfully");
+      toast.success(`Project "${projectName}" updated successfully`);
+      setHasUnsavedChanges(false);
       onOpenChange(false);
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to update project"
-      );
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to update project. Please try again.";
+      toast.error(errorMessage);
+      console.error("Error updating project:", error);
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  function handleOpenChange(open: boolean) {
+    if (!open && hasUnsavedChanges && !isSubmitting) {
+      if (
+        confirm(
+          "You have unsaved changes. Are you sure you want to close without saving?"
+        )
+      ) {
+        setHasUnsavedChanges(false);
+        onOpenChange(open);
+      }
+    } else {
+      onOpenChange(open);
     }
   }
 
   const isLoading = projectLoading || optionsLoading;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Project: {projectName}</DialogTitle>
@@ -118,7 +138,11 @@ export default function EditProject({
           </div>
         ) : (
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <form
+              onSubmit={form.handleSubmit(onSubmit)}
+              className="space-y-4"
+              onChange={() => setHasUnsavedChanges(true)}
+            >
               <FormField
                 control={form.control}
                 name="description"
