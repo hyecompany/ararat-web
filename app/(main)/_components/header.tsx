@@ -14,6 +14,7 @@ import {
 } from "../../_components/ui/select";
 import { use } from "react";
 import ProjectsContext from "@/app/(main)/_context/projects";
+import CreateProject from "./createProject";
 
 export function SiteHeader() {
   const { projects, currentProject, setProject, isLoading } =
@@ -28,34 +29,37 @@ export function SiteHeader() {
         />
 
         <h1 className="text-base font-medium">Instances</h1>
-        <Select
-          value={currentProject}
-          onValueChange={setProject}
-          disabled={isLoading}
-        >
-          <SelectTrigger size="sm" className="ml-auto min-w-48 justify-between">
-            <SelectValue placeholder="Select Project" />
-          </SelectTrigger>
-          <SelectContent className="max-h-96">
-            <SelectItem value="all">
-              <div className="flex items-center gap-2">
-                <GlobeIcon className="size-4" />
-                <span>All Projects</span>
-              </div>
-            </SelectItem>
-            <SelectSeparator />
-            <SelectGroup>
-              <SelectLabel>Projects</SelectLabel>
-              {!isLoading
-                ? projects.map((project) => (
-                    <SelectItem key={project.name} value={project.name}>
-                      {project.name}
-                    </SelectItem>
-                  ))
-                : null}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
+        <div className="ml-auto flex items-center gap-2">
+          <Select
+            value={currentProject}
+            onValueChange={setProject}
+            disabled={isLoading}
+          >
+            <SelectTrigger size="sm" className="min-w-48 justify-between">
+              <SelectValue placeholder="Select Project" />
+            </SelectTrigger>
+            <SelectContent className="max-h-96">
+              <SelectItem value="all">
+                <div className="flex items-center gap-2">
+                  <GlobeIcon className="size-4" />
+                  <span>All Projects</span>
+                </div>
+              </SelectItem>
+              <SelectSeparator />
+              <SelectGroup>
+                <SelectLabel>Projects</SelectLabel>
+                {!isLoading
+                  ? projects.map((project) => (
+                      <SelectItem key={project.name} value={project.name}>
+                        {project.name}
+                      </SelectItem>
+                    ))
+                  : null}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          <CreateProject />
+        </div>
       </div>
     </header>
   );
