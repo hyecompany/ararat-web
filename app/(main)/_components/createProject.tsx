@@ -28,7 +28,7 @@ import { createProject } from "@/app/(main)/_lib/projects";
 import { mutate } from "swr";
 import { toast } from "sonner";
 import { PlusIcon } from "lucide-react";
-import { Textarea } from "@/app/_components/ui/textarea";
+import { Textarea } from "@/app/_components/textarea";
 import { useConfigurableOptions } from "@/app/_hooks/server";
 import {
   Accordion,
