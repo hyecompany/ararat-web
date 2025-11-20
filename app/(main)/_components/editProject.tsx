@@ -19,7 +19,6 @@ import {
   FormMessage,
 } from "@/app/_components/ui/form";
 import { Input } from "@/app/_components/ui/input";
-import { Textarea } from "@/app/_components/ui/textarea";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -39,7 +38,7 @@ import {
 
 const formSchema = z.object({
   description: z.string().optional(),
-  config: z.record(z.string()),
+  config: z.record(z.string(), z.string()),
 });
 
 interface EditProjectProps {
@@ -61,13 +60,15 @@ export default function EditProject({
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      description: project?.description || "",
-      config: project?.config || {},
+      description: "",
+      config: {},
     },
-    values: {
-      description: project?.description || "",
-      config: project?.config || {},
-    },
+    values: project
+      ? {
+          description: project.description || "",
+          config: project.config || {},
+        }
+      : undefined,
   });
 
   const projectConfigOptions = configurableOptions?.configs.project || {};
@@ -125,10 +126,9 @@ export default function EditProject({
                   <FormItem>
                     <FormLabel>Description</FormLabel>
                     <FormControl>
-                      <Textarea
+                      <Input
                         placeholder="Project description"
                         {...field}
-                        rows={3}
                       />
                     </FormControl>
                     <FormMessage />
@@ -170,7 +170,10 @@ export default function EditProject({
                                       `Enter value for ${key}`
                                     }
                                     {...field}
-                                    value={field.value || ""}
+                                    value={field.value ?? ""}
+                                    onChange={(e) =>
+                                      field.onChange(e.target.value)
+                                    }
                                   />
                                 </FormControl>
                                 {option.longdesc && (
