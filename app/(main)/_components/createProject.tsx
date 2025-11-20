@@ -9,7 +9,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/app/_components/ui/dialog";
 import {
   Form,
@@ -28,7 +27,6 @@ import z from "zod";
 import { createProject } from "@/app/(main)/_lib/projects";
 import { mutate } from "swr";
 import { toast } from "sonner";
-import { PlusIcon } from "lucide-react";
 import { Textarea } from "@/app/_components/textarea";
 import { useConfigurableOptions } from "@/app/_hooks/server";
 import {
@@ -38,6 +36,7 @@ import {
   AccordionTrigger,
 } from "@/app/_components/ui/accordion";
 import ProjectsContext from "@/app/(main)/_context/projects";
+import { Checkbox } from "@/app/_components/ui/checkbox";
 
 const formSchema = z.object({
   name: z
@@ -54,20 +53,27 @@ const formSchema = z.object({
 
 interface ProjectConfigField {
   key: string;
-  type: string;
-  description?: string;
-  defaultValue?: string;
-}
-
-interface ConfigOptionValue {
   type?: string;
-  longdesc?: string;
   shortdesc?: string;
-  default?: string;
+  longdesc?: string;
+  defaultdesc?: string;
+  initialvaluedesc?: string;
 }
 
-export default function CreateProject() {
-  const [open, setOpen] = useState(false);
+interface ConfigCategory {
+  keys: Array<Record<string, ProjectConfigField>>;
+}
+
+interface ProjectConfigOptions {
+  [category: string]: ConfigCategory;
+}
+
+interface CreateProjectProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export default function CreateProject({ open, onOpenChange }: CreateProjectProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { data: configurableOptions } = useConfigurableOptions();
   const { setProject } = use(ProjectsContext);
@@ -81,17 +87,22 @@ export default function CreateProject() {
     },
   });
 
-  const projectConfigFields: ProjectConfigField[] = configurableOptions?.configs
-    ?.project
-    ? Object.entries(
-        configurableOptions.configs.project as Record<string, ConfigOptionValue>
-      ).map(([key, value]) => ({
-        key,
-        type: value.type || "string",
-        description: value.longdesc || value.shortdesc || "",
-        defaultValue: value.default || "",
-      }))
-    : [];
+  // Parse project configuration options from metadata
+  const projectConfigOptions: Array<{ category: string; fields: Array<{ name: string; field: ProjectConfigField }> }> = [];
+  
+  if (configurableOptions?.configs?.project) {
+    const projectConfig = configurableOptions.configs.project as ProjectConfigOptions;
+    
+    Object.entries(projectConfig).forEach(([category, categoryData]) => {
+      if (categoryData.keys && Array.isArray(categoryData.keys)) {
+        const fields = categoryData.keys.map((keyObj) => {
+          const [name, field] = Object.entries(keyObj)[0];
+          return { name, field };
+        });
+        projectConfigOptions.push({ category, fields });
+      }
+    });
+  }
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
@@ -120,11 +131,7 @@ export default function CreateProject() {
       // Set the newly created project as the current project
       setProject(values.name);
 
-      toast.success("Project created successfully", {
-        description: `Project "${values.name}" has been created.`,
-      });
-
-      setOpen(false);
+      onOpenChange(false);
       form.reset();
     } catch (error) {
       console.error("Failed to create project:", error);
@@ -137,13 +144,60 @@ export default function CreateProject() {
     }
   };
 
+  const renderConfigField = (
+    name: string,
+    field: ProjectConfigField,
+    formField: {
+      value: string;
+      onChange: (value: string) => void;
+      onBlur: () => void;
+      name: string;
+      ref: React.Ref<HTMLInputElement>;
+    }
+  ) => {
+    const defaultDesc = field.defaultdesc || field.initialvaluedesc || "";
+    
+    if (field.type === "bool") {
+      return (
+        <div className="flex items-center space-x-2">
+          <Checkbox
+            id={name}
+            checked={formField.value === "true"}
+            onCheckedChange={(checked) => {
+              formField.onChange(checked ? "true" : "false");
+            }}
+            disabled={isSubmitting}
+          />
+          <label
+            htmlFor={name}
+            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+          >
+            {name}
+          </label>
+        </div>
+      );
+    } else if (field.type === "integer") {
+      return (
+        <Input
+          type="number"
+          placeholder={defaultDesc}
+          {...formField}
+          disabled={isSubmitting}
+        />
+      );
+    } else {
+      return (
+        <Input
+          placeholder={defaultDesc}
+          {...formField}
+          disabled={isSubmitting}
+        />
+      );
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="icon-sm" className="size-6">
-          <PlusIcon className="size-4" />
-        </Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create Project</DialogTitle>
@@ -192,44 +246,44 @@ export default function CreateProject() {
               )}
             />
 
-            {projectConfigFields.length > 0 && (
-              <Accordion type="single" collapsible className="w-full">
-                <AccordionItem value="config">
-                  <AccordionTrigger>
-                    Advanced Configuration (Optional)
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <div className="space-y-4 pt-4">
-                      {projectConfigFields.slice(0, 10).map((field) => (
-                        <FormField
-                          key={field.key}
-                          control={form.control}
-                          name={`config.${field.key}`}
-                          render={({ field: formField }) => (
-                            <FormItem>
-                              <FormLabel className="text-xs">
-                                {field.key}
-                              </FormLabel>
-                              <FormControl>
-                                <Input
-                                  placeholder={field.defaultValue || ""}
-                                  {...formField}
-                                  disabled={isSubmitting}
-                                />
-                              </FormControl>
-                              {field.description && (
-                                <FormDescription className="text-xs">
-                                  {field.description}
-                                </FormDescription>
-                              )}
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      ))}
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
+            {projectConfigOptions.length > 0 && (
+              <Accordion type="multiple" className="w-full">
+                {projectConfigOptions.map(({ category, fields }) => (
+                  <AccordionItem key={category} value={category}>
+                    <AccordionTrigger className="capitalize">
+                      {category}
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-4 pt-4">
+                        {fields.map(({ name, field }) => (
+                          <FormField
+                            key={name}
+                            control={form.control}
+                            name={`config.${name}`}
+                            render={({ field: formField }) => (
+                              <FormItem>
+                                {field.type !== "bool" && (
+                                  <FormLabel className="text-xs">
+                                    {name}
+                                  </FormLabel>
+                                )}
+                                <FormControl>
+                                  {renderConfigField(name, field, formField)}
+                                </FormControl>
+                                {(field.longdesc || field.shortdesc) && (
+                                  <FormDescription className="text-xs">
+                                    {field.shortdesc}
+                                  </FormDescription>
+                                )}
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        ))}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
               </Accordion>
             )}
 
@@ -237,7 +291,7 @@ export default function CreateProject() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setOpen(false)}
+                onClick={() => onOpenChange(false)}
                 disabled={isSubmitting}
               >
                 Cancel
