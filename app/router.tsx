@@ -10,7 +10,7 @@ export default function Router({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!runRef.current && pathname != "/") {
       runRef.current = true;
-      router.push(pathname);
+      // router.push(pathname);
     }
   }, [pathname, router]);
 
