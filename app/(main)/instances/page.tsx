@@ -7,6 +7,7 @@ import {
   RotateCcwIcon,
   SnowflakeIcon,
   SquareIcon,
+  TrashIcon,
 } from 'lucide-react';
 
 import CreateInstance from './_components/create';
@@ -35,10 +36,10 @@ import { Progress } from '@/app/_components/ui/progress';
 import IsClientContext from '@/app/_context/isClient';
 import { useRouter } from 'next/navigation';
 
-type InstanceAction = 'start' | 'stop' | 'restart' | 'freeze';
+type InstanceAction = 'start' | 'stop' | 'restart' | 'freeze' | 'delete';
 
 const instanceActionDetails: Record<
-  InstanceAction,
+  Exclude<InstanceAction, 'delete'>,
   { label: string; Icon: React.ComponentType<{ className?: string }> }
 > = {
   start: { label: 'Start', Icon: PlayIcon },
@@ -60,6 +61,23 @@ async function performInstanceAction({
   const projectSuffix = instanceProject
     ? `?project=${encodeURIComponent(instanceProject)}`
     : '';
+
+  if (action === 'delete') {
+    const res = await fetch(
+      `/1.0/instances/${encodeURIComponent(instance.name)}${projectSuffix}`,
+      {
+        method: 'DELETE',
+      },
+    );
+    if (!res.ok) {
+      const payload = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error(
+        payload?.error || `Unable to delete instance ${instance.name}`,
+      );
+    }
+    return;
+  }
+
   const res = await fetch(
     `/1.0/instances/${encodeURIComponent(instance.name)}/state${projectSuffix}`,
     {
@@ -308,6 +326,27 @@ export default function Instances() {
                     {label}
                   </Button>
                 ))}
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={actionInFlight !== null}
+                  onClick={() => {
+                    if (
+                      confirm(
+                        `Are you sure you want to delete ${selectedInstances.length} instance(s)?`,
+                      )
+                    ) {
+                      handleMassAction('delete');
+                    }
+                  }}
+                >
+                  {actionInFlight === 'delete' ? (
+                    <Spinner className="mr-2 size-3" />
+                  ) : (
+                    <TrashIcon className="mr-2 size-3" />
+                  )}
+                  Delete
+                </Button>
               </div>
             ) : (
               <CreateInstance className="w-full sm:w-auto" />
