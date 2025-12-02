@@ -1,15 +1,39 @@
 'use client';
 
-import React, { createContext, useEffect, useState } from 'react';
+import React, { createContext, useEffect, useState, useRef } from 'react';
 import { toast } from 'sonner';
 
+type EventType = 'operation' | 'logging' | 'lifecycle';
+
+interface IncusEvent {
+  type: EventType;
+  timestamp: string;
+  metadata: any;
+}
+
+interface OperationMetadata {
+  id: string;
+  class: string;
+  description: string;
+  created_at: string;
+  updated_at: string;
+  status: string;
+  status_code: number;
+  resources: Record<string, string[]>;
+  metadata: any; // specific operation metadata (e.g. progress)
+  may_cancel: boolean;
+  err: string;
+  location: string;
+}
+
 type EventEmitterContextValue = {
-  eventEmitter?: WebSocket;
+  isConnected: boolean;
 };
 
 const EventEmitterContext = createContext<EventEmitterContextValue>({
-  eventEmitter: undefined,
+  isConnected: false,
 });
+
 export default EventEmitterContext;
 
 export function EventEmitterProvider({
@@ -17,85 +41,118 @@ export function EventEmitterProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const [eventEmitter, setEventEmitter] = useState<WebSocket>();
+  const [isConnected, setIsConnected] = useState(false);
+  const wsRef = useRef<WebSocket | null>(null);
+  // Track operations we are already showing toasts for to avoid duplicates/spam
+  const activeOperations = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (typeof window === 'undefined') {
-      return () => undefined;
+      return;
     }
 
-    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const ws = new WebSocket(
-      `${protocol}://${window.location.host}/1.0/events`,
-    );
+    const connect = () => {
+      const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      const url = `${protocol}://${window.location.host}/1.0/events?type=operation,lifecycle,logging`;
 
-    const handleOpen = () => {
-      setEventEmitter(ws);
-    };
+      console.log('Connecting to events:', url);
+      const ws = new WebSocket(url);
+      wsRef.current = ws;
 
-    ws.addEventListener('open', handleOpen);
-    const pendingOperations: Record<string, object> = {};
-    const handleMessage = (event: MessageEvent) => {
-      const data = JSON.parse(event.data);
-      console.log(data);
-      if (data.type !== 'operation') {
-        return;
-      }
+      ws.onopen = () => {
+        console.log('Events WebSocket connected');
+        setIsConnected(true);
+      };
 
-      if (data.metadata.status === 'Running') {
-        if (pendingOperations[data.metadata.id]) {
-          delete pendingOperations[data.metadata.id];
+      ws.onclose = () => {
+        console.log('Events WebSocket disconnected');
+        setIsConnected(false);
+        // Optional: Implement reconnection logic here if needed
+        // setTimeout(connect, 1000);
+      };
+
+      ws.onerror = (error) => {
+        console.error('Events WebSocket error:', error);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data) as IncusEvent;
+
+          if (data.type === 'operation') {
+            handleOperationEvent(data.metadata as OperationMetadata);
+          }
+        } catch (e) {
+          console.error('Failed to parse event data:', e);
         }
-        return;
-      }
+      };
+    };
 
-      if (data.metadata.status === 'Pending') {
-        pendingOperations[data.metadata.id] = data;
-        toast.promise(
-          () =>
-            new Promise<{ name: string }>((resolve, reject) => {
-              const handleOperationUpdate = (ev: MessageEvent) => {
-                const dat = JSON.parse(ev.data);
-                if (dat.type !== 'operation') {
-                  return;
-                }
+    const handleOperationEvent = (op: OperationMetadata) => {
+      // We only care about task operations usually, but let's handle all for now
+      // status: Pending, Running, Success, Failure, Cancelled
 
-                if (dat.metadata.id !== data.metadata.id) {
-                  return;
-                }
+      const toastId = op.id;
+      const description = op.description || 'Operation';
 
-                if (dat.metadata.status === 'Running') {
-                  ws.removeEventListener('message', handleOperationUpdate);
-                  resolve({ name: 'IT WORKS' });
-                } else if (dat.metadata.status !== 'Pending') {
-                  ws.removeEventListener('message', handleOperationUpdate);
-                  reject();
-                }
-              };
+      // If it's a new operation we haven't seen, or an update to one we are tracking
+      if (op.status === 'Pending' || op.status === 'Running') {
+        activeOperations.current.add(toastId);
 
-              ws.addEventListener('message', handleOperationUpdate);
-            }),
-          {
-            loading: 'Loading...',
-            success: ({ name }: { name: string }) => `${name} mmm`,
-            error: `MMM`,
-          },
-        );
+        let progressDetails = '';
+        if (op.metadata) {
+          // Try to extract progress info
+          // Common patterns: metadata: { download_progress: "12%" } or similar
+          if (op.metadata.download_progress) {
+            progressDetails = `Downloading: ${op.metadata.download_progress}`;
+          } else if (op.metadata.percent) {
+            progressDetails = `${op.metadata.percent}%`;
+          }
+        }
+
+        toast.loading(description, {
+          id: toastId,
+          description: progressDetails || op.status,
+        });
+      } else if (op.status === 'Success') {
+        if (activeOperations.current.has(toastId)) {
+          toast.success(description, {
+            id: toastId,
+            description: 'Completed successfully',
+          });
+          activeOperations.current.delete(toastId);
+        }
+      } else if (op.status === 'Failure') {
+        if (activeOperations.current.has(toastId)) {
+          toast.error(description, {
+            id: toastId,
+            description: op.err || 'Operation failed',
+          });
+          activeOperations.current.delete(toastId);
+        }
+      } else if (op.status === 'Cancelled') {
+        if (activeOperations.current.has(toastId)) {
+          toast.info(description, {
+            id: toastId,
+            description: 'Cancelled',
+          });
+          activeOperations.current.delete(toastId);
+        }
       }
     };
 
-    ws.addEventListener('message', handleMessage);
+    connect();
 
     return () => {
-      ws.removeEventListener('open', handleOpen);
-      ws.removeEventListener('message', handleMessage);
-      ws.close();
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
     };
   }, []);
 
   return (
-    <EventEmitterContext value={{ eventEmitter }}>
+    <EventEmitterContext.Provider value={{ isConnected }}>
       {children}
-    </EventEmitterContext>
+    </EventEmitterContext.Provider>
   );
 }
