@@ -21,11 +21,45 @@ export default function ConsolePage() {
   const [command, setCommand] = useState('');
   const [execCommand, setExecCommand] = useState<string[]>([]);
 
+  const parseCommand = (cmd: string): string[] => {
+    // Simple command parser that handles quoted strings
+    const args: string[] = [];
+    let current = '';
+    let inQuote: string | null = null;
+    
+    for (let i = 0; i < cmd.length; i++) {
+      const char = cmd[i];
+      
+      if (inQuote) {
+        if (char === inQuote) {
+          inQuote = null;
+        } else {
+          current += char;
+        }
+      } else if (char === '"' || char === "'") {
+        inQuote = char;
+      } else if (char === ' ' || char === '\t') {
+        if (current) {
+          args.push(current);
+          current = '';
+        }
+      } else {
+        current += char;
+      }
+    }
+    
+    if (current) {
+      args.push(current);
+    }
+    
+    return args;
+  };
+
   const handleExecuteCommand = () => {
     if (!command.trim()) return;
     
-    // Parse command into array (simple split by spaces for now)
-    const cmdArray = command.trim().split(/\s+/);
+    // Parse command into array, handling quoted strings
+    const cmdArray = parseCommand(command.trim());
     setExecCommand(cmdArray);
     setShowExecDialog(false);
     setShowExecTerminal(true);

@@ -41,7 +41,10 @@ jobs:
           echo "Current branch in submodule: $CURRENT_BRANCH"
           
           # Check if there are unpushed commits
-          UNPUSHED=$(git log origin/$CURRENT_BRANCH..$CURRENT_BRANCH --oneline 2>/dev/null || echo "")
+          if ! UNPUSHED=$(git log origin/$CURRENT_BRANCH..$CURRENT_BRANCH --oneline 2>&1); then
+            echo "Warning: Could not check for unpushed commits: $UNPUSHED"
+            UNPUSHED=""
+          fi
           
           if [ -n "$UNPUSHED" ]; then
             echo "Found unpushed commits in ararat-ui-web submodule:"
@@ -67,7 +70,8 @@ jobs:
               echo "This may require manual intervention or additional permissions"
               echo "pushed=false" >> $GITHUB_OUTPUT
               echo "has_changes=false" >> $GITHUB_OUTPUT
-              exit 1
+              echo "error=true" >> $GITHUB_OUTPUT
+              # Don't exit 1 - let the workflow continue to report the error
             fi
           else
             echo "No unpushed commits in ararat-ui-web submodule"
@@ -85,7 +89,10 @@ jobs:
           echo "Current branch in submodule: $CURRENT_BRANCH"
           
           # Check if there are unpushed commits
-          UNPUSHED=$(git log origin/$CURRENT_BRANCH..$CURRENT_BRANCH --oneline 2>/dev/null || echo "")
+          if ! UNPUSHED=$(git log origin/$CURRENT_BRANCH..$CURRENT_BRANCH --oneline 2>&1); then
+            echo "Warning: Could not check for unpushed commits: $UNPUSHED"
+            UNPUSHED=""
+          fi
           
           if [ -n "$UNPUSHED" ]; then
             echo "Found unpushed commits in ui-web submodule:"
@@ -111,7 +118,8 @@ jobs:
               echo "This may require manual intervention or additional permissions"
               echo "pushed=false" >> $GITHUB_OUTPUT
               echo "has_changes=false" >> $GITHUB_OUTPUT
-              exit 1
+              echo "error=true" >> $GITHUB_OUTPUT
+              # Don't exit 1 - let the workflow continue to report the error
             fi
           else
             echo "No unpushed commits in ui-web submodule"
@@ -227,24 +235,40 @@ jobs:
         with:
           script: |
             const araratHasChanges = '${{ steps.push-ararat-ui-web.outputs.has_changes }}' === 'true';
+            const araratError = '${{ steps.push-ararat-ui-web.outputs.error }}' === 'true';
             const uiHasChanges = '${{ steps.push-ui-web.outputs.has_changes }}' === 'true';
+            const uiError = '${{ steps.push-ui-web.outputs.error }}' === 'true';
             
             let message = '## 🔄 Submodule Sync Status\n\n';
             
             if (araratHasChanges) {
-              message += '### ararat-ui-web\n';
-              message += '✅ Successfully created PR for submodule changes\n';
-              message += `- **Branch**: \`${{ steps.push-ararat-ui-web.outputs.branch }}\`\n`;
-              message += `- **Base**: \`${{ steps.push-ararat-ui-web.outputs.base_branch }}\`\n`;
-              message += `- **PR**: [View PR](https://github.com/hyecompany/ararat-ui-web/pulls)\n\n`;
+              if (araratError) {
+                message += '### ararat-ui-web\n';
+                message += '⚠️ Failed to push submodule changes\n';
+                message += 'The GitHub Actions workflow may not have sufficient permissions to push to the submodule repository.\n';
+                message += 'Please push the submodule changes manually or configure a PAT with appropriate permissions.\n\n';
+              } else {
+                message += '### ararat-ui-web\n';
+                message += '✅ Successfully created PR for submodule changes\n';
+                message += `- **Branch**: \`${{ steps.push-ararat-ui-web.outputs.branch }}\`\n`;
+                message += `- **Base**: \`${{ steps.push-ararat-ui-web.outputs.base_branch }}\`\n`;
+                message += `- **PR**: [View PR](https://github.com/hyecompany/ararat-ui-web/pulls)\n\n`;
+              }
             }
             
             if (uiHasChanges) {
-              message += '### ui-web\n';
-              message += '✅ Successfully created PR for submodule changes\n';
-              message += `- **Branch**: \`${{ steps.push-ui-web.outputs.branch }}\`\n`;
-              message += `- **Base**: \`${{ steps.push-ui-web.outputs.base_branch }}\`\n`;
-              message += `- **PR**: [View PR](https://github.com/hyecompany/ui-web/pulls)\n\n`;
+              if (uiError) {
+                message += '### ui-web\n';
+                message += '⚠️ Failed to push submodule changes\n';
+                message += 'The GitHub Actions workflow may not have sufficient permissions to push to the submodule repository.\n';
+                message += 'Please push the submodule changes manually or configure a PAT with appropriate permissions.\n\n';
+              } else {
+                message += '### ui-web\n';
+                message += '✅ Successfully created PR for submodule changes\n';
+                message += `- **Branch**: \`${{ steps.push-ui-web.outputs.branch }}\`\n`;
+                message += `- **Base**: \`${{ steps.push-ui-web.outputs.base_branch }}\`\n`;
+                message += `- **PR**: [View PR](https://github.com/hyecompany/ui-web/pulls)\n\n`;
+              }
             }
             
             if (!araratHasChanges && !uiHasChanges) {
