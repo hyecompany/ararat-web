@@ -31,7 +31,7 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Check and push ararat-ui-web submodule changes
+      - name: Check and create PR for ararat-ui-web submodule changes
         id: push-ararat-ui-web
         run: |
           cd deps/ararat-ui-web
@@ -47,25 +47,35 @@ jobs:
             echo "Found unpushed commits in ararat-ui-web submodule:"
             echo "$UNPUSHED"
             
+            # Create a new branch for the PR
+            PR_BRANCH="sync-from-main-pr-${{ github.event.pull_request.number || github.run_number }}"
+            echo "Creating branch: $PR_BRANCH"
+            
+            git checkout -b $PR_BRANCH
+            
             # Try to push with the GitHub token
             git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/hyecompany/ararat-ui-web.git
             
-            if git push origin $CURRENT_BRANCH; then
-              echo "✅ Successfully pushed ararat-ui-web submodule changes"
+            if git push origin $PR_BRANCH; then
+              echo "✅ Successfully pushed ararat-ui-web submodule changes to branch $PR_BRANCH"
               echo "pushed=true" >> $GITHUB_OUTPUT
-              echo "branch=$CURRENT_BRANCH" >> $GITHUB_OUTPUT
+              echo "branch=$PR_BRANCH" >> $GITHUB_OUTPUT
+              echo "base_branch=$CURRENT_BRANCH" >> $GITHUB_OUTPUT
+              echo "has_changes=true" >> $GITHUB_OUTPUT
             else
               echo "❌ Failed to push ararat-ui-web submodule changes"
               echo "This may require manual intervention or additional permissions"
               echo "pushed=false" >> $GITHUB_OUTPUT
+              echo "has_changes=false" >> $GITHUB_OUTPUT
               exit 1
             fi
           else
             echo "No unpushed commits in ararat-ui-web submodule"
             echo "pushed=false" >> $GITHUB_OUTPUT
+            echo "has_changes=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Check and push ui-web submodule changes
+      - name: Check and create PR for ui-web submodule changes
         id: push-ui-web
         run: |
           cd deps/ui-web
@@ -81,64 +91,175 @@ jobs:
             echo "Found unpushed commits in ui-web submodule:"
             echo "$UNPUSHED"
             
+            # Create a new branch for the PR
+            PR_BRANCH="sync-from-main-pr-${{ github.event.pull_request.number || github.run_number }}"
+            echo "Creating branch: $PR_BRANCH"
+            
+            git checkout -b $PR_BRANCH
+            
             # Try to push with the GitHub token
             git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/hyecompany/ui-web.git
             
-            if git push origin $CURRENT_BRANCH; then
-              echo "✅ Successfully pushed ui-web submodule changes"
+            if git push origin $PR_BRANCH; then
+              echo "✅ Successfully pushed ui-web submodule changes to branch $PR_BRANCH"
               echo "pushed=true" >> $GITHUB_OUTPUT
+              echo "branch=$PR_BRANCH" >> $GITHUB_OUTPUT
+              echo "base_branch=$CURRENT_BRANCH" >> $GITHUB_OUTPUT
+              echo "has_changes=true" >> $GITHUB_OUTPUT
             else
               echo "❌ Failed to push ui-web submodule changes"
               echo "This may require manual intervention or additional permissions"
               echo "pushed=false" >> $GITHUB_OUTPUT
+              echo "has_changes=false" >> $GITHUB_OUTPUT
               exit 1
             fi
           else
             echo "No unpushed commits in ui-web submodule"
             echo "pushed=false" >> $GITHUB_OUTPUT
+            echo "has_changes=false" >> $GITHUB_OUTPUT
           fi
+
+      - name: Create PR for ararat-ui-web submodule
+        if: steps.push-ararat-ui-web.outputs.has_changes == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const branch = '${{ steps.push-ararat-ui-web.outputs.branch }}';
+            const baseBranch = '${{ steps.push-ararat-ui-web.outputs.base_branch }}';
+            const mainPrNumber = '${{ github.event.pull_request.number }}';
+            
+            try {
+              const { data: pr } = await github.rest.pulls.create({
+                owner: 'hyecompany',
+                repo: 'ararat-ui-web',
+                title: `Sync changes from ararat-web PR #${mainPrNumber}`,
+                head: branch,
+                base: baseBranch,
+                body: `This PR contains changes synced from the main ararat-web repository.
+
+                **Source PR**: hyecompany/ararat-web#${mainPrNumber}
+                
+                ## Changes
+                These changes were made in the main repository's PR and need to be merged into the ararat-ui-web submodule.
+                
+                This PR was automatically created by the sync-submodules workflow.`
+              });
+              
+              console.log(\`Created PR #\${pr.number} in ararat-ui-web\`);
+              core.setOutput('pr_number', pr.number);
+              core.setOutput('pr_url', pr.html_url);
+            } catch (error) {
+              console.error('Failed to create PR:', error.message);
+              // Don't fail the workflow if PR creation fails (might already exist)
+            }
+
+      - name: Create PR for ui-web submodule
+        if: steps.push-ui-web.outputs.has_changes == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const branch = '${{ steps.push-ui-web.outputs.branch }}';
+            const baseBranch = '${{ steps.push-ui-web.outputs.base_branch }}';
+            const mainPrNumber = '${{ github.event.pull_request.number }}';
+            
+            try {
+              const { data: pr } = await github.rest.pulls.create({
+                owner: 'hyecompany',
+                repo: 'ui-web',
+                title: `Sync changes from ararat-web PR #${mainPrNumber}`,
+                head: branch,
+                base: baseBranch,
+                body: `This PR contains changes synced from the main ararat-web repository.
+
+                **Source PR**: hyecompany/ararat-web#${mainPrNumber}
+                
+                ## Changes
+                These changes were made in the main repository's PR and need to be merged into the ui-web submodule.
+                
+                This PR was automatically created by the sync-submodules workflow.`
+              });
+              
+              console.log(\`Created PR #\${pr.number} in ui-web\`);
+              core.setOutput('pr_number', pr.number);
+              core.setOutput('pr_url', pr.html_url);
+            } catch (error) {
+              console.error('Failed to create PR:', error.message);
+              // Don't fail the workflow if PR creation fails (might already exist)
+            }
 
       - name: Update submodule references
         if: steps.push-ararat-ui-web.outputs.pushed == 'true' || steps.push-ui-web.outputs.pushed == 'true'
         run: |
-          # Update the submodule references in the main repo
+          # Update the submodule references in the main repo to point to the new PR branches
+          cd deps/ararat-ui-web
+          if [ "${{ steps.push-ararat-ui-web.outputs.pushed }}" == "true" ]; then
+            git checkout ${{ steps.push-ararat-ui-web.outputs.branch }}
+          fi
+          cd ../..
+          
+          cd deps/ui-web
+          if [ "${{ steps.push-ui-web.outputs.pushed }}" == "true" ]; then
+            git checkout ${{ steps.push-ui-web.outputs.branch }}
+          fi
+          cd ../..
+          
+          # Add the submodule changes
           git add deps/ararat-ui-web deps/ui-web
           
           if git diff --cached --quiet; then
             echo "No submodule reference changes to commit"
           else
-            git commit -m "Update submodule references after pushing changes
+            git commit -m "Update submodule references to PR branches
 
-            This commit updates the submodule pointers after successfully pushing:
-            - ararat-ui-web: ${{ steps.push-ararat-ui-web.outputs.pushed }}
-            - ui-web: ${{ steps.push-ui-web.outputs.pushed }}"
+            This commit updates the submodule pointers to the PR branches:
+            - ararat-ui-web: ${{ steps.push-ararat-ui-web.outputs.branch }}
+            - ui-web: ${{ steps.push-ui-web.outputs.branch }}"
             
             git push origin ${{ github.event.pull_request.head.ref || github.ref }}
           fi
 
       - name: Comment on PR
         if: always() && github.event_name == 'pull_request'
+        id: comment
         uses: actions/github-script@v7
         with:
           script: |
-            const araratPushed = '${{ steps.push-ararat-ui-web.outputs.pushed }}' === 'true';
-            const uiPushed = '${{ steps.push-ui-web.outputs.pushed }}' === 'true';
+            const araratHasChanges = '${{ steps.push-ararat-ui-web.outputs.has_changes }}' === 'true';
+            const uiHasChanges = '${{ steps.push-ui-web.outputs.has_changes }}' === 'true';
             
-            let message = '## Submodule Sync Status\n\n';
+            let message = '## 🔄 Submodule Sync Status\n\n';
             
-            if (araratPushed) {
-              message += '✅ Successfully pushed changes to `ararat-ui-web` submodule (branch: ${{ steps.push-ararat-ui-web.outputs.branch }})\n';
+            if (araratHasChanges) {
+              message += '### ararat-ui-web\n';
+              message += '✅ Successfully created PR for submodule changes\n';
+              message += `- **Branch**: \`${{ steps.push-ararat-ui-web.outputs.branch }}\`\n`;
+              message += `- **Base**: \`${{ steps.push-ararat-ui-web.outputs.base_branch }}\`\n`;
+              message += `- **PR**: [View PR](https://github.com/hyecompany/ararat-ui-web/pulls)\n\n`;
             }
             
-            if (uiPushed) {
-              message += '✅ Successfully pushed changes to `ui-web` submodule\n';
+            if (uiHasChanges) {
+              message += '### ui-web\n';
+              message += '✅ Successfully created PR for submodule changes\n';
+              message += `- **Branch**: \`${{ steps.push-ui-web.outputs.branch }}\`\n`;
+              message += `- **Base**: \`${{ steps.push-ui-web.outputs.base_branch }}\`\n`;
+              message += `- **PR**: [View PR](https://github.com/hyecompany/ui-web/pulls)\n\n`;
             }
             
-            if (!araratPushed && !uiPushed) {
-              message += 'ℹ️ No submodule changes needed to be pushed.\n';
+            if (!araratHasChanges && !uiHasChanges) {
+              message += 'ℹ️ No submodule changes needed to be synced.\n\n';
             }
             
-            github.rest.issues.createComment({
+            if (araratHasChanges || uiHasChanges) {
+              message += '---\n\n';
+              message += '**Next Steps:**\n';
+              message += '1. Review and merge the submodule PR(s) above\n';
+              message += '2. Once merged, update this PR to point to the merged commits\n';
+              message += '3. This PR can then be merged\n';
+            }
+            
+            await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
