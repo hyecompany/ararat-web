@@ -124,10 +124,7 @@ export async function saveFileContent(
   }
 }
 
-export async function getFileMetadata(
-  instanceName: string,
-  filePath: string,
-) {
+export async function getFileMetadata(instanceName: string, filePath: string) {
   const res = await fetch(
     getApiUrl(
       `/1.0/instances/${instanceName}/files?path=${encodeURIComponent(filePath)}`,

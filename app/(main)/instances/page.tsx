@@ -7,7 +7,7 @@ import {
   RotateCcwIcon,
   SnowflakeIcon,
   SquareIcon,
-  TrashIcon,
+  Trash2Icon,
 } from 'lucide-react';
 
 import CreateInstance from './_components/create';
@@ -16,6 +16,7 @@ import { Input } from '@/app/_components/ui/input';
 import { Skeleton } from '@/app/_components/ui/skeleton';
 import { useInstances } from '@/app/(main)/instances/_hooks/instances';
 import type { Instance, InstanceState } from './_lib/instances.d';
+import { deleteInstance } from './_lib/instances';
 import { Badge } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
 import {
@@ -34,6 +35,16 @@ import { Spinner } from '@/app/_components/ui/spinner';
 import ProjectsContext from '@/app/(main)/_context/projects';
 import { Progress } from '@/app/_components/ui/progress';
 import IsClientContext from '@/app/_context/isClient';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './_components/alert-dialog';
 import { useRouter } from 'next/navigation';
 
 type InstanceAction = 'start' | 'stop' | 'restart' | 'freeze' | 'delete';
@@ -47,6 +58,20 @@ const instanceActionDetails: Record<
   restart: { label: 'Restart', Icon: RotateCcwIcon },
   freeze: { label: 'Freeze', Icon: SnowflakeIcon },
 };
+
+function isDeleteProtected(instance: Instance): boolean {
+  const config = instance.expanded_config ?? instance.config ?? {};
+  return config['security.protection.delete'] === 'true';
+}
+
+function isRunning(instance: Instance): boolean {
+  const status = instance.status?.toLowerCase();
+  return status === 'running' || status === 'started';
+}
+
+function canDelete(instance: Instance): boolean {
+  return !isDeleteProtected(instance) && !isRunning(instance);
+}
 
 async function performInstanceAction({
   action,
@@ -116,6 +141,10 @@ export default function Instances() {
     React.useState<Instance | null>(null);
   const [isSheetOpen, setIsSheetOpen] = React.useState(false);
   const isClient = use(IsClientContext);
+  const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
+  const [deleteInFlight, setDeleteInFlight] = React.useState(false);
+  const [singleDeleteInstance, setSingleDeleteInstance] =
+    React.useState<Instance | null>(null);
 
   const columns = React.useMemo(() => {
     const baseColumns = [
@@ -276,6 +305,83 @@ export default function Instances() {
     setIsSheetOpen(true);
   }, []);
 
+  // Compute deletable, protected, and running instances for mass deletion
+  const deletableInstances = React.useMemo(
+    () => selectedInstances.filter((instance) => canDelete(instance)),
+    [selectedInstances],
+  );
+  const protectedInstances = React.useMemo(
+    () => selectedInstances.filter((instance) => isDeleteProtected(instance)),
+    [selectedInstances],
+  );
+  const runningInstances = React.useMemo(
+    () =>
+      selectedInstances.filter(
+        (instance) => isRunning(instance) && !isDeleteProtected(instance),
+      ),
+    [selectedInstances],
+  );
+
+  // Open the mass delete confirmation dialog
+  const openMassDeleteDialog = React.useCallback(() => {
+    setSingleDeleteInstance(null);
+    setDeleteDialogOpen(true);
+  }, []);
+
+  // Open the single instance delete confirmation dialog
+  const openSingleDeleteDialog = React.useCallback((instance: Instance) => {
+    setSingleDeleteInstance(instance);
+    setDeleteDialogOpen(true);
+  }, []);
+
+  // Perform the delete action
+  const handleDelete = React.useCallback(async () => {
+    const instancesToDelete = singleDeleteInstance
+      ? [singleDeleteInstance]
+      : deletableInstances;
+    if (instancesToDelete.length === 0) return;
+
+    try {
+      setActionError(null);
+      setDeleteInFlight(true);
+      const results = await Promise.all(
+        instancesToDelete.map((instance) =>
+          deleteInstance(
+            instance.name,
+            currentProject === 'all'
+              ? (instance.project ?? null)
+              : (currentProject ?? instance.project ?? null),
+          ),
+        ),
+      );
+      const errors = results.filter((r) => r.error).map((r) => r.error);
+      if (errors.length > 0) {
+        setActionError(errors.join('; '));
+        return; // Keep dialog open when there are errors
+      }
+      await mutate();
+      setSelectedInstances([]); // Clear selection after successful deletion
+      setDeleteDialogOpen(false);
+      setSingleDeleteInstance(null);
+      if (singleDeleteInstance && isSheetOpen) {
+        setIsSheetOpen(false);
+        setInspectorInstance(null);
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Unable to delete instances.';
+      setActionError(message);
+    } finally {
+      setDeleteInFlight(false);
+    }
+  }, [
+    currentProject,
+    deletableInstances,
+    mutate,
+    singleDeleteInstance,
+    isSheetOpen,
+  ]);
+
   const isBusy = (isLoading && !data) || !isClient;
 
   React.useEffect(() => {
@@ -315,7 +421,7 @@ export default function Instances() {
                     key={action}
                     variant="outline"
                     size="sm"
-                    disabled={actionInFlight !== null}
+                    disabled={actionInFlight !== null || deleteInFlight}
                     onClick={() => handleMassAction(action)}
                   >
                     {actionInFlight === action ? (
@@ -326,27 +432,17 @@ export default function Instances() {
                     {label}
                   </Button>
                 ))}
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  disabled={actionInFlight !== null}
-                  onClick={() => {
-                    if (
-                      confirm(
-                        `Are you sure you want to delete ${selectedInstances.length} instance(s)?`,
-                      )
-                    ) {
-                      handleMassAction('delete');
-                    }
-                  }}
-                >
-                  {actionInFlight === 'delete' ? (
-                    <Spinner className="mr-2 size-3" />
-                  ) : (
-                    <TrashIcon className="mr-2 size-3" />
-                  )}
-                  Delete
-                </Button>
+                {deletableInstances.length > 0 && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={actionInFlight !== null || deleteInFlight}
+                    onClick={openMassDeleteDialog}
+                  >
+                    <Trash2Icon className="mr-2 size-3" />
+                    Delete
+                  </Button>
+                )}
               </div>
             ) : (
               <CreateInstance className="w-full sm:w-auto" />
@@ -398,7 +494,14 @@ export default function Instances() {
       >
         <SheetContent side="right" className="sm:max-w-md">
           {inspectorInstance ? (
-            <InstanceDetails instance={inspectorInstance} />
+            <InstanceDetails
+              instance={inspectorInstance}
+              onDelete={
+                canDelete(inspectorInstance)
+                  ? () => openSingleDeleteDialog(inspectorInstance)
+                  : undefined
+              }
+            />
           ) : (
             <div className="p-4 text-sm text-muted-foreground">
               Select an instance to view its details.
@@ -406,11 +509,89 @@ export default function Instances() {
           )}
         </SheetContent>
       </Sheet>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {singleDeleteInstance
+                ? `Delete ${singleDeleteInstance.name}?`
+                : `Delete ${deletableInstances.length} instance${deletableInstances.length === 1 ? '' : 's'}?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {singleDeleteInstance ? (
+                <>
+                  This action cannot be undone. This will permanently delete the
+                  instance <strong>{singleDeleteInstance.name}</strong> and all
+                  its data.
+                </>
+              ) : (
+                <>
+                  This action cannot be undone. This will permanently delete the
+                  following instances and all their data:
+                  <ul className="list-disc list-inside mt-2">
+                    {deletableInstances.map((instance) => (
+                      <li key={instance.name}>{instance.name}</li>
+                    ))}
+                  </ul>
+                  {runningInstances.length > 0 && (
+                    <div className="mt-3 p-3 rounded-md bg-muted text-muted-foreground">
+                      <strong>Note:</strong> The following instances are
+                      currently running and must be stopped before deletion:
+                      <ul className="list-disc list-inside mt-1">
+                        {runningInstances.map((instance) => (
+                          <li key={instance.name}>{instance.name}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {protectedInstances.length > 0 && (
+                    <div className="mt-3 p-3 rounded-md bg-muted text-muted-foreground">
+                      <strong>Note:</strong> The following instances have delete
+                      protection enabled and will not be deleted:
+                      <ul className="list-disc list-inside mt-1">
+                        {protectedInstances.map((instance) => (
+                          <li key={instance.name}>{instance.name}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteInFlight}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleteInFlight}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              {deleteInFlight ? (
+                <>
+                  <Spinner className="mr-2 size-4" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
 
-function InstanceDetails({ instance }: { instance: Instance }) {
+function InstanceDetails({
+  instance,
+  onDelete,
+}: {
+  instance: Instance;
+  onDelete?: () => void;
+}) {
   const memoryUsage = instance.state?.memory?.usage;
   const diskUsage = getRootDiskUsage(instance.state);
   const networkDetails = React.useMemo(
@@ -571,6 +752,19 @@ function InstanceDetails({ instance }: { instance: Instance }) {
             </p>
           )}
         </Section>
+        {onDelete && (
+          <Section title="Danger Zone">
+            <Button
+              variant="destructive"
+              size="sm"
+              className="w-full"
+              onClick={onDelete}
+            >
+              <Trash2Icon className="mr-2 size-4" />
+              Delete Instance
+            </Button>
+          </Section>
+        )}
       </div>
     </>
   );

@@ -199,7 +199,8 @@ export function FileBrowser({
         const name = row.original.name;
         const type = row.original.type;
         // Fallback to extension check if type is missing
-        const isDirectory = type === 'directory' || (!type && !name.includes('.'));
+        const isDirectory =
+          type === 'directory' || (!type && !name.includes('.'));
 
         return (
           <div className="flex items-center gap-2">
@@ -250,7 +251,8 @@ export function FileBrowser({
       cell: ({ row }) => {
         const name = row.original.name;
         const type = row.original.type;
-        const isDirectory = type === 'directory' || (!type && !name.includes('.'));
+        const isDirectory =
+          type === 'directory' || (!type && !name.includes('.'));
         const fullPath = `${currentPath === '/' ? '' : currentPath}/${name}`;
 
         return (
