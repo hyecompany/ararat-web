@@ -108,10 +108,7 @@ export default function ConsolePage() {
             </DialogDescription>
           </DialogHeader>
           {showExecTerminal && (
-            <InstanceExec
-              command={execCommand}
-              onClose={handleCloseExecTerminal}
-            />
+            <InstanceExec command={execCommand} />
           )}
           <DialogFooter>
             <Button variant="outline" onClick={handleCloseExecTerminal}>
