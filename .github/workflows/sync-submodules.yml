@@ -1,0 +1,146 @@
+name: Sync Submodule Changes
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to sync submodules for'
+        required: true
+        type: number
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync-submodules:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
+          fetch-depth: 0
+          submodules: recursive
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Check and push ararat-ui-web submodule changes
+        id: push-ararat-ui-web
+        run: |
+          cd deps/ararat-ui-web
+          
+          # Get current branch
+          CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+          echo "Current branch in submodule: $CURRENT_BRANCH"
+          
+          # Check if there are unpushed commits
+          UNPUSHED=$(git log origin/$CURRENT_BRANCH..$CURRENT_BRANCH --oneline 2>/dev/null || echo "")
+          
+          if [ -n "$UNPUSHED" ]; then
+            echo "Found unpushed commits in ararat-ui-web submodule:"
+            echo "$UNPUSHED"
+            
+            # Try to push with the GitHub token
+            git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/hyecompany/ararat-ui-web.git
+            
+            if git push origin $CURRENT_BRANCH; then
+              echo "✅ Successfully pushed ararat-ui-web submodule changes"
+              echo "pushed=true" >> $GITHUB_OUTPUT
+              echo "branch=$CURRENT_BRANCH" >> $GITHUB_OUTPUT
+            else
+              echo "❌ Failed to push ararat-ui-web submodule changes"
+              echo "This may require manual intervention or additional permissions"
+              echo "pushed=false" >> $GITHUB_OUTPUT
+              exit 1
+            fi
+          else
+            echo "No unpushed commits in ararat-ui-web submodule"
+            echo "pushed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check and push ui-web submodule changes
+        id: push-ui-web
+        run: |
+          cd deps/ui-web
+          
+          # Get current branch
+          CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+          echo "Current branch in submodule: $CURRENT_BRANCH"
+          
+          # Check if there are unpushed commits
+          UNPUSHED=$(git log origin/$CURRENT_BRANCH..$CURRENT_BRANCH --oneline 2>/dev/null || echo "")
+          
+          if [ -n "$UNPUSHED" ]; then
+            echo "Found unpushed commits in ui-web submodule:"
+            echo "$UNPUSHED"
+            
+            # Try to push with the GitHub token
+            git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/hyecompany/ui-web.git
+            
+            if git push origin $CURRENT_BRANCH; then
+              echo "✅ Successfully pushed ui-web submodule changes"
+              echo "pushed=true" >> $GITHUB_OUTPUT
+            else
+              echo "❌ Failed to push ui-web submodule changes"
+              echo "This may require manual intervention or additional permissions"
+              echo "pushed=false" >> $GITHUB_OUTPUT
+              exit 1
+            fi
+          else
+            echo "No unpushed commits in ui-web submodule"
+            echo "pushed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update submodule references
+        if: steps.push-ararat-ui-web.outputs.pushed == 'true' || steps.push-ui-web.outputs.pushed == 'true'
+        run: |
+          # Update the submodule references in the main repo
+          git add deps/ararat-ui-web deps/ui-web
+          
+          if git diff --cached --quiet; then
+            echo "No submodule reference changes to commit"
+          else
+            git commit -m "Update submodule references after pushing changes
+
+            This commit updates the submodule pointers after successfully pushing:
+            - ararat-ui-web: ${{ steps.push-ararat-ui-web.outputs.pushed }}
+            - ui-web: ${{ steps.push-ui-web.outputs.pushed }}"
+            
+            git push origin ${{ github.event.pull_request.head.ref || github.ref }}
+          fi
+
+      - name: Comment on PR
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const araratPushed = '${{ steps.push-ararat-ui-web.outputs.pushed }}' === 'true';
+            const uiPushed = '${{ steps.push-ui-web.outputs.pushed }}' === 'true';
+            
+            let message = '## Submodule Sync Status\n\n';
+            
+            if (araratPushed) {
+              message += '✅ Successfully pushed changes to `ararat-ui-web` submodule (branch: ${{ steps.push-ararat-ui-web.outputs.branch }})\n';
+            }
+            
+            if (uiPushed) {
+              message += '✅ Successfully pushed changes to `ui-web` submodule\n';
+            }
+            
+            if (!araratPushed && !uiPushed) {
+              message += 'ℹ️ No submodule changes needed to be pushed.\n';
+            }
+            
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: message
+            });
