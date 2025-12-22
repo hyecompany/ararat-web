@@ -50,7 +50,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9.39.1",
-    "eslint-config-next": "^16.0.10",
+    "eslint-config-next": "^16.1.0",
     "prettier": "^3.3.3",
     "shadcn": "^3.6.1",
     "tailwindcss": "^4",
