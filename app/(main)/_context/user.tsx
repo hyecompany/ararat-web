@@ -28,7 +28,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const isClient = use(IsClientContext);
 
   return (
-    <UserContext
+    <UserContext.Provider
       value={{
         data,
         isLoading: userIsLoading || !isClient,
@@ -36,6 +36,6 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       }}
     >
       {children}
-    </UserContext>
+    </UserContext.Provider>
   );
 }

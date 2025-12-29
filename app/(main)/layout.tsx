@@ -8,7 +8,6 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const variant = 'inset';
   return (
     <UserProvider>
       <SidebarProvider
@@ -20,24 +19,12 @@ export default function DashboardLayout({
           } as React.CSSProperties
         }
       >
-        <AppSidebar variant={variant} />
-        {variant != 'inset' ? (
-          <>
-            <div className="w-full h-full">
-              <div className="flex flex-1 flex-col">
-                <div className="@container/main flex flex-1 flex-col gap-2">
-                  {children}
-                </div>
-              </div>
-            </div>
-          </>
-        ) : (
-          <SidebarInset>
-            <ProjectsProvider>
-              {children}
-            </ProjectsProvider>
-          </SidebarInset>
-        )}
+        <AppSidebar variant="inset" />
+        <SidebarInset>
+          <ProjectsProvider>
+            {children}
+          </ProjectsProvider>
+        </SidebarInset>
       </SidebarProvider>
     </UserProvider>
   );

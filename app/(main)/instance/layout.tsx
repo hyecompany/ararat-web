@@ -77,7 +77,7 @@ function InstanceLayoutContent({ children }: { children: React.ReactNode }) {
           <Alert variant="destructive">
             <AlertTitle>Error</AlertTitle>
             <AlertDescription>
-              {isError?.message || 'Instance not found.'}
+              Instance not found or failed to load.
             </AlertDescription>
           </Alert>
         </div>
@@ -268,17 +268,11 @@ const TABS = [
   { value: 'configuration', label: 'Configuration', icon: Settings },
 ];
 
-function InstanceTabs() {
-  const pathname = usePathname();
-  const { name: instanceName } = useInstanceContext();
-
-  // Determine current tab based on pathname
-  // /instance -> dashboard
-  // /instance/backups -> backups
-  // etc.
-  // More robust logic: extract tab from pathname, supporting only known tabs.
+function getTabFromPathname(pathname: string): string {
+  // Default to dashboard
   let currentTab = 'dashboard';
-  if (pathname.startsWith('/instance/')) {
+
+  if (pathname && pathname.startsWith('/instance/')) {
     // Take the segment after /instance/
     const segment = pathname.replace(/^\/instance\/?/, '').split('/')[0];
     // Match only known TABS by value
@@ -287,6 +281,15 @@ function InstanceTabs() {
     }
   }
 
+  return currentTab;
+}
+
+function InstanceTabs() {
+  const pathname = usePathname();
+  const { name: instanceName } = useInstanceContext();
+
+  const currentTab = getTabFromPathname(pathname);
+
   return (
     <Tabs value={currentTab} className="w-full">
       <div className="w-full overflow-x-auto">
@@ -294,7 +297,7 @@ function InstanceTabs() {
           {TABS.map((tab) => {
             const targetPath =
               tab.value === 'dashboard' ? '/instance' : `/instance/${tab.value}`;
-            
+            const Icon = tab.icon;
             return (
               <TabsTrigger key={tab.value} value={tab.value} asChild>
                 <Link
@@ -303,7 +306,7 @@ function InstanceTabs() {
                     query: instanceName ? { name: instanceName } : undefined,
                   }}
                 >
-                  <tab.icon aria-hidden="true" className="mr-2 h-4 w-4" />
+                  <Icon aria-hidden="true" className="mr-2 h-4 w-4" />
                   {tab.label}
                 </Link>
               </TabsTrigger>
