@@ -236,7 +236,6 @@ export function useFiles(instanceName: string, path: string) {
   ) => {
     const parentPath = normalizedPath === '/' ? '' : normalizedPath;
     const oldPath = `${parentPath}/${oldName}`;
-    const newPath = `${parentPath}/${newName}`;
 
     try {
       // Signal start
