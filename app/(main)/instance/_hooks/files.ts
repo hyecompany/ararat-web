@@ -242,7 +242,7 @@ export function useFiles(instanceName: string, path: string) {
       onProgress?.(0);
 
       // 1. Read old content
-      const { content, mode } = await apiFetchFileContent(
+      const { content } = await apiFetchFileContent(
         instanceName,
         oldPath,
       );
