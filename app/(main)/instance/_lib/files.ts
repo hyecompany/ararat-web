@@ -3,32 +3,75 @@ export function getApiUrl(path: string) {
   return `${window.location.origin}${path}`;
 }
 
-export async function uploadFile(
+export function uploadFile(
   instanceName: string,
   currentPath: string,
   file: File,
-) {
-  const filePath = `${currentPath === '/' ? '' : currentPath}/${file.name}`;
-  const res = await fetch(
-    getApiUrl(
+  onProgress?: (progress: number) => void,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const filePath = `${currentPath === '/' ? '' : currentPath}/${file.name}`;
+    const xhr = new XMLHttpRequest();
+    const url = getApiUrl(
       `/1.0/instances/${instanceName}/files?path=${encodeURIComponent(filePath)}`,
-    ),
-    {
-      method: 'POST',
-      headers: {
-        'X-Incus-uid': '0',
-        'X-Incus-gid': '0',
-        'X-Incus-mode': '0755',
-        'X-Incus-type': 'file',
-        'X-Incus-write': 'overwrite',
-      },
-      body: file,
-    },
-  );
+    );
 
-  if (!res.ok) {
-    throw new Error(res.statusText);
-  }
+    xhr.open('POST', url);
+    xhr.setRequestHeader('X-Incus-uid', '0');
+    xhr.setRequestHeader('X-Incus-gid', '0');
+    const scriptExtensions = [
+      '.sh',
+      '.bash',
+      '.py',
+      '.pl',
+      '.rb',
+      '.js',
+      '.mjs',
+      '.cjs',
+      '.bat',
+      '.cgi',
+      '.php',
+    ];
+    const extIndex = file.name.lastIndexOf('.');
+    const ext =
+      extIndex > 0 ? file.name.slice(extIndex).toLowerCase() : undefined;
+    const isExecutable = ext ? scriptExtensions.includes(ext) : false;
+    xhr.setRequestHeader('X-Incus-mode', isExecutable ? '0755' : '0644');
+    xhr.setRequestHeader('X-Incus-type', 'file');
+    xhr.setRequestHeader('X-Incus-write', 'overwrite');
+
+    if (onProgress) {
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const percentComplete = (event.loaded / event.total) * 100;
+          onProgress(percentComplete);
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+      } else {
+        reject(new Error(xhr.statusText || 'Upload failed'));
+      }
+    };
+
+    xhr.onerror = () => {
+      reject(new Error('Network error'));
+    };
+
+    xhr.send(file);
+  });
+}
+
+export async function createFile(
+  instanceName: string,
+  currentPath: string,
+  fileName: string,
+) {
+  const filePath = `${currentPath === '/' ? '' : currentPath}/${fileName}`;
+  await saveFileContent(instanceName, filePath, '');
 }
 
 export async function createDirectory(

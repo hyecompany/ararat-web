@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import useSWR, { mutate } from 'swr';
+import EventEmitterContext from '../../../_context/events';
 import {
   uploadFile as apiUploadFile,
   createDirectory as apiCreateDirectory,
@@ -8,7 +9,9 @@ import {
   fetchFileContent as apiFetchFileContent,
   saveFileContent as apiSaveFileContent,
   getFileMetadata as apiFetchFileMetadata,
+  createFile as apiCreateFile,
 } from '../_lib/files';
+import { incusEventTarget } from '../../../_context/events';
 
 const directoryFetcher = async (url: string) => {
   const res = await fetch(url);
@@ -34,10 +37,21 @@ const directoryFetcher = async (url: string) => {
 export function useFiles(instanceName: string, path: string) {
   // Ensure path starts with /
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const getSWRKey = (p: string) => {
+    const norm = p.startsWith('/') ? p : `/${p}`;
+    return `/1.0/instances/${instanceName}/files?path=${encodeURIComponent(norm)}`;
+  };
+  const revalidateCurrentPath = () =>
+    mutate(getSWRKey(normalizedPath), undefined, { revalidate: true });
+  const scheduleRevalidate = () => {
+    revalidateCurrentPath();
+    // Some Incus operations emit events slightly before the listing is updated; re-run shortly after.
+    setTimeout(revalidateCurrentPath, 300);
+  };
 
   // Fetch file listing
   const { data, error, isLoading } = useSWR(
-    `/1.0/instances/${instanceName}/files?path=${encodeURIComponent(normalizedPath)}`,
+    getSWRKey(normalizedPath),
     directoryFetcher,
   );
 
@@ -84,27 +98,176 @@ export function useFiles(instanceName: string, path: string) {
     fetchMetadata();
   }, [data, instanceName, normalizedPath]);
 
-  const uploadFile = async (currentPath: string, file: File) => {
-    await apiUploadFile(instanceName, currentPath, file);
-    await mutate(
-      `/1.0/instances/${instanceName}/files?path=${encodeURIComponent(currentPath)}`,
-    );
+  const { socket } = useContext(EventEmitterContext);
+
+  // Listen for Incus events (via WebSocket and shared EventTarget) to revalidate when files change
+  useEffect(() => {
+    const handleIncusEvent = (data: any) => {
+      try {
+        const { type, metadata } = data || {};
+        if (!type) return;
+
+        if (type === 'lifecycle' && metadata) {
+          const { action, source } = metadata as {
+            action?: string;
+            source?: string;
+          };
+          const sourceText = source || '';
+          const isSameInstance = sourceText.includes(
+            `/1.0/instances/${instanceName}`,
+          );
+          if (!isSameInstance) return;
+
+          // Prefer matching known actions but don't rely on exact names.
+          const fileActions = new Set([
+            'instance-file-pushed',
+            'instance-file-deleted',
+            'instance-file-retrieved',
+            'instance-file-created',
+          ]);
+          if (action && fileActions.has(action)) {
+            scheduleRevalidate();
+            return;
+          }
+
+          // Fallback: refresh on any lifecycle event for this instance (covers mislabelled actions).
+          scheduleRevalidate();
+          return;
+        }
+
+        if (type === 'operation' && metadata) {
+          const resources = (metadata as any).resources as
+            | Record<string, string[]>
+            | undefined;
+          const instanceResources =
+            resources?.instances || resources?.instance || resources?.target;
+          const touchesInstance = Array.isArray(instanceResources)
+            ? instanceResources.some((r) =>
+                r.includes(`/instances/${instanceName}`),
+              )
+            : false;
+          if (touchesInstance) {
+            scheduleRevalidate();
+            return;
+          }
+
+          // Some operations report the target instance in metadata context instead of resources.
+          const maybeContext = (metadata as any).context;
+          const ctxInstance =
+            maybeContext?.instance ||
+            maybeContext?.target ||
+            maybeContext?.name ||
+            '';
+          if (
+            typeof ctxInstance === 'string' &&
+            ctxInstance.includes(instanceName)
+          ) {
+            scheduleRevalidate();
+          }
+        }
+      } catch (e) {
+        console.error('Failed to handle lifecycle message', e);
+      }
+    };
+
+    const socketListener = (event: MessageEvent) => {
+      try {
+        const parsed = JSON.parse(event.data);
+        handleIncusEvent(parsed);
+      } catch (e) {
+        console.error('Failed to parse Incus event', e);
+      }
+    };
+
+    if (socket) {
+      socket.addEventListener('message', socketListener);
+    }
+
+    const eventTargetListener = (event: Event) => {
+      const custom = event as CustomEvent;
+      handleIncusEvent(custom.detail);
+    };
+
+    if (incusEventTarget) {
+      incusEventTarget.addEventListener('incus-event', eventTargetListener);
+    }
+
+    return () => {
+      if (socket) {
+        socket.removeEventListener('message', socketListener);
+      }
+      if (incusEventTarget) {
+        incusEventTarget.removeEventListener(
+          'incus-event',
+          eventTargetListener,
+        );
+      }
+    };
+  }, [socket, instanceName, normalizedPath]);
+
+  const uploadFile = async (
+    currentPath: string,
+    file: File,
+    onProgress?: (progress: number) => void,
+  ) => {
+    await apiUploadFile(instanceName, currentPath, file, onProgress);
+    await revalidateCurrentPath();
+  };
+
+  const createFile = async (currentPath: string, fileName: string) => {
+    await apiCreateFile(instanceName, currentPath, fileName);
+    await revalidateCurrentPath();
   };
 
   const createDirectory = async (currentPath: string, dirName: string) => {
     await apiCreateDirectory(instanceName, currentPath, dirName);
-    await mutate(
-      `/1.0/instances/${instanceName}/files?path=${encodeURIComponent(currentPath)}`,
-    );
+    await revalidateCurrentPath();
   };
 
   const deleteFile = async (filePath: string) => {
     await apiDeleteFile(instanceName, filePath);
-    // Mutate the parent directory
-    const parentPath = filePath.substring(0, filePath.lastIndexOf('/')) || '/';
-    await mutate(
-      `/1.0/instances/${instanceName}/files?path=${encodeURIComponent(parentPath)}`,
-    );
+    await revalidateCurrentPath();
+  };
+
+  const renameFile = async (
+    oldName: string,
+    newName: string,
+    onProgress?: (progress: number) => void,
+  ) => {
+    const parentPath = normalizedPath === '/' ? '' : normalizedPath;
+    const oldPath = `${parentPath}/${oldName}`;
+    const newPath = `${parentPath}/${newName}`;
+
+    try {
+      // Signal start
+      onProgress?.(0);
+
+      // 1. Read old content
+      const { content, mode } = await apiFetchFileContent(
+        instanceName,
+        oldPath,
+      );
+      onProgress?.(50);
+
+      // 2. Upload new file with progress tracking
+      const blob = new Blob([content], { type: 'application/octet-stream' });
+      const file = new File([blob], newName, {
+        type: 'application/octet-stream',
+      });
+      await apiUploadFile(instanceName, parentPath, file, (p) => {
+        if (p === undefined || p === null) return;
+        // Map 0-100 upload to 50-100 overall
+        const scaled = 50 + p / 2;
+        onProgress?.(scaled);
+      });
+      // 3. Delete old file
+      await apiDeleteFile(instanceName, oldPath);
+      onProgress?.(100);
+      await revalidateCurrentPath();
+    } catch (e) {
+      console.error('Failed to rename file:', e);
+      throw e;
+    }
   };
 
   const downloadFile = (filePath: string) => {
@@ -121,6 +284,7 @@ export function useFiles(instanceName: string, path: string) {
     mode?: string,
   ) => {
     await apiSaveFileContent(instanceName, filePath, content, mode);
+    await revalidateCurrentPath();
   };
 
   return {
@@ -129,7 +293,9 @@ export function useFiles(instanceName: string, path: string) {
     isError: error,
     uploadFile,
     createDirectory,
+    createFile,
     deleteFile,
+    renameFile,
     downloadFile,
     fetchFileContent,
     saveFileContent,
