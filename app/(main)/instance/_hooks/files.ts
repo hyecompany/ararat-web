@@ -14,6 +14,9 @@ import {
 } from '../_lib/files';
 import { incusEventTarget } from '../../../_context/events';
 
+// Delay (in milliseconds) before revalidating file listings after Incus events
+const REVALIDATE_DEBOUNCE_MS = 300;
+
 const directoryFetcher = async (url: string) => {
   const res = await fetch(url);
   if (!res.ok) {
@@ -53,7 +56,7 @@ export function useFiles(instanceName: string, path: string) {
       clearTimeout(revalidateTimeoutRef.current);
     }
     // Some Incus operations emit events slightly before the listing is updated; re-run shortly after.
-    revalidateTimeoutRef.current = setTimeout(revalidateCurrentPath, 300);
+    revalidateTimeoutRef.current = setTimeout(revalidateCurrentPath, REVALIDATE_DEBOUNCE_MS);
   };
 
   // Cleanup timeout on unmount
@@ -254,7 +257,7 @@ export function useFiles(instanceName: string, path: string) {
         parentPath,
         file,
         (p) => {
-          if (p === undefined || p === null) return;
+          if (p == null) return;
           // Map 0-100 upload to 50-100 overall
           const scaled = 50 + p / 2;
           onProgress?.(scaled);

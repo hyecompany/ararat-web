@@ -3,6 +3,37 @@ export function getApiUrl(path: string) {
   return `${window.location.origin}${path}`;
 }
 
+/**
+ * Determines the appropriate file mode based on file name and optional override.
+ * @param filename The name of the file
+ * @param modeOverride Optional mode to use instead of auto-detection
+ * @returns The file mode string (e.g., '0755' for executables, '0644' for regular files)
+ */
+export function getFileMode(filename: string, modeOverride?: string): string {
+  if (modeOverride) {
+    return modeOverride;
+  }
+
+  const scriptExtensions = [
+    '.sh',
+    '.bash',
+    '.py',
+    '.pl',
+    '.rb',
+    '.js',
+    '.mjs',
+    '.cjs',
+    '.bat',
+    '.cgi',
+    '.php',
+  ];
+  const extIndex = filename.lastIndexOf('.');
+  const ext =
+    extIndex > 0 ? filename.slice(extIndex).toLowerCase() : undefined;
+  const isExecutable = ext ? scriptExtensions.includes(ext) : false;
+  return isExecutable ? '0755' : '0644';
+}
+
 export function uploadFile(
   instanceName: string,
   currentPath: string,
@@ -20,27 +51,7 @@ export function uploadFile(
     xhr.open('POST', url);
     xhr.setRequestHeader('X-Incus-uid', '0');
     xhr.setRequestHeader('X-Incus-gid', '0');
-    const scriptExtensions = [
-      '.sh',
-      '.bash',
-      '.py',
-      '.pl',
-      '.rb',
-      '.js',
-      '.mjs',
-      '.cjs',
-      '.bat',
-      '.cgi',
-      '.php',
-    ];
-    const extIndex = file.name.lastIndexOf('.');
-    const ext =
-      extIndex > 0 ? file.name.slice(extIndex).toLowerCase() : undefined;
-    const isExecutable = ext ? scriptExtensions.includes(ext) : false;
-    xhr.setRequestHeader(
-      'X-Incus-mode',
-      modeOverride || (isExecutable ? '0755' : '0644'),
-    );
+    xhr.setRequestHeader('X-Incus-mode', getFileMode(file.name, modeOverride));
     xhr.setRequestHeader('X-Incus-type', 'file');
     xhr.setRequestHeader('X-Incus-write', 'overwrite');
 
