@@ -56,14 +56,14 @@ export function useFiles(instanceName: string, path: string) {
     revalidateTimeoutRef.current = setTimeout(revalidateCurrentPath, 300);
   };
 
-  // Cleanup timeout on unmount or path change
+  // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
       if (revalidateTimeoutRef.current) {
         clearTimeout(revalidateTimeoutRef.current);
       }
     };
-  }, [normalizedPath]);
+  }, []);
 
   // Fetch file listing
   const { data, error, isLoading } = useSWR(

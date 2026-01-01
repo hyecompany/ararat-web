@@ -635,14 +635,13 @@ export function FileBrowser({
           className="absolute right-4 top-4 z-40 min-w-[220px] rounded-md border bg-card p-3 shadow"
           role="status"
           aria-live="polite"
-          aria-label={`Uploading ${dropFileName}: ${Math.round(dropProgress)}% complete`}
         >
-          <div className="text-sm font-medium truncate">
+          <div className="text-sm font-medium truncate" aria-label={`Uploading ${dropFileName}`}>
             Uploading {dropFileName}
           </div>
           <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-            <Progress value={dropProgress} className="h-2 flex-1" />
-            <span>{Math.round(dropProgress)}%</span>
+            <Progress value={dropProgress} className="h-2 flex-1" aria-label={`Upload progress: ${Math.round(dropProgress)}%`} />
+            <span aria-live="off">{Math.round(dropProgress)}%</span>
           </div>
         </div>
       )}
