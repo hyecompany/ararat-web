@@ -1335,7 +1335,7 @@ function UploadFileDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="outline">
+        <Button>
           <UploadIcon className="mr-2 h-4 w-4" />
           Upload
         </Button>
