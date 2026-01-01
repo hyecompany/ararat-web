@@ -19,6 +19,14 @@ import { incusEventTarget } from '../../../_context/events';
 // Delay (in milliseconds) before revalidating file listings after Incus events
 const REVALIDATE_DEBOUNCE_MS = 300;
 
+// Set of known file-related actions that should trigger revalidation
+const FILE_ACTIONS = new Set([
+  'instance-file-pushed',
+  'instance-file-deleted',
+  'instance-file-retrieved',
+  'instance-file-created',
+]);
+
 const directoryFetcher = async (url: string) => {
   const res = await fetch(url);
   if (!res.ok) {
@@ -138,13 +146,7 @@ export function useFiles(instanceName: string, path: string) {
           if (!isSameInstance) return;
 
           // Prefer matching known actions but don't rely on exact names.
-          const fileActions = new Set([
-            'instance-file-pushed',
-            'instance-file-deleted',
-            'instance-file-retrieved',
-            'instance-file-created',
-          ]);
-          if (action && fileActions.has(action)) {
+          if (action && FILE_ACTIONS.has(action)) {
             scheduleRevalidate();
             return;
           }

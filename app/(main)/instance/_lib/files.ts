@@ -5,6 +5,13 @@ export function getApiUrl(path: string) {
 
 /**
  * Determines the appropriate file mode based on file name and optional override.
+ * 
+ * File modes are Unix permissions in octal notation:
+ * - '0755' grants read/write/execute for owner, read/execute for group and others
+ *   (used for script files like .sh, .py, .js to make them executable)
+ * - '0644' grants read/write for owner, read-only for group and others
+ *   (used for regular data files without execute permissions)
+ * 
  * @param filename The name of the file
  * @param modeOverride Optional mode to use instead of auto-detection
  * @returns The file mode string (e.g., '0755' for executables, '0644' for regular files)
@@ -279,7 +286,13 @@ export async function moveFile(
   const normalizedDestination = destinationPath.startsWith('/')
     ? destinationPath
     : `/${destinationPath}`;
-  const sourceName = normalizedSource.split('/').pop() || '';
+  const sourceName = normalizedSource.split('/').filter(Boolean).pop() || '';
+  if (!sourceName) {
+    // Defensive check: upstream path normalization should prevent this by
+    // ensuring file paths do not end with a trailing slash or contain empty segments,
+    // but we validate here to guarantee that a file name is always present.
+    throw new Error('Source path must include a valid file name');
+  }
 
   const sourceMeta = await getFileMetadata(instanceName, normalizedSource);
   if (sourceMeta.type === 'directory') {
