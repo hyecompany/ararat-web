@@ -262,7 +262,7 @@ export function useFiles(instanceName: string, path: string) {
         parentPath,
         file,
         (p) => {
-          if (p == null) return;
+          if (p === null || p === undefined) return;
           // Map 0-100 upload to 50-100 overall
           const scaled = 50 + p / 2;
           onProgress?.(scaled);
