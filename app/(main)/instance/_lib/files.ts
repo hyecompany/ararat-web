@@ -88,6 +88,20 @@ export async function createFile(
   fileName: string,
 ) {
   const filePath = `${currentPath === '/' ? '' : currentPath}/${fileName}`;
+  const res = await fetch(
+    getApiUrl(
+      `/1.0/instances/${instanceName}/files?path=${encodeURIComponent(filePath)}`,
+    ),
+    {
+      method: 'HEAD',
+    },
+  );
+  if (res.ok) {
+    throw new Error(`File "${fileName}" already exists`);
+  }
+  if (res.status !== 404) {
+    throw new Error(res.statusText);
+  }
   await saveFileContent(instanceName, filePath, '');
 }
 
