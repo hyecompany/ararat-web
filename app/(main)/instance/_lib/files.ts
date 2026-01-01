@@ -289,9 +289,9 @@ export async function moveFile(
   const sourceName = normalizedSource.split('/').filter(Boolean).pop() || '';
   if (!sourceName) {
     // Defensive check: upstream path normalization should prevent this by
-    // ensuring file paths do not end with a trailing slash, but we validate
-    // here to guarantee that a file name is always present.
-    throw new Error('Source path must include a file name and must not end with a trailing slash');
+    // ensuring file paths do not end with a trailing slash or contain empty segments,
+    // but we validate here to guarantee that a file name is always present.
+    throw new Error('Source path must include a valid file name');
   }
 
   const sourceMeta = await getFileMetadata(instanceName, normalizedSource);

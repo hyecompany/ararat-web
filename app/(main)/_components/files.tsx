@@ -131,8 +131,9 @@ function formatBytes(value?: number) {
 
 function getFileExtension(filename: string) {
   const parts = filename.split('.');
-  // No extension or dotfile without a real extension
-  if (parts.length <= 1 || (parts[0] === '' && parts.length === 2)) {
+  // No extension if no dots, or if it's a dotfile without an extension (e.g., '.bashrc')
+  const isDotfileWithoutExtension = parts[0] === '' && parts.length === 2;
+  if (parts.length <= 1 || isDotfileWithoutExtension) {
     return undefined;
   }
   return parts.pop()?.toLowerCase();
