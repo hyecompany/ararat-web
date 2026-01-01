@@ -208,3 +208,58 @@ export async function getFileMetadata(instanceName: string, filePath: string) {
     size: res.headers.get('Content-Length'),
   };
 }
+
+export async function moveFile(
+  instanceName: string,
+  sourcePath: string,
+  destinationPath: string,
+) {
+  const normalizedSource = sourcePath.startsWith('/')
+    ? sourcePath
+    : `/${sourcePath}`;
+  const normalizedDestination = destinationPath.startsWith('/')
+    ? destinationPath
+    : `/${destinationPath}`;
+  const sourceName = normalizedSource.split('/').pop() || '';
+
+  // Fetch source
+  const { data, mode } = await fetchFileBinary(instanceName, normalizedSource);
+
+  // Determine destination path. If the destination exists and is a directory,
+  // or the input ends with a slash, place the file inside using the same name.
+  let destinationIsDirectory = normalizedDestination.endsWith('/');
+  if (!destinationIsDirectory) {
+    try {
+      const meta = await getFileMetadata(instanceName, normalizedDestination);
+      destinationIsDirectory = meta.type === 'directory';
+    } catch (e) {
+      destinationIsDirectory = false;
+    }
+  }
+
+  const destinationPathWithName = destinationIsDirectory
+    ? `${normalizedDestination.replace(/\/$/, '') || '/'}${
+        normalizedDestination === '/' ? '' : '/'
+      }${sourceName}`
+    : normalizedDestination;
+
+  if (destinationPathWithName === normalizedSource) {
+    // No-op if destination is the same as source
+    return;
+  }
+
+  const destDir =
+    destinationPathWithName.substring(0, destinationPathWithName.lastIndexOf('/')) ||
+    '/';
+  const fileName = destinationPathWithName.split('/').pop() || '';
+  if (!fileName) {
+    throw new Error('Destination must include a file name');
+  }
+
+  const blob = new Blob([data], { type: 'application/octet-stream' });
+  const file = new File([blob], fileName, { type: 'application/octet-stream' });
+  await uploadFile(instanceName, destDir || '/', file, undefined, mode);
+
+  // Delete source; surface failure if cleanup fails
+  await deleteFile(instanceName, normalizedSource);
+}

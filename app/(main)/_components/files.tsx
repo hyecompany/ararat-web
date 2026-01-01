@@ -63,12 +63,13 @@ import {
   FileSpreadsheet,
   FileBox,
   FileSignature,
+  MoveRight,
 } from 'lucide-react';
 import { Progress } from 'ui-web/components/progress';
 import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
 import Editor from '@monaco-editor/react';
 import DataTable from 'ui-web/components/data-table';
-import { ColumnDef } from '@tanstack/react-table';
+import { ColumnDef, Row } from '@tanstack/react-table';
 
 interface FileBrowserProps {
   files: (string | FileItem)[];
@@ -90,6 +91,7 @@ interface FileBrowserProps {
     newName: string,
     onProgress?: (progress: number) => void,
   ) => Promise<void>;
+  onMove: (sourcePath: string, destinationPath: string) => Promise<void>;
   onDownload: (path: string) => void;
   onFetchContent: (path: string) => Promise<{ content: string; mode?: string }>;
   onSaveContent: (
@@ -213,6 +215,7 @@ export function FileBrowser({
   onCreateFile,
   onDelete,
   onRename,
+  onMove,
   onDownload,
   onFetchContent,
   onSaveContent,
@@ -228,6 +231,14 @@ export function FileBrowser({
   const [isInitialLoad, setIsInitialLoad] = React.useState(true);
   const [dropProgress, setDropProgress] = React.useState<number | null>(null);
   const [dropFileName, setDropFileName] = React.useState<string | null>(null);
+  const [selectedFiles, setSelectedFiles] = React.useState<FileItem[]>([]);
+  const [deleteTargets, setDeleteTargets] = React.useState<string[]>([]);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
+  const [isDeleting, setIsDeleting] = React.useState(false);
+  const [moveTargets, setMoveTargets] = React.useState<string[]>([]);
+  const [isMoveDialogOpen, setIsMoveDialogOpen] = React.useState(false);
+  const [moveDestination, setMoveDestination] = React.useState(currentPath);
+  const [isMoving, setIsMoving] = React.useState(false);
   const dragCounter = React.useRef(0);
   const { socket } = React.useContext(EventEmitterContext);
 
@@ -237,6 +248,14 @@ export function FileBrowser({
     setFileContent('');
     setFileMode(undefined);
     setDeletedFile(null);
+    setSelectedFiles([]);
+    setDeleteTargets([]);
+    setIsDeleteDialogOpen(false);
+    setIsDeleting(false);
+    setMoveTargets([]);
+    setIsMoveDialogOpen(false);
+    setMoveDestination(currentPath);
+    setIsMoving(false);
   }, [currentPath]);
 
   // Track when data loads for the first time (to distinguish initial load from refetches)
@@ -366,6 +385,11 @@ export function FileBrowser({
     setFileMode(undefined);
   };
 
+  const normalizeDestination = (path: string) => {
+    if (!path) return '/';
+    return path.startsWith('/') ? path : `/${path}`;
+  };
+
   const breadcrumbs = React.useMemo(() => {
     const path = editingFile ? editingFile : currentPath;
     const parts = path.split('/').filter(Boolean);
@@ -457,7 +481,7 @@ export function FileBrowser({
               <ContextMenuItem
                 onClick={() => {
                   const fullPath = `${currentPath === '/' ? '' : currentPath}/${name}`;
-                  onDelete(fullPath).catch((e) => setActionError(e.message));
+                  requestDelete(fullPath);
                 }}
                 className="text-red-600"
               >
@@ -527,6 +551,10 @@ export function FileBrowser({
                   <DownloadIcon className="mr-2 h-4 w-4" />
                   Download
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => requestMove(fullPath)}>
+                  <MoveRight className="mr-2 h-4 w-4" />
+                  Move
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => {
                     if (isDirectory) {
@@ -545,9 +573,7 @@ export function FileBrowser({
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  onClick={() =>
-                    onDelete(fullPath).catch((e) => setActionError(e.message))
-                  }
+                  onClick={() => requestDelete(fullPath)}
                   className="text-red-600"
                 >
                   <TrashIcon className="mr-2 h-4 w-4" />
@@ -560,6 +586,116 @@ export function FileBrowser({
       },
     },
   ];
+
+  const selectedPaths = React.useMemo(
+    () =>
+      selectedFiles.map(
+        (file) => `${currentPath === '/' ? '' : currentPath}/${file.name}`,
+      ),
+    [currentPath, selectedFiles],
+  );
+  const hasSelection = selectedPaths.length > 0;
+
+  const handleSelectionChange = React.useCallback(
+    (rows: Row<FileItem>[]) => {
+      const next = rows.map((row) => row.original);
+      if (
+        next.length === selectedFiles.length &&
+        next.every((item, idx) => item.name === selectedFiles[idx]?.name)
+      ) {
+        return;
+      }
+      setSelectedFiles(next);
+    },
+    [selectedFiles],
+  );
+
+  const clearSelection = React.useCallback(() => setSelectedFiles([]), []);
+
+  const handleBulkDownload = React.useCallback(() => {
+    selectedPaths.forEach((path) => onDownload(path));
+  }, [onDownload, selectedPaths]);
+
+  const requestDelete = React.useCallback(
+    (paths: string | string[]) => {
+      const targets = Array.isArray(paths) ? paths : [paths];
+      setDeleteTargets(targets);
+      setIsDeleteDialogOpen(true);
+    },
+    [setDeleteTargets, setIsDeleteDialogOpen],
+  );
+
+  const requestMove = React.useCallback(
+    (paths: string | string[]) => {
+      const targets = Array.isArray(paths) ? paths : [paths];
+      setMoveTargets(targets);
+      setMoveDestination(currentPath);
+      setIsMoveDialogOpen(true);
+    },
+    [currentPath],
+  );
+
+  const confirmDelete = React.useCallback(async () => {
+    if (deleteTargets.length === 0) {
+      setIsDeleteDialogOpen(false);
+      return;
+    }
+    setIsDeleting(true);
+    setActionError(null);
+    const errors: string[] = [];
+
+    try {
+      for (const path of deleteTargets) {
+        try {
+          await onDelete(path);
+        } catch (err: any) {
+          errors.push(`${path}: ${err?.message || 'Failed to delete'}`);
+        }
+      }
+
+      if (errors.length > 0) {
+        setActionError(errors.join('\n'));
+      }
+
+      clearSelection();
+    } finally {
+      setIsDeleting(false);
+      setIsDeleteDialogOpen(false);
+      setDeleteTargets([]);
+    }
+  }, [deleteTargets, onDelete, clearSelection]);
+
+  const confirmMove = React.useCallback(async () => {
+    if (moveTargets.length === 0) {
+      setIsMoveDialogOpen(false);
+      return;
+    }
+
+    const destinationInput = normalizeDestination(moveDestination);
+    setIsMoving(true);
+    setActionError(null);
+    const errors: string[] = [];
+
+    try {
+      for (const target of moveTargets) {
+        try {
+          await onMove(target, destinationInput);
+        } catch (err: any) {
+          errors.push(`${target}: ${err?.message || 'Failed to move'}`);
+        }
+      }
+
+      if (errors.length > 0) {
+        setActionError(errors.join('\n'));
+      }
+
+      clearSelection();
+    } finally {
+      setIsMoving(false);
+      setIsMoveDialogOpen(false);
+      setMoveTargets([]);
+    }
+  }, [moveTargets, moveDestination, onMove, clearSelection]);
 
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
@@ -649,119 +785,284 @@ export function FileBrowser({
           </div>
         </div>
       )}
-      <div className="flex justify-between items-center">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={handleUp}
-            disabled={currentPath === homePath}
-          >
-            <ArrowUpIcon className="h-4 w-4" />
-          </Button>
-          <Breadcrumb>
-              <BreadcrumbList>
-                <BreadcrumbItem>
-                  <BreadcrumbLink
-                    onClick={() => !editingFile && onNavigate(homePath)}
-                    className={
-                      editingFile
-                        ? 'cursor-not-allowed text-muted-foreground'
-                        : 'cursor-pointer'
-                    }
-                  >
-                    <HomeIcon className="h-4 w-4" />
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                {breadcrumbs.map((crumb, index) => (
-                <React.Fragment key={crumb.path}>
-                  <BreadcrumbSeparator />
+      {!editingFile && hasSelection ? (
+        <div className="flex items-center justify-between rounded-md border bg-muted/50 p-3">
+          <div className="text-sm font-medium">
+            {selectedPaths.length} item{selectedPaths.length > 1 ? 's' : ''}{' '}
+            selected
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={handleBulkDownload}>
+              <DownloadIcon className="mr-2 h-4 w-4" />
+              Download
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => requestMove(selectedPaths)}
+              disabled={isMoving}
+            >
+              <MoveRight className="mr-2 h-4 w-4" />
+              {isMoving ? 'Moving...' : 'Move'}
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => requestDelete(selectedPaths)}
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <Spinner className="mr-2 h-4 w-4" />
+              ) : (
+                <TrashIcon className="mr-2 h-4 w-4" />
+              )}
+              {isDeleting ? 'Deleting...' : 'Delete'}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleUp}
+              disabled={currentPath === homePath}
+            >
+              <ArrowUpIcon className="h-4 w-4" />
+            </Button>
+            <Breadcrumb>
+                <BreadcrumbList>
                   <BreadcrumbItem>
                     <BreadcrumbLink
-                      onClick={() => !editingFile && onNavigate(crumb.path)}
+                      onClick={() => !editingFile && onNavigate(homePath)}
                       className={
                         editingFile
                           ? 'cursor-not-allowed text-muted-foreground'
                           : 'cursor-pointer'
                       }
                     >
-                      {crumb.name}
+                      <HomeIcon className="h-4 w-4" />
                     </BreadcrumbLink>
                   </BreadcrumbItem>
-                </React.Fragment>
-              ))}
-            </BreadcrumbList>
-          </Breadcrumb>
-        </div>
+                  {breadcrumbs.map((crumb, index) => (
+                  <React.Fragment key={crumb.path}>
+                    <BreadcrumbSeparator />
+                    <BreadcrumbItem>
+                      <BreadcrumbLink
+                        onClick={() => !editingFile && onNavigate(crumb.path)}
+                        className={
+                          editingFile
+                            ? 'cursor-not-allowed text-muted-foreground'
+                            : 'cursor-pointer'
+                        }
+                      >
+                        {crumb.name}
+                      </BreadcrumbLink>
+                    </BreadcrumbItem>
+                  </React.Fragment>
+                ))}
+              </BreadcrumbList>
+            </Breadcrumb>
+          </div>
 
-        {editingFile ? (
-          <div className="flex gap-2">
+          {editingFile ? (
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={handleCancel}
+                disabled={isSaving}
+              >
+                <XIcon className="mr-2 h-4 w-4" />
+                Cancel
+              </Button>
+              <Button onClick={handleSave} disabled={isSaving}>
+                {isSaving ? (
+                  <Spinner className="mr-2 h-4 w-4" />
+                ) : (
+                  <SaveIcon className="mr-2 h-4 w-4" />
+                )}
+                Save
+              </Button>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <CreateDirectoryDialog
+                currentPath={currentPath}
+                open={isCreateDirOpen}
+                onOpenChange={setIsCreateDirOpen}
+                onCreate={(name) =>
+                  onCreateDirectory(name).catch((e) => setActionError(e.message))
+                }
+              />
+              <CreateFileDialog
+                currentPath={currentPath}
+                open={isCreateFileOpen}
+                onOpenChange={setIsCreateFileOpen}
+                onCreate={(name) =>
+                  onCreateFile(name).catch((e) => setActionError(e.message))
+                }
+              />
+              <UploadFileDialog
+                currentPath={currentPath}
+                open={isUploadOpen}
+                onOpenChange={setIsUploadOpen}
+                onUpload={(file, onProgress) =>
+                  onUpload(file, onProgress).catch((e) =>
+                    setActionError(e.message),
+                  )
+                }
+              />
+              {renameTarget && (
+                <RenameFileDialog
+                  oldName={renameTarget}
+                  open={isRenameOpen}
+                  onOpenChange={(open) => {
+                    setIsRenameOpen(open);
+                    if (!open) setRenameTarget(null);
+                  }}
+                  onRename={(newName, onProgress) => {
+                    if (onRename) {
+                      return onRename(renameTarget, newName, onProgress).catch((e) =>
+                        setActionError(e.message),
+                      );
+                    }
+                    return Promise.reject(new Error('Rename not implemented'));
+                  }}
+                />
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      <Dialog
+        open={isDeleteDialogOpen}
+        onOpenChange={(open) => {
+          if (isDeleting) return;
+          setIsDeleteDialogOpen(open);
+          if (!open) {
+            setDeleteTargets([]);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm deletion</DialogTitle>
+            <DialogDescription>
+              This will permanently delete the selected item
+              {deleteTargets.length > 1 ? 's' : ''}. This action cannot be
+              undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <div className="rounded-md border bg-muted/50 p-2 max-h-48 overflow-auto text-sm">
+              {deleteTargets.slice(0, 5).map((target) => (
+                <div key={target} className="truncate">
+                  {target}
+                </div>
+              ))}
+              {deleteTargets.length > 5 && (
+                <div className="text-xs text-muted-foreground mt-1">
+                  +{deleteTargets.length - 5} more...
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
             <Button
               variant="outline"
-              onClick={handleCancel}
-              disabled={isSaving}
+              onClick={() => {
+                if (isDeleting) return;
+                setIsDeleteDialogOpen(false);
+                setDeleteTargets([]);
+              }}
             >
-              <XIcon className="mr-2 h-4 w-4" />
               Cancel
             </Button>
-            <Button onClick={handleSave} disabled={isSaving}>
-              {isSaving ? (
+            <Button
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
                 <Spinner className="mr-2 h-4 w-4" />
               ) : (
-                <SaveIcon className="mr-2 h-4 w-4" />
+                <TrashIcon className="mr-2 h-4 w-4" />
               )}
-              Save
+              {isDeleting ? 'Deleting...' : 'Delete'}
             </Button>
-          </div>
-        ) : (
-          <div className="flex gap-2">
-            <CreateDirectoryDialog
-              currentPath={currentPath}
-              open={isCreateDirOpen}
-              onOpenChange={setIsCreateDirOpen}
-              onCreate={(name) =>
-                onCreateDirectory(name).catch((e) => setActionError(e.message))
-              }
-            />
-            <CreateFileDialog
-              currentPath={currentPath}
-              open={isCreateFileOpen}
-              onOpenChange={setIsCreateFileOpen}
-              onCreate={(name) =>
-                onCreateFile(name).catch((e) => setActionError(e.message))
-              }
-            />
-            <UploadFileDialog
-              currentPath={currentPath}
-              open={isUploadOpen}
-              onOpenChange={setIsUploadOpen}
-              onUpload={(file, onProgress) =>
-                onUpload(file, onProgress).catch((e) =>
-                  setActionError(e.message),
-                )
-              }
-            />
-            {renameTarget && (
-              <RenameFileDialog
-                oldName={renameTarget}
-                open={isRenameOpen}
-                onOpenChange={(open) => {
-                  setIsRenameOpen(open);
-                  if (!open) setRenameTarget(null);
-                }}
-                onRename={(newName, onProgress) => {
-                  if (onRename) {
-                    return onRename(renameTarget, newName, onProgress).catch((e) =>
-                      setActionError(e.message),
-                    );
-                  }
-                  return Promise.reject(new Error('Rename not implemented'));
-                }}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={isMoveDialogOpen}
+        onOpenChange={(open) => {
+          if (isMoving) return;
+          setIsMoveDialogOpen(open);
+          if (!open) {
+            setMoveTargets([]);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Move items</DialogTitle>
+            <DialogDescription>
+              Choose a destination folder for the selected item
+              {moveTargets.length > 1 ? 's' : ''}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="move-destination">Destination path</Label>
+              <Input
+                id="move-destination"
+                value={moveDestination}
+                onChange={(e) => setMoveDestination(e.target.value)}
+                placeholder="/var/log"
               />
-            )}
+            </div>
+            <div className="rounded-md border bg-muted/50 p-2 max-h-48 overflow-auto text-sm">
+              {moveTargets.slice(0, 5).map((target) => (
+                <div key={target} className="truncate">
+                  {target}
+                </div>
+              ))}
+              {moveTargets.length > 5 && (
+                <div className="text-xs text-muted-foreground mt-1">
+                  +{moveTargets.length - 5} more...
+                </div>
+              )}
+            </div>
           </div>
-        )}
-      </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (isMoving) return;
+                setIsMoveDialogOpen(false);
+                setMoveTargets([]);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="default"
+              onClick={confirmMove}
+              disabled={isMoving}
+            >
+              {isMoving ? (
+                <Spinner className="mr-2 h-4 w-4" />
+              ) : (
+                <MoveRight className="mr-2 h-4 w-4" />
+              )}
+              {isMoving ? 'Moving...' : 'Move'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {actionError && (
         <Alert variant="destructive">
@@ -812,6 +1113,10 @@ export function FileBrowser({
                   data={fileData}
                   cols={columns as any}
                   disablePagination
+                  enableSelection
+                  onSelectionChange={(rows) =>
+                    handleSelectionChange(rows as Row<FileItem>[])
+                  }
                 />
               </div>
             ) : isLoading && isInitialLoad ? (
@@ -828,6 +1133,10 @@ export function FileBrowser({
                 data={fileData}
                 cols={columns as any}
                 disablePagination
+                enableSelection
+                onSelectionChange={(rows) =>
+                  handleSelectionChange(rows as Row<FileItem>[])
+                }
               />
             )}
           </>

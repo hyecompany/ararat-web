@@ -10,6 +10,7 @@ import {
   saveFileContent as apiSaveFileContent,
   getFileMetadata as apiFetchFileMetadata,
   createFile as apiCreateFile,
+  moveFile as apiMoveFile,
 } from '../_lib/files';
 import { incusEventTarget } from '../../../_context/events';
 
@@ -286,6 +287,14 @@ export function useFiles(instanceName: string, path: string) {
     apiDownloadFile(instanceName, filePath);
   };
 
+  const moveFile = async (sourcePath: string, destinationPath: string) => {
+    if (sourcePath === destinationPath) {
+      return;
+    }
+    await apiMoveFile(instanceName, sourcePath, destinationPath);
+    await revalidateCurrentPath();
+  };
+
   const fetchFileContent = async (filePath: string) => {
     return apiFetchFileContent(instanceName, filePath);
   };
@@ -308,6 +317,7 @@ export function useFiles(instanceName: string, path: string) {
     createFile,
     deleteFile,
     renameFile,
+    moveFile,
     downloadFile,
     fetchFileContent,
     saveFileContent,
