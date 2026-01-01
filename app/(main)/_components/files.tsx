@@ -85,7 +85,11 @@ interface FileBrowserProps {
   onCreateDirectory: (name: string) => Promise<void>;
   onCreateFile: (name: string) => Promise<void>;
   onDelete: (path: string) => Promise<void>;
-  onRename?: (oldName: string, newName: string) => Promise<void>;
+  onRename?: (
+    oldName: string,
+    newName: string,
+    onProgress?: (progress: number) => void,
+  ) => Promise<void>;
   onDownload: (path: string) => void;
   onFetchContent: (path: string) => Promise<{ content: string; mode?: string }>;
   onSaveContent: (
@@ -745,9 +749,9 @@ export function FileBrowser({
                   setIsRenameOpen(open);
                   if (!open) setRenameTarget(null);
                 }}
-                onRename={(newName) => {
+                onRename={(newName, onProgress) => {
                   if (onRename) {
-                    return onRename(renameTarget, newName).catch((e) =>
+                    return onRename(renameTarget, newName, onProgress).catch((e) =>
                       setActionError(e.message),
                     );
                   }
