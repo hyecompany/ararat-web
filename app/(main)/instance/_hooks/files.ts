@@ -7,6 +7,7 @@ import {
   deleteFile as apiDeleteFile,
   downloadFile as apiDownloadFile,
   fetchFileContent as apiFetchFileContent,
+  fetchFileBinary as apiFetchFileBinary,
   saveFileContent as apiSaveFileContent,
   getFileMetadata as apiFetchFileMetadata,
   createFile as apiCreateFile,
@@ -241,24 +242,27 @@ export function useFiles(instanceName: string, path: string) {
       // Signal start
       onProgress?.(0);
 
-      // 1. Read old content
-      const { content } = await apiFetchFileContent(
-        instanceName,
-        oldPath,
-      );
+      // 1. Read old content (binary-safe) and preserve mode
+      const { data, mode } = await apiFetchFileBinary(instanceName, oldPath);
       onProgress?.(50);
 
       // 2. Upload new file with progress tracking
-      const blob = new Blob([content], { type: 'application/octet-stream' });
+      const blob = new Blob([data], { type: 'application/octet-stream' });
       const file = new File([blob], newName, {
         type: 'application/octet-stream',
       });
-      await apiUploadFile(instanceName, parentPath, file, (p) => {
-        if (p === undefined || p === null) return;
-        // Map 0-100 upload to 50-100 overall
-        const scaled = 50 + p / 2;
-        onProgress?.(scaled);
-      });
+      await apiUploadFile(
+        instanceName,
+        parentPath,
+        file,
+        (p) => {
+          if (p === undefined || p === null) return;
+          // Map 0-100 upload to 50-100 overall
+          const scaled = 50 + p / 2;
+          onProgress?.(scaled);
+        },
+        mode,
+      );
       // 3. Delete old file
       await apiDeleteFile(instanceName, oldPath);
       onProgress?.(100);

@@ -649,22 +649,30 @@ export function FileBrowser({
             <ArrowUpIcon className="h-4 w-4" />
           </Button>
           <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbLink
-                  onClick={() => onNavigate(homePath)}
-                  className="cursor-pointer"
-                >
-                  <HomeIcon className="h-4 w-4" />
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              {breadcrumbs.map((crumb, index) => (
+              <BreadcrumbList>
+                <BreadcrumbItem>
+                  <BreadcrumbLink
+                    onClick={() => !editingFile && onNavigate(homePath)}
+                    className={
+                      editingFile
+                        ? 'cursor-not-allowed text-muted-foreground'
+                        : 'cursor-pointer'
+                    }
+                  >
+                    <HomeIcon className="h-4 w-4" />
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+                {breadcrumbs.map((crumb, index) => (
                 <React.Fragment key={crumb.path}>
                   <BreadcrumbSeparator />
                   <BreadcrumbItem>
                     <BreadcrumbLink
-                      onClick={() => onNavigate(crumb.path)}
-                      className="cursor-pointer"
+                      onClick={() => !editingFile && onNavigate(crumb.path)}
+                      className={
+                        editingFile
+                          ? 'cursor-not-allowed text-muted-foreground'
+                          : 'cursor-pointer'
+                      }
                     >
                       {crumb.name}
                     </BreadcrumbLink>

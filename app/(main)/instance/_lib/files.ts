@@ -8,6 +8,7 @@ export function uploadFile(
   currentPath: string,
   file: File,
   onProgress?: (progress: number) => void,
+  modeOverride?: string,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const filePath = `${currentPath === '/' ? '' : currentPath}/${file.name}`;
@@ -36,7 +37,10 @@ export function uploadFile(
     const ext =
       extIndex > 0 ? file.name.slice(extIndex).toLowerCase() : undefined;
     const isExecutable = ext ? scriptExtensions.includes(ext) : false;
-    xhr.setRequestHeader('X-Incus-mode', isExecutable ? '0755' : '0644');
+    xhr.setRequestHeader(
+      'X-Incus-mode',
+      modeOverride || (isExecutable ? '0755' : '0644'),
+    );
     xhr.setRequestHeader('X-Incus-type', 'file');
     xhr.setRequestHeader('X-Incus-write', 'overwrite');
 
@@ -136,6 +140,21 @@ export async function fetchFileContent(instanceName: string, filePath: string) {
   if (!res.ok) throw new Error('Failed to fetch file content');
   const mode = res.headers.get('X-Incus-mode') || undefined;
   return { content: await res.text(), mode };
+}
+
+export async function fetchFileBinary(
+  instanceName: string,
+  filePath: string,
+): Promise<{ data: ArrayBuffer; mode?: string }> {
+  const res = await fetch(
+    getApiUrl(
+      `/1.0/instances/${instanceName}/files?path=${encodeURIComponent(filePath)}`,
+    ),
+  );
+  if (!res.ok) throw new Error('Failed to fetch file content');
+  const mode = res.headers.get('X-Incus-mode') || undefined;
+  const data = await res.arrayBuffer();
+  return { data, mode };
 }
 
 export async function saveFileContent(
