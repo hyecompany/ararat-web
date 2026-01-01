@@ -114,8 +114,6 @@ export function useFiles(instanceName: string, path: string) {
     fetchMetadata();
   }, [data, instanceName, normalizedPath]);
 
-  const { socket } = useContext(EventEmitterContext);
-
   // Listen for Incus events (via shared EventTarget) to revalidate when files change
   useEffect(() => {
     const handleIncusEvent = (data: any) => {
