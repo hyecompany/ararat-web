@@ -90,8 +90,13 @@ interface FileBrowserProps {
     oldName: string,
     newName: string,
     onProgress?: (progress: number) => void,
+    options?: { allowOverwrite?: boolean },
   ) => Promise<void>;
-  onMove: (sourcePath: string, destinationPath: string) => Promise<void>;
+  onMove: (
+    sourcePath: string,
+    destinationPath: string,
+    options?: { allowOverwrite?: boolean },
+  ) => Promise<void>;
   onDownload: (path: string) => void;
   onFetchContent: (path: string) => Promise<{ content: string; mode?: string }>;
   onSaveContent: (
@@ -267,8 +272,44 @@ export function FileBrowser({
   const [isMoveDialogOpen, setIsMoveDialogOpen] = React.useState(false);
   const [moveDestination, setMoveDestination] = React.useState(currentPath);
   const [isMoving, setIsMoving] = React.useState(false);
+  const [overwritePrompt, setOverwritePrompt] = React.useState<{
+    title: string;
+    description: string;
+    confirmLabel: string;
+    onConfirm: () => void;
+    onCancel: () => void;
+  } | null>(null);
   const dragCounter = React.useRef(0);
   const { socket } = React.useContext(EventEmitterContext);
+
+  const requestOverwriteConfirm = React.useCallback(
+    (title: string, description: string, confirmLabel: string) =>
+      new Promise<boolean>((resolve) => {
+        setOverwritePrompt({
+          title,
+          description,
+          confirmLabel,
+          onConfirm: () => {
+            setOverwritePrompt(null);
+            resolve(true);
+          },
+          onCancel: () => {
+            setOverwritePrompt(null);
+            resolve(false);
+          },
+        });
+      }),
+    [],
+  );
+
+  const isExistsError = React.useCallback(
+    (error: any) => error?.code === 'EEXIST',
+    [],
+  );
+  const isCancelledError = React.useCallback(
+    (error: any) => error?.code === 'ECANCELLED',
+    [],
+  );
 
   // Reset editing state when path changes
   React.useEffect(() => {
@@ -713,8 +754,28 @@ export function FileBrowser({
     try {
       for (const target of moveTargets) {
         try {
-          await onMove(target, destinationInput);
+          try {
+            await onMove(target, destinationInput, { allowOverwrite: false });
+          } catch (err: any) {
+            if (!isExistsError(err)) {
+              throw err;
+            }
+            const confirmed = await requestOverwriteConfirm(
+              'Overwrite destination?',
+              'A file already exists at the destination. Overwrite it?',
+              'Overwrite',
+            );
+            if (!confirmed) {
+              const cancelError = new Error('Move cancelled');
+              (cancelError as any).code = 'ECANCELLED';
+              throw cancelError;
+            }
+            await onMove(target, destinationInput, { allowOverwrite: true });
+          }
         } catch (err: any) {
+          if (isCancelledError(err)) {
+            continue;
+          }
           errors.push(`${target}: ${err?.message || 'Failed to move'}`);
         }
       }
@@ -729,7 +790,15 @@ export function FileBrowser({
       setIsMoveDialogOpen(false);
       setMoveTargets([]);
     }
-  }, [moveTargets, moveDestination, onMove, clearSelection]);
+  }, [
+    moveTargets,
+    moveDestination,
+    onMove,
+    clearSelection,
+    isExistsError,
+    isCancelledError,
+    requestOverwriteConfirm,
+  ]);
 
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
@@ -957,9 +1026,32 @@ export function FileBrowser({
                   }}
                   onRename={(newName, onProgress) => {
                     if (onRename) {
-                      return onRename(renameTarget, newName, onProgress).catch((e) =>
-                        setActionError(e.message),
-                      );
+                      return onRename(renameTarget, newName, onProgress, {
+                        allowOverwrite: false,
+                      }).catch(async (err) => {
+                        if (!isExistsError(err)) {
+                          setActionError(err.message);
+                          throw err;
+                        }
+                        const confirmed = await requestOverwriteConfirm(
+                          'Overwrite file?',
+                          `A file named "${newName}" already exists. Overwrite it?`,
+                          'Overwrite',
+                        );
+                        if (!confirmed) {
+                          const cancelError = new Error('Rename cancelled');
+                          (cancelError as any).code = 'ECANCELLED';
+                          throw cancelError;
+                        }
+                        return onRename(renameTarget, newName, onProgress, {
+                          allowOverwrite: true,
+                        }).catch((retryError) => {
+                          if (!isCancelledError(retryError)) {
+                            setActionError(retryError.message);
+                          }
+                          throw retryError;
+                        });
+                      });
                     }
                     return Promise.reject(new Error('Rename not implemented'));
                   }}
@@ -1025,6 +1117,37 @@ export function FileBrowser({
                 <TrashIcon className="mr-2 h-4 w-4" />
               )}
               {isDeleting ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={!!overwritePrompt}
+        onOpenChange={(open) => {
+          if (!open && overwritePrompt) {
+            overwritePrompt.onCancel();
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{overwritePrompt?.title}</DialogTitle>
+            <DialogDescription>
+              {overwritePrompt?.description}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => overwritePrompt?.onCancel()}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => overwritePrompt?.onConfirm()}
+            >
+              {overwritePrompt?.confirmLabel ?? 'Overwrite'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1278,6 +1401,8 @@ function RenameFileDialog({
     try {
       await onRename(name, (p) => setProgress(p));
       onOpenChange(false);
+    } catch (err) {
+      // Keep dialog open on errors or cancelations.
     } finally {
       setIsLoading(false);
       setProgress(0);

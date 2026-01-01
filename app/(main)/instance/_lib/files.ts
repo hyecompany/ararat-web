@@ -97,7 +97,7 @@ export async function createFile(
     },
   );
   if (res.ok) {
-    throw new Error(`File "${fileName}" already exists`);
+    throw createFileExistsError(fileName);
   }
   if (res.status !== 404) {
     throw new Error(res.statusText);
@@ -236,10 +236,42 @@ export async function getFileMetadata(instanceName: string, filePath: string) {
   };
 }
 
+export function createFileExistsError(label: string) {
+  const error = new Error(`File "${label}" already exists`);
+  (error as any).code = 'EEXIST';
+  (error as any).path = label;
+  return error;
+}
+
+export async function fileExists(
+  instanceName: string,
+  filePath: string,
+): Promise<boolean> {
+  const res = await fetch(
+    getApiUrl(
+      `/1.0/instances/${instanceName}/files?path=${encodeURIComponent(filePath)}`,
+    ),
+    {
+      method: 'HEAD',
+    },
+  );
+
+  if (res.ok) {
+    return true;
+  }
+
+  if (res.status === 404) {
+    return false;
+  }
+
+  throw new Error(res.statusText);
+}
+
 export async function moveFile(
   instanceName: string,
   sourcePath: string,
   destinationPath: string,
+  allowOverwrite: boolean = false,
 ) {
   const normalizedSource = sourcePath.startsWith('/')
     ? sourcePath
@@ -278,6 +310,10 @@ export async function moveFile(
   if (destinationPathWithName === normalizedSource) {
     // No-op if destination is the same as source
     return;
+  }
+
+  if (!allowOverwrite && (await fileExists(instanceName, destinationPathWithName))) {
+    throw createFileExistsError(destinationPathWithName);
   }
 
   const lastSlashIndex = destinationPathWithName.lastIndexOf('/');

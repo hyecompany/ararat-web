@@ -9,6 +9,8 @@ import {
   fetchFileBinary as apiFetchFileBinary,
   saveFileContent as apiSaveFileContent,
   getFileMetadata as apiFetchFileMetadata,
+  fileExists as apiFileExists,
+  createFileExistsError as apiCreateFileExistsError,
   createFile as apiCreateFile,
   moveFile as apiMoveFile,
 } from '../_lib/files';
@@ -234,6 +236,7 @@ export function useFiles(instanceName: string, path: string) {
     oldName: string,
     newName: string,
     onProgress?: (progress: number) => void,
+    options?: { allowOverwrite?: boolean },
   ) => {
     const parentPath = normalizedPath === '/' ? '' : normalizedPath;
     const oldPath = `${parentPath}/${oldName}`;
@@ -246,6 +249,9 @@ export function useFiles(instanceName: string, path: string) {
       );
       if (type === 'directory') {
         throw new Error('Renaming directories is not supported yet.');
+      }
+      if (!options?.allowOverwrite && (await apiFileExists(instanceName, newPath))) {
+        throw apiCreateFileExistsError(newName);
       }
 
       // Signal start
@@ -300,11 +306,15 @@ export function useFiles(instanceName: string, path: string) {
     apiDownloadFile(instanceName, filePath);
   };
 
-  const moveFile = async (sourcePath: string, destinationPath: string) => {
+  const moveFile = async (
+    sourcePath: string,
+    destinationPath: string,
+    options?: { allowOverwrite?: boolean },
+  ) => {
     if (sourcePath === destinationPath) {
       return;
     }
-    await apiMoveFile(instanceName, sourcePath, destinationPath);
+    await apiMoveFile(instanceName, sourcePath, destinationPath, options?.allowOverwrite);
     await revalidateCurrentPath();
   };
 
