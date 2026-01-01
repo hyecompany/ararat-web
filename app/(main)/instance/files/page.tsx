@@ -26,8 +26,11 @@ export default function FilesPage() {
 function Files({ instance }: { instance: any }) {
   const router = useRouter();
   const pathname = usePathname();
-  const normalizePath = (value: string) =>
-    value?.startsWith('/') ? value : `/${value || ''}`;
+  const normalizePath = (value: string) => {
+    const normalized = value?.startsWith('/') ? value : `/${value || ''}`;
+    const trimmed = normalized.replace(/\/+$/, '');
+    return trimmed || '/';
+  };
   const homePath = normalizePath(instance?.expanded_config?.['oci.cwd'] || '/');
   const initialPath = React.useMemo(() => {
     if (typeof window === 'undefined') return homePath;

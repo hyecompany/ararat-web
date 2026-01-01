@@ -194,12 +194,40 @@ function isEditableFile(filename: string): boolean {
   if (ext && FILE_TYPE_CONFIG[ext]?.language) {
     return true;
   }
+  // Known binary extensions should not open in the editor.
+  if (ext) {
+    const binaryExtensions = new Set([
+      'png',
+      'jpg',
+      'jpeg',
+      'gif',
+      'svg',
+      'webp',
+      'zip',
+      'tar',
+      'gz',
+      '7z',
+      'rar',
+      'mp4',
+      'mov',
+      'avi',
+      'mkv',
+      'mp3',
+      'wav',
+      'ogg',
+      'iso',
+      'img',
+    ]);
+    if (binaryExtensions.has(ext)) {
+      return false;
+    }
+  }
   // Files without extension are treated as text (editable)
   if (!ext || !filename.includes('.')) {
     return true;
   }
-  // All other files (binary) are not editable
-  return false;
+  // Default to text for unknown extensions (e.g. .conf, .ini, .env).
+  return true;
 }
 
 export function FileBrowser({
