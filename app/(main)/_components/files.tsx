@@ -833,7 +833,7 @@ export function FileBrowser({
               variant="outline"
               size="icon"
               onClick={handleUp}
-              disabled={!currentPath || currentPath === '/'}
+              disabled={currentPath === '/'}
             >
               <ArrowUpIcon className="h-4 w-4" />
             </Button>
