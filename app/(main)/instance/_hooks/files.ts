@@ -240,6 +240,11 @@ export function useFiles(instanceName: string, path: string) {
     const newPath = `${parentPath}/${newName}`;
 
     try {
+      const { type } = await apiFetchFileMetadata(instanceName, oldPath);
+      if (type === 'directory') {
+        throw new Error('Renaming directories is not supported yet.');
+      }
+
       // Signal start
       onProgress?.(0);
 

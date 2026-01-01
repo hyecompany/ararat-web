@@ -451,15 +451,17 @@ export function FileBrowser({
                 <DownloadIcon className="mr-2 h-4 w-4" />
                 Download
               </ContextMenuItem>
-              <ContextMenuItem
-                onClick={() => {
-                  setRenameTarget(name);
-                  setIsRenameOpen(true);
-                }}
-              >
-                <FileSignature className="mr-2 h-4 w-4" />
-                Rename
-              </ContextMenuItem>
+              {!isDirectory && (
+                <ContextMenuItem
+                  onClick={() => {
+                    setRenameTarget(name);
+                    setIsRenameOpen(true);
+                  }}
+                >
+                  <FileSignature className="mr-2 h-4 w-4" />
+                  Rename
+                </ContextMenuItem>
+              )}
               <ContextMenuItem
                 onClick={() => {
                   const fullPath = `${currentPath === '/' ? '' : currentPath}/${name}`;
@@ -538,23 +540,27 @@ export function FileBrowser({
                     Edit
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem
-                  onClick={() => {
-                    setRenameTarget(name);
-                    setIsRenameOpen(true);
-                  }}
-                >
-                  <FileSignature className="mr-2 h-4 w-4" />
-                  Rename
-                </DropdownMenuItem>
+                {!isDirectory && (
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setRenameTarget(name);
+                      setIsRenameOpen(true);
+                    }}
+                  >
+                    <FileSignature className="mr-2 h-4 w-4" />
+                    Rename
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={() => onDownload(fullPath)}>
                   <DownloadIcon className="mr-2 h-4 w-4" />
                   Download
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => requestMove(fullPath)}>
-                  <MoveRight className="mr-2 h-4 w-4" />
-                  Move
-                </DropdownMenuItem>
+                {!isDirectory && (
+                  <DropdownMenuItem onClick={() => requestMove(fullPath)}>
+                    <MoveRight className="mr-2 h-4 w-4" />
+                    Move
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem
                   onClick={() => {
                     if (isDirectory) {

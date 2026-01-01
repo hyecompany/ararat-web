@@ -233,6 +233,11 @@ export async function moveFile(
     : `/${destinationPath}`;
   const sourceName = normalizedSource.split('/').pop() || '';
 
+  const sourceMeta = await getFileMetadata(instanceName, normalizedSource);
+  if (sourceMeta.type === 'directory') {
+    throw new Error('Moving directories is not supported yet.');
+  }
+
   // Fetch source
   const { data, mode } = await fetchFileBinary(instanceName, normalizedSource);
 
