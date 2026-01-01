@@ -264,9 +264,11 @@ export async function moveFile(
     return;
   }
 
+  const lastSlashIndex = destinationPathWithName.lastIndexOf('/');
   const destDir =
-    destinationPathWithName.substring(0, destinationPathWithName.lastIndexOf('/')) ||
-    '/';
+    lastSlashIndex > 0
+      ? destinationPathWithName.substring(0, lastSlashIndex)
+      : '/';
   const fileName = destinationPathWithName.split('/').pop() || '';
   if (!fileName) {
     throw new Error('Destination must include a file name');
