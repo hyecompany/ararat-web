@@ -827,7 +827,7 @@ export function FileBrowser({
               variant="outline"
               size="icon"
               onClick={handleUp}
-              disabled={currentPath === homePath}
+              disabled={!currentPath || currentPath === '/'}
             >
               <ArrowUpIcon className="h-4 w-4" />
             </Button>
@@ -1376,8 +1376,6 @@ function UploadFileDialog({
     </Dialog>
   );
 }
-
-
 
 function CreateFileDialog({
   currentPath,
