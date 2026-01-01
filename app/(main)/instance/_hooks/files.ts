@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import useSWR, { mutate } from 'swr';
-import EventEmitterContext from '../../../_context/events';
 import {
   uploadFile as apiUploadFile,
   createDirectory as apiCreateDirectory,
