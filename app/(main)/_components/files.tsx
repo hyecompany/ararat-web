@@ -132,7 +132,7 @@ function formatBytes(value?: number) {
 function getFileExtension(filename: string) {
   const parts = filename.split('.');
   // No extension or dotfile without a real extension
-  if (parts.length <= 1 || (parts.length === 2 && filename.startsWith('.'))) {
+  if (parts.length <= 1 || (parts[0] === '' && parts.length === 2)) {
     return undefined;
   }
   return parts.pop()?.toLowerCase();
@@ -930,7 +930,7 @@ export function FileBrowser({
               variant="outline"
               size="icon"
               onClick={handleUp}
-              disabled={currentPath === '/'}
+              disabled={currentPath === '/' || !!editingFile}
             >
               <ArrowUpIcon className="h-4 w-4" />
             </Button>
@@ -1490,7 +1490,7 @@ function UploadFileDialog({
       <DialogTrigger asChild>
         <Button>
           <UploadIcon className="mr-2 h-4 w-4" />
-          Upload
+          Upload File
         </Button>
       </DialogTrigger>
       <DialogContent>
