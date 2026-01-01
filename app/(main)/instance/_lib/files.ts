@@ -302,6 +302,18 @@ export async function moveFile(
     sourceMeta.gid,
   );
 
-  // Delete source; surface failure if cleanup fails
-  await deleteFile(instanceName, normalizedSource);
+  // Delete source; rollback destination if cleanup fails to avoid duplicates.
+  try {
+    await deleteFile(instanceName, normalizedSource);
+  } catch (deleteError) {
+    try {
+      await deleteFile(instanceName, destinationPathWithName);
+    } catch (cleanupError) {
+      console.error(
+        'Failed to cleanup moved file after delete failure:',
+        cleanupError,
+      );
+    }
+    throw deleteError;
+  }
 }
