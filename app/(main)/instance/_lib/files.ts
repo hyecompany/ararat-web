@@ -40,6 +40,8 @@ export function uploadFile(
   file: File,
   onProgress?: (progress: number) => void,
   modeOverride?: string,
+  uidOverride?: string | null,
+  gidOverride?: string | null,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const filePath = `${currentPath === '/' ? '' : currentPath}/${file.name}`;
@@ -49,8 +51,8 @@ export function uploadFile(
     );
 
     xhr.open('POST', url);
-    xhr.setRequestHeader('X-Incus-uid', '0');
-    xhr.setRequestHeader('X-Incus-gid', '0');
+    xhr.setRequestHeader('X-Incus-uid', uidOverride ?? '0');
+    xhr.setRequestHeader('X-Incus-gid', gidOverride ?? '0');
     xhr.setRequestHeader('X-Incus-mode', getFileMode(file.name, modeOverride));
     xhr.setRequestHeader('X-Incus-type', 'file');
     xhr.setRequestHeader('X-Incus-write', 'overwrite');
@@ -276,7 +278,15 @@ export async function moveFile(
 
   const blob = new Blob([data], { type: 'application/octet-stream' });
   const file = new File([blob], fileName, { type: 'application/octet-stream' });
-  await uploadFile(instanceName, destDir || '/', file, undefined, mode);
+  await uploadFile(
+    instanceName,
+    destDir || '/',
+    file,
+    undefined,
+    mode,
+    sourceMeta.uid,
+    sourceMeta.gid,
+  );
 
   // Delete source; surface failure if cleanup fails
   await deleteFile(instanceName, normalizedSource);

@@ -240,7 +240,10 @@ export function useFiles(instanceName: string, path: string) {
     const newPath = `${parentPath}/${newName}`;
 
     try {
-      const { type } = await apiFetchFileMetadata(instanceName, oldPath);
+      const { type, uid, gid } = await apiFetchFileMetadata(
+        instanceName,
+        oldPath,
+      );
       if (type === 'directory') {
         throw new Error('Renaming directories is not supported yet.');
       }
@@ -268,6 +271,8 @@ export function useFiles(instanceName: string, path: string) {
           onProgress?.(scaled);
         },
         mode,
+        uid,
+        gid,
       );
       
       // 3. Delete old file - if this fails, clean up the new file to maintain consistency
