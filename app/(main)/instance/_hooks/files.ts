@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, useRef } from 'react';
 import useSWR, { mutate } from 'swr';
 import EventEmitterContext from '../../../_context/events';
 import {
@@ -38,6 +38,8 @@ const directoryFetcher = async (url: string) => {
 export function useFiles(instanceName: string, path: string) {
   // Ensure path starts with /
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const revalidateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
   const getSWRKey = (p: string) => {
     const norm = p.startsWith('/') ? p : `/${p}`;
     return `/1.0/instances/${instanceName}/files?path=${encodeURIComponent(norm)}`;
@@ -46,9 +48,22 @@ export function useFiles(instanceName: string, path: string) {
     mutate(getSWRKey(normalizedPath), undefined, { revalidate: true });
   const scheduleRevalidate = () => {
     revalidateCurrentPath();
+    // Clear any existing timeout
+    if (revalidateTimeoutRef.current) {
+      clearTimeout(revalidateTimeoutRef.current);
+    }
     // Some Incus operations emit events slightly before the listing is updated; re-run shortly after.
-    setTimeout(revalidateCurrentPath, 300);
+    revalidateTimeoutRef.current = setTimeout(revalidateCurrentPath, 300);
   };
+
+  // Cleanup timeout on unmount or path change
+  useEffect(() => {
+    return () => {
+      if (revalidateTimeoutRef.current) {
+        clearTimeout(revalidateTimeoutRef.current);
+      }
+    };
+  }, [normalizedPath]);
 
   // Fetch file listing
   const { data, error, isLoading } = useSWR(
@@ -101,7 +116,7 @@ export function useFiles(instanceName: string, path: string) {
 
   const { socket } = useContext(EventEmitterContext);
 
-  // Listen for Incus events (via WebSocket and shared EventTarget) to revalidate when files change
+  // Listen for Incus events (via shared EventTarget) to revalidate when files change
   useEffect(() => {
     const handleIncusEvent = (data: any) => {
       try {
@@ -171,19 +186,6 @@ export function useFiles(instanceName: string, path: string) {
       }
     };
 
-    const socketListener = (event: MessageEvent) => {
-      try {
-        const parsed = JSON.parse(event.data);
-        handleIncusEvent(parsed);
-      } catch (e) {
-        console.error('Failed to parse Incus event', e);
-      }
-    };
-
-    if (socket) {
-      socket.addEventListener('message', socketListener);
-    }
-
     const eventTargetListener = (event: Event) => {
       const custom = event as CustomEvent;
       handleIncusEvent(custom.detail);
@@ -194,9 +196,6 @@ export function useFiles(instanceName: string, path: string) {
     }
 
     return () => {
-      if (socket) {
-        socket.removeEventListener('message', socketListener);
-      }
       if (incusEventTarget) {
         incusEventTarget.removeEventListener(
           'incus-event',
@@ -204,7 +203,7 @@ export function useFiles(instanceName: string, path: string) {
         );
       }
     };
-  }, [socket, instanceName, normalizedPath]);
+  }, [instanceName, normalizedPath]);
 
   const uploadFile = async (
     currentPath: string,
@@ -237,6 +236,7 @@ export function useFiles(instanceName: string, path: string) {
   ) => {
     const parentPath = normalizedPath === '/' ? '' : normalizedPath;
     const oldPath = `${parentPath}/${oldName}`;
+    const newPath = `${parentPath}/${newName}`;
 
     try {
       // Signal start
@@ -263,8 +263,20 @@ export function useFiles(instanceName: string, path: string) {
         },
         mode,
       );
-      // 3. Delete old file
-      await apiDeleteFile(instanceName, oldPath);
+      
+      // 3. Delete old file - if this fails, clean up the new file to maintain consistency
+      try {
+        await apiDeleteFile(instanceName, oldPath);
+      } catch (deleteError) {
+        // Cleanup: delete the newly created file to prevent duplication
+        try {
+          await apiDeleteFile(instanceName, newPath);
+        } catch (cleanupError) {
+          console.error('Failed to cleanup new file after delete failure:', cleanupError);
+        }
+        throw deleteError;
+      }
+      
       onProgress?.(100);
       await revalidateCurrentPath();
     } catch (e) {
