@@ -62,6 +62,7 @@ import {
   FileAudio,
   FileSpreadsheet,
   FileBox,
+  FileSignature,
 } from 'lucide-react';
 import { Progress } from 'ui-web/components/progress';
 import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
@@ -428,7 +429,7 @@ export function FileBrowser({
                   setIsRenameOpen(true);
                 }}
               >
-                <PencilIcon className="mr-2 h-4 w-4" />
+                <FileSignature className="mr-2 h-4 w-4" />
                 Rename
               </ContextMenuItem>
               <ContextMenuItem
@@ -441,7 +442,11 @@ export function FileBrowser({
                   }
                 }}
               >
-                <FolderIcon className="mr-2 h-4 w-4" />
+                {isDirectory ? (
+                  <FolderIcon className="mr-2 h-4 w-4" />
+                ) : (
+                  <PencilIcon className="mr-2 h-4 w-4" />
+                )}
                 Open
               </ContextMenuItem>
               <ContextMenuSeparator />
@@ -511,7 +516,7 @@ export function FileBrowser({
                     setIsRenameOpen(true);
                   }}
                 >
-                  <PencilIcon className="mr-2 h-4 w-4" />
+                  <FileSignature className="mr-2 h-4 w-4" />
                   Rename
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => onDownload(fullPath)}>
@@ -580,20 +585,18 @@ export function FileBrowser({
 
     const errors: string[] = [];
 
-    await Promise.all(
-      files.map(async (file) => {
-        try {
-          setDropFileName(file.name);
-          setDropProgress(0);
-          await onUpload(file, (p) => setDropProgress(p));
-        } catch (err: any) {
-          errors.push(err?.message || 'Upload failed');
-        } finally {
-          setDropProgress(null);
-          setDropFileName(null);
-        }
-      }),
-    );
+    for (const file of files) {
+      try {
+        setDropFileName(file.name);
+        setDropProgress(0);
+        await onUpload(file, (p) => setDropProgress(p));
+      } catch (err: any) {
+        errors.push(`${file.name}: ${err?.message || 'Upload failed'}`);
+      } finally {
+        setDropProgress(null);
+        setDropFileName(null);
+      }
+    }
 
     if (errors.length > 0) {
       setActionError(errors.join('\n'));
@@ -628,13 +631,17 @@ export function FileBrowser({
         </div>
       )}
       {dropProgress !== null && dropFileName && (
-        <div className="absolute right-4 top-4 z-40 min-w-[220px] rounded-md border bg-card p-3 shadow">
-          <div className="text-sm font-medium truncate">
+        <div 
+          className="absolute right-4 top-4 z-40 min-w-[220px] rounded-md border bg-card p-3 shadow"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="text-sm font-medium truncate" aria-label={`Uploading ${dropFileName}`}>
             Uploading {dropFileName}
           </div>
           <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-            <Progress value={dropProgress} className="h-2 flex-1" />
-            <span>{Math.round(dropProgress)}%</span>
+            <Progress value={dropProgress} className="h-2 flex-1" aria-label={`Upload progress: ${Math.round(dropProgress)}%`} />
+            <span aria-live="off">{Math.round(dropProgress)}%</span>
           </div>
         </div>
       )}
