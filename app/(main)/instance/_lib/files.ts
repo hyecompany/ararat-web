@@ -372,6 +372,11 @@ export async function moveFile(
         'Failed to cleanup moved file after delete failure:',
         cleanupError,
       );
+      throw new Error(
+        `Failed to delete original file at ${normalizedSource} after moving. A copy exists at ${destinationPathWithName}. Original error: ${
+          (deleteError as Error).message
+        }`,
+      );
     }
     throw deleteError;
   }

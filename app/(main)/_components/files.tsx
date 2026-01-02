@@ -74,7 +74,7 @@ import { ColumnDef, Row } from '@tanstack/react-table';
 interface FileBrowserProps {
   files: (string | FileItem)[];
   isLoading: boolean;
-  isError: any;
+  isError: Error | null;
   currentPath: string;
   instanceName: string;
   homePath?: string;
