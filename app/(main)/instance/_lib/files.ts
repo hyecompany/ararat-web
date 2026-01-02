@@ -5,13 +5,13 @@ export function getApiUrl(path: string) {
 
 /**
  * Determines the appropriate file mode based on file name and optional override.
- * 
+ *
  * File modes are Unix permissions in octal notation:
  * - '0755' grants read/write/execute for owner, read/execute for group and others
  *   (used for script files like .sh, .py, .js to make them executable)
  * - '0644' grants read/write for owner, read-only for group and others
  *   (used for regular data files without execute permissions)
- * 
+ *
  * @param filename The name of the file
  * @param modeOverride Optional mode to use instead of auto-detection
  * @returns The file mode string (e.g., '0755' for executables, '0644' for regular files)

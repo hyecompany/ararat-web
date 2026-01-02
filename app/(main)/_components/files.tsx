@@ -140,6 +140,28 @@ function getFileExtension(filename: string) {
 }
 
 const FILE_ICON_CLASS = 'h-4 w-4 text-gray-500';
+const BINARY_EXTENSIONS = new Set([
+  'png',
+  'jpg',
+  'jpeg',
+  'gif',
+  'svg',
+  'webp',
+  'zip',
+  'tar',
+  'gz',
+  '7z',
+  'rar',
+  'mp4',
+  'mov',
+  'avi',
+  'mkv',
+  'mp3',
+  'wav',
+  'ogg',
+  'iso',
+  'img',
+]);
 const FILE_TYPE_CONFIG: Record<
   string,
   { icon: React.ComponentType<{ className?: string }>; language?: string }
@@ -202,29 +224,7 @@ function isEditableFile(filename: string): boolean {
   }
   // Known binary extensions should not open in the editor.
   if (ext) {
-    const binaryExtensions = new Set([
-      'png',
-      'jpg',
-      'jpeg',
-      'gif',
-      'svg',
-      'webp',
-      'zip',
-      'tar',
-      'gz',
-      '7z',
-      'rar',
-      'mp4',
-      'mov',
-      'avi',
-      'mkv',
-      'mp3',
-      'wav',
-      'ogg',
-      'iso',
-      'img',
-    ]);
-    if (binaryExtensions.has(ext)) {
+    if (BINARY_EXTENSIONS.has(ext)) {
       return false;
     }
   }
@@ -709,13 +709,15 @@ export function FileBrowser({
     const errors: string[] = [];
 
     try {
-      for (const path of deleteTargets) {
-        try {
-          await onDelete(path);
-        } catch (err: any) {
-          errors.push(`${path}: ${err?.message || 'Failed to delete'}`);
+      const results = await Promise.allSettled(
+        deleteTargets.map((path) => onDelete(path)),
+      );
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          const path = deleteTargets[index];
+          errors.push(`${path}: ${result.reason?.message || 'Failed to delete'}`);
         }
-      }
+      });
 
       if (errors.length > 0) {
         setActionError(errors.join('\n'));
