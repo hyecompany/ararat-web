@@ -506,12 +506,6 @@ export function FileBrowser({
               </div>
             </ContextMenuTrigger>
             <ContextMenuContent>
-              {!isDirectory && (
-                <ContextMenuItem onClick={() => handleEdit(name)}>
-                  <PencilIcon className="mr-2 h-4 w-4" />
-                  Edit
-                </ContextMenuItem>
-              )}
               <ContextMenuItem
                 onClick={() => {
                   const fullPath = `${currentPath === '/' ? '' : currentPath}/${name}`;
@@ -604,12 +598,6 @@ export function FileBrowser({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                {!isDirectory && (
-                  <DropdownMenuItem onClick={() => handleEdit(name)}>
-                    <PencilIcon className="mr-2 h-4 w-4" />
-                    Edit
-                  </DropdownMenuItem>
-                )}
                 {!isDirectory && (
                   <DropdownMenuItem
                     onClick={() => {
@@ -751,29 +739,30 @@ export function FileBrowser({
     setIsMoving(true);
     setActionError(null);
     const errors: string[] = [];
+    let overwriteAll = false;
 
     try {
       for (const target of moveTargets) {
         try {
-          try {
-            await onMove(target, destinationInput, { allowOverwrite: false });
-          } catch (err: any) {
-            if (!isExistsError(err)) {
-              throw err;
-            }
+          await onMove(target, destinationInput, {
+            allowOverwrite: overwriteAll,
+          });
+        } catch (err: any) {
+          if (isExistsError(err) && !overwriteAll) {
             const confirmed = await requestOverwriteConfirm(
-              'Overwrite destination?',
-              'A file already exists at the destination. Overwrite it?',
-              'Overwrite',
+              'Overwrite existing files?',
+              'One or more destination files already exist. Overwrite them?',
+              'Overwrite all',
             );
             if (!confirmed) {
               const cancelError = new Error('Move cancelled');
               (cancelError as any).code = 'ECANCELLED';
               throw cancelError;
             }
+            overwriteAll = true;
             await onMove(target, destinationInput, { allowOverwrite: true });
+            continue;
           }
-        } catch (err: any) {
           if (isCancelledError(err)) {
             continue;
           }

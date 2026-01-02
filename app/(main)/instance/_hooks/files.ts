@@ -243,6 +243,9 @@ export function useFiles(instanceName: string, path: string) {
     const parentPath = normalizedPath === '/' ? '' : normalizedPath;
     const oldPath = `${parentPath}/${oldName}`;
     const newPath = `${parentPath}/${newName}`;
+    if (oldPath === newPath) {
+      return;
+    }
 
     try {
       const { type, uid, gid } = await apiFetchFileMetadata(
