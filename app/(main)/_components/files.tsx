@@ -218,6 +218,7 @@ const FileIconComponent = React.memo(({ filename }: { filename: string }) => {
   const Icon = config?.icon || FileIcon;
   return <Icon className={FILE_ICON_CLASS} />;
 });
+FileIconComponent.displayName = 'FileIconComponent';
 
 function isEditableFile(filename: string): boolean {
   const ext = getFileExtension(filename);
