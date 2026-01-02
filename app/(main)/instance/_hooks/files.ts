@@ -6,11 +6,8 @@ import {
   deleteFile as apiDeleteFile,
   downloadFile as apiDownloadFile,
   fetchFileContent as apiFetchFileContent,
-  fetchFileBinary as apiFetchFileBinary,
   saveFileContent as apiSaveFileContent,
   getFileMetadata as apiFetchFileMetadata,
-  fileExists as apiFileExists,
-  createFileExistsError as apiCreateFileExistsError,
   createFile as apiCreateFile,
   moveFile as apiMoveFile,
 } from '../_lib/files';
@@ -248,58 +245,17 @@ export function useFiles(instanceName: string, path: string) {
     }
 
     try {
-      const { type, uid, gid } = await apiFetchFileMetadata(
-        instanceName,
-        oldPath,
-      );
+      const { type } = await apiFetchFileMetadata(instanceName, oldPath);
       if (type === 'directory') {
         throw new Error('Renaming directories is not supported yet.');
       }
-      if (!options?.allowOverwrite && (await apiFileExists(instanceName, newPath))) {
-        throw apiCreateFileExistsError(newName);
-      }
-
-      // Signal start
-      onProgress?.(0);
-
-      // 1. Read old content (binary-safe) and preserve mode
-      const { data, mode } = await apiFetchFileBinary(instanceName, oldPath);
-      onProgress?.(50);
-
-      // 2. Upload new file with progress tracking
-      const blob = new Blob([data], { type: 'application/octet-stream' });
-      const file = new File([blob], newName, {
-        type: 'application/octet-stream',
-      });
-      await apiUploadFile(
+      await apiMoveFile(
         instanceName,
-        parentPath,
-        file,
-        (p) => {
-          if (p === null || p === undefined) return;
-          // Map 0-100 upload to 50-100 overall
-          const scaled = 50 + p / 2;
-          onProgress?.(scaled);
-        },
-        mode,
-        uid,
-        gid,
+        oldPath,
+        newPath,
+        options?.allowOverwrite ?? false,
+        onProgress,
       );
-      
-      // 3. Delete old file - if this fails, clean up the new file to maintain consistency
-      try {
-        await apiDeleteFile(instanceName, oldPath);
-      } catch (deleteError) {
-        // Cleanup: delete the newly created file to prevent duplication
-        try {
-          await apiDeleteFile(instanceName, newPath);
-        } catch (cleanupError) {
-          console.error('Failed to cleanup new file after delete failure:', cleanupError);
-        }
-        throw deleteError;
-      }
-      
-      onProgress?.(100);
       await revalidateCurrentPath();
     } catch (e) {
       console.error('Failed to rename file:', e);
@@ -315,11 +271,18 @@ export function useFiles(instanceName: string, path: string) {
     sourcePath: string,
     destinationPath: string,
     options?: { allowOverwrite?: boolean },
+    onProgress?: (progress: number) => void,
   ) => {
     if (sourcePath === destinationPath) {
       return;
     }
-    await apiMoveFile(instanceName, sourcePath, destinationPath, options?.allowOverwrite);
+    await apiMoveFile(
+      instanceName,
+      sourcePath,
+      destinationPath,
+      options?.allowOverwrite ?? false,
+      onProgress,
+    );
     await revalidateCurrentPath();
   };
 

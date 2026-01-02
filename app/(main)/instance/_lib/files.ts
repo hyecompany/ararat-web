@@ -279,6 +279,7 @@ export async function moveFile(
   sourcePath: string,
   destinationPath: string,
   allowOverwrite: boolean = false,
+  onProgress?: (progress: number) => void,
 ) {
   const normalizedSource = sourcePath.startsWith('/')
     ? sourcePath
@@ -299,8 +300,11 @@ export async function moveFile(
     throw new Error('Moving directories is not supported yet.');
   }
 
+  onProgress?.(0);
+
   // Fetch source
   const { data, mode } = await fetchFileBinary(instanceName, normalizedSource);
+  onProgress?.(50);
 
   // Determine destination path. If the destination exists and is a directory,
   // or the input ends with a slash, place the file inside using the same name.
@@ -322,6 +326,7 @@ export async function moveFile(
 
   if (destinationPathWithName === normalizedSource) {
     // No-op if destination is the same as source
+    onProgress?.(100);
     return;
   }
 
@@ -345,7 +350,12 @@ export async function moveFile(
     instanceName,
     destDir || '/',
     file,
-    undefined,
+    (p) => {
+      if (p === null || p === undefined) return;
+      // Map 0-100 upload to 50-100 overall
+      const scaled = 50 + p / 2;
+      onProgress?.(scaled);
+    },
     mode,
     sourceMeta.uid,
     sourceMeta.gid,
@@ -365,4 +375,5 @@ export async function moveFile(
     }
     throw deleteError;
   }
+  onProgress?.(100);
 }

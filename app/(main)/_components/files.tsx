@@ -130,13 +130,16 @@ function formatBytes(value?: number) {
 }
 
 function getFileExtension(filename: string) {
-  const parts = filename.split('.');
-  // No extension if no dots, or if it's a dotfile without an extension (e.g., '.bashrc')
-  const isDotfileWithoutExtension = parts[0] === '' && parts.length === 2;
-  if (parts.length <= 1 || isDotfileWithoutExtension) {
+  const lastDotIndex = filename.lastIndexOf('.');
+  // No dot, or dot is the first character (e.g. .bashrc)
+  if (lastDotIndex <= 0) {
     return undefined;
   }
-  return parts.pop()?.toLowerCase();
+  const ext = filename.substring(lastDotIndex + 1);
+  if (!ext) {
+    return undefined;
+  }
+  return ext.toLowerCase();
 }
 
 const FILE_ICON_CLASS = 'h-4 w-4 text-gray-500';
@@ -766,7 +769,7 @@ export function FileBrowser({
             continue;
           }
           if (isCancelledError(err)) {
-            continue;
+            break;
           }
           errors.push(`${target}: ${err?.message || 'Failed to move'}`);
         }
