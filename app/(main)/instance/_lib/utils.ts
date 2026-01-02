@@ -117,3 +117,13 @@ export function getCPUCount(instance: Instance): number {
 
   return 1;
 }
+
+/**
+ * Normalizes a file path to ensure it starts with a forward slash.
+ * 
+ * @param path The path to normalize
+ * @returns The normalized path starting with '/'
+ */
+export function normalizePath(path: string): string {
+  return path.startsWith('/') ? path : `/${path}`;
+}

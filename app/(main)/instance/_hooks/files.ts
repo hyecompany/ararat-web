@@ -57,7 +57,6 @@ export function useFiles(instanceName: string, path: string) {
   const revalidateCurrentPath = () =>
     mutate(getSWRKey(normalizedPath), undefined, { revalidate: true });
   const scheduleRevalidate = () => {
-    revalidateCurrentPath();
     // Clear any existing timeout
     if (revalidateTimeoutRef.current) {
       clearTimeout(revalidateTimeoutRef.current);

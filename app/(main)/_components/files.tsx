@@ -212,12 +212,12 @@ const FILE_TYPE_CONFIG: Record<
   yml: { icon: FileCode, language: 'yaml' },
 };
 
-function getFileIcon(filename: string) {
+const FileIconComponent = React.memo(({ filename }: { filename: string }) => {
   const ext = getFileExtension(filename) || '';
   const config = FILE_TYPE_CONFIG[ext];
   const Icon = config?.icon || FileIcon;
   return <Icon className={FILE_ICON_CLASS} />;
-}
+});
 
 function isEditableFile(filename: string): boolean {
   const ext = getFileExtension(filename);
@@ -490,7 +490,7 @@ export function FileBrowser({
                 {isDirectory ? (
                   <FolderIcon className="h-4 w-4 text-blue-500" />
                 ) : (
-                  getFileIcon(name)
+                  <FileIconComponent filename={name} />
                 )}
                 <span
                   className="font-medium cursor-pointer hover:underline"
@@ -874,7 +874,7 @@ export function FileBrowser({
           role="status"
           aria-live="polite"
         >
-          <div className="text-sm font-medium truncate" aria-label={`Uploading ${dropFileName}`}>
+          <div className="text-sm font-medium truncate">
             Uploading {dropFileName}
           </div>
           <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
@@ -1501,12 +1501,7 @@ function UploadFileDialog({
             <Input
               id="file"
               type="file"
-              onChange={(e) => {
-                const files = e.target.files;
-                if (files && files.length > 0) {
-                  setFile(files[0]);
-                }
-              }}
+              onChange={(e) => setFile(e.target.files?.[0] || null)}
               required
             />
           </div>

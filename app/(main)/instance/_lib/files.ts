@@ -1,3 +1,5 @@
+import { normalizePath } from './utils';
+
 export function getApiUrl(path: string) {
   if (typeof window === 'undefined') return path;
   return `${window.location.origin}${path}`;
@@ -89,6 +91,19 @@ export function uploadFile(
   });
 }
 
+/**
+ * Creates a new empty file in the specified instance and path.
+ *
+ * This function checks if the file already exists by sending a HEAD request
+ * to the file path. If the file exists (status 200), it throws an error.
+ * If the file doesn't exist (status 404), it proceeds to create an empty file.
+ * Any other status code indicates an error condition.
+ *
+ * @param instanceName The name of the instance
+ * @param currentPath The directory path where the file should be created
+ * @param fileName The name of the file to create
+ * @throws Error if the file already exists or if there's an API error
+ */
 export async function createFile(
   instanceName: string,
   currentPath: string,
@@ -281,12 +296,8 @@ export async function moveFile(
   allowOverwrite: boolean = false,
   onProgress?: (progress: number) => void,
 ) {
-  const normalizedSource = sourcePath.startsWith('/')
-    ? sourcePath
-    : `/${sourcePath}`;
-  const normalizedDestination = destinationPath.startsWith('/')
-    ? destinationPath
-    : `/${destinationPath}`;
+  const normalizedSource = normalizePath(sourcePath);
+  const normalizedDestination = normalizePath(destinationPath);
   const sourceName = normalizedSource.split('/').filter(Boolean).pop() || '';
   if (!sourceName) {
     // Defensive check: upstream path normalization should prevent this by
@@ -340,9 +351,6 @@ export async function moveFile(
       ? destinationPathWithName.substring(0, lastSlashIndex)
       : '/';
   const fileName = destinationPathWithName.split('/').pop() || '';
-  if (!fileName) {
-    throw new Error('Destination must include a file name');
-  }
 
   const blob = new Blob([data], { type: 'application/octet-stream' });
   const file = new File([blob], fileName, { type: 'application/octet-stream' });
