@@ -12,7 +12,8 @@
     "start": "next start",
     "lint": "eslint",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "ci": "bun run lint && bun run build"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
