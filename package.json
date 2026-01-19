@@ -51,7 +51,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9.39.1",
-    "eslint-config-next": "^16.1.1",
+    "eslint-config-next": "^16.1.3",
     "prettier": "^3.3.3",
     "shadcn": "^3.6.2",
     "tailwindcss": "^4",
