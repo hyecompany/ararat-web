@@ -1,6 +1,6 @@
 # Hye Ararat Web Client
 
-Copyright 2025 Hye Hosting LLC
+Copyright 2026 Hye Hosting LLC
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
