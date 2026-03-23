@@ -26,6 +26,7 @@ package-lock.json
 *.pem
 *.crt
 *.key
+*.pfx
 
 # debug
 npm-debug.log*

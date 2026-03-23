@@ -307,24 +307,21 @@ export default function CreateCertificate() {
               <TabsContent value="edge">
                 <p>1. Go to the following address:</p>
                 <pre className="bg-gray-800 text-white p-2 rounded-md overflow-x-auto">
-                  <code>edge://settings/privacy</code>
+                  <code>edge://certificate-manager/clientcerts</code>
                 </pre>
                 <p>
-                  2. Under &quot;Security&quot;, press &quot;Manage
-                  certificates&quot;.
+                  2. Under &quot;Windows&quot;, press &quot;Manage
+                  imported certificates from Windows&quot;.
                 </p>
                 <p>
-                  3. Click &quot;Import...&quot; then &quot;Next&quot; and
-                  select the &quot;ararat.pfx&quot; file previously downloaded.
+                  3. Click &quot;Import...&quot; then &quot;Next&quot;, then &quot;Browse&quot;, then change the file type to &quot;Personal Information Exchange (*.pfx; *.p12)&quot; and
+                  select the &quot;ararat.pfx&quot;, then click &quot;Next&quot;.
                 </p>
                 <p>
-                  4. Select &quot;Automatically select the certificate
-                  store&quot;, then click &quot;Next&quot; then
-                  &quot;Finish&quot;.
+                  4. Click &quot;Next&quot;, then enter the password you previously set, then click &quot;Next&quot;
                 </p>
                 <p>
-                  5. Restart Edge and navigate to Hye Ararat. Select the Ararat
-                  certificate.
+                  5. Click &quot;Finish&quot;, &quot;Close&quot;, navigate back to Hye Ararat, click the lock or &quot;Not Secure&quot; icon in the address bar, then &quot;Your certificate choices&quot;, then &quot;Change certificate&quot;, then click &quot;Change&quot;, and select the Hye Ararat certificate you just imported.
                 </p>
               </TabsContent>
               <TabsContent value="macOS">

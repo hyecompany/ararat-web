@@ -1,7 +1,13 @@
+import { existsSync, readFileSync } from "node:fs";
+import forge from "node-forge";
+
 const LISTEN_PORT = 3001;
 
 const TLS_CERT_PATH = "./server.crt";
 const TLS_KEY_PATH = "./server.key";
+const UPSTREAM_CLIENT_PFX_ENABLED = process.env.DEV_PROXY_UPSTREAM_CLIENT_PFX === "1";
+const UPSTREAM_CLIENT_PFX_PATH = process.env.DEV_PROXY_UPSTREAM_CLIENT_PFX_PATH ?? "./ararat.pfx";
+const UPSTREAM_CLIENT_PFX_PASSPHRASE = process.env.DEV_PROXY_UPSTREAM_CLIENT_PFX_PASSPHRASE ?? "";
 
 const API_HTTP_TARGET = "https://127.0.0.1:8443";
 const API_WS_TARGET = "wss://127.0.0.1:8443";
@@ -13,7 +19,63 @@ const APP_WS_TARGET = "ws://127.0.0.1:3000";
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 function isSelfSignedDevApiTarget(url: URL): boolean {
-	return url.protocol === "https:" && url.hostname === "127.0.0.1" && url.port === "8443";
+	return (
+		(url.protocol === "https:" || url.protocol === "wss:") &&
+		url.hostname === "127.0.0.1" &&
+		url.port === "8443"
+	);
+}
+
+function parsePfxToTlsMaterial(
+	pfxPath: string,
+	passphrase: string,
+): { certPem: string; keyPem: string } {
+	const pfxBuffer = readFileSync(pfxPath);
+	const p12Der = forge.util.createBuffer(pfxBuffer.toString("binary"));
+	const p12Asn1 = forge.asn1.fromDer(p12Der);
+	const p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, passphrase);
+
+	const certBags = p12.getBags({ bagType: forge.pki.oids.certBag })[
+		forge.pki.oids.certBag
+	] as forge.pkcs12.Bag[] | undefined;
+
+	const keyBags = p12.getBags({
+		bagType: forge.pki.oids.pkcs8ShroudedKeyBag,
+	})[forge.pki.oids.pkcs8ShroudedKeyBag] as forge.pkcs12.Bag[] | undefined;
+
+	const cert = certBags?.[0]?.cert;
+	const key = keyBags?.[0]?.key;
+
+	if (!cert || !key) {
+		throw new Error(`No certificate/private key pair found in ${pfxPath}`);
+	}
+
+	return {
+		certPem: forge.pki.certificateToPem(cert),
+		keyPem: forge.pki.privateKeyToPem(key),
+	};
+}
+
+let upstreamClientTlsMaterial: { certPem: string; keyPem: string } | undefined;
+
+if (UPSTREAM_CLIENT_PFX_ENABLED) {
+	if (!existsSync(UPSTREAM_CLIENT_PFX_PATH)) {
+		throw new Error(
+			`DEV_PROXY_UPSTREAM_CLIENT_PFX=1 but PFX file was not found at ${UPSTREAM_CLIENT_PFX_PATH}`,
+		);
+	}
+
+	try {
+		upstreamClientTlsMaterial = parsePfxToTlsMaterial(
+			UPSTREAM_CLIENT_PFX_PATH,
+			UPSTREAM_CLIENT_PFX_PASSPHRASE,
+		);
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		throw new Error(
+			`Failed to parse upstream client PFX at ${UPSTREAM_CLIENT_PFX_PATH}. If the file is password-protected, set DEV_PROXY_UPSTREAM_CLIENT_PFX_PASSPHRASE. Details: ${message}`,
+		);
+	}
 }
 
 type ProxySocketData = {
@@ -47,14 +109,25 @@ async function proxyHttpRequest(req: Request): Promise<Response> {
 
 	const headers = new Headers(req.headers);
 
-	const init: RequestInit & { tls?: { rejectUnauthorized: boolean } } = {
+	const init: RequestInit & { tls?: Bun.TLSOptions } = {
 		method: req.method,
 		headers,
 		redirect: "manual",
 	};
 
+	if (upstreamClientTlsMaterial && targetUrl.protocol === "https:" && isApiPath(incomingUrl.pathname)) {
+		init.tls = {
+			...(init.tls ?? {}),
+			cert: upstreamClientTlsMaterial.certPem,
+			key: upstreamClientTlsMaterial.keyPem,
+		};
+	}
+
 	if (isSelfSignedDevApiTarget(targetUrl)) {
-		init.tls = { rejectUnauthorized: false };
+		init.tls = {
+			...(init.tls ?? {}),
+			rejectUnauthorized: false,
+		};
 	}
 
 	if (req.method !== "GET" && req.method !== "HEAD") {
@@ -161,7 +234,7 @@ const server = Bun.serve<ProxySocketData>({
 		open(client) {
 			const wsOptions: {
 				headers?: Record<string, string>;
-				tls?: { rejectUnauthorized: boolean };
+				tls?: Bun.TLSOptions;
 			} = {};
 
 			if (Object.keys(client.data.upstreamHeaders).length > 0) {
@@ -169,7 +242,19 @@ const server = Bun.serve<ProxySocketData>({
 			}
 
 			if (isSelfSignedDevApiTarget(new URL(client.data.targetUrl))) {
-				wsOptions.tls = { rejectUnauthorized: false };
+				wsOptions.tls = {
+					...(wsOptions.tls ?? {}),
+					rejectUnauthorized: false,
+				};
+			}
+
+			const wsTarget = new URL(client.data.targetUrl);
+			if (upstreamClientTlsMaterial && wsTarget.protocol === "wss:" && isApiPath(wsTarget.pathname)) {
+				wsOptions.tls = {
+					...(wsOptions.tls ?? {}),
+					cert: upstreamClientTlsMaterial.certPem,
+					key: upstreamClientTlsMaterial.keyPem,
+				};
 			}
 
 			const upstream =
@@ -253,3 +338,8 @@ const server = Bun.serve<ProxySocketData>({
 });
 
 console.log(`Hye Ararat listening on https://127.0.0.1:${server.port}`);
+if (UPSTREAM_CLIENT_PFX_ENABLED) {
+	console.log(
+		`Development server PFX auto-authentication (TLS) enabled for API target using ${UPSTREAM_CLIENT_PFX_PATH}`,
+	);
+}
