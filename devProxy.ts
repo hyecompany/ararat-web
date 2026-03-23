@@ -106,7 +106,6 @@ async function proxyHttpRequest(req: Request): Promise<Response> {
 		});
 	} catch (error) {
 		const message = error instanceof Error ? error.message : "unknown upstream error";
-		console.error(`[Proxy error for ${incomingUrl.pathname}] ${message}`);
 		return new Response(`Proxy error: ${message}`, { status: 502 });
 	}
 }
@@ -211,7 +210,6 @@ const server = Bun.serve<ProxySocketData>({
 			};
 
 			upstream.onerror = (event) => {
-				console.error(`Upstream WebSocket error for ${client.data.targetUrl}`, event);
 				client.close(1011, "Upstream WebSocket error");
 			};
 
