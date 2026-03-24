@@ -1,4 +1,0 @@
-[submodule "deps/ui-web"]
-	path = deps/ui-web
-	url = https://github.com/hyecompany/ui-web
-	branch = meg

@@ -19,7 +19,10 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "ui-web/components/*": ["./components/ui/*"],
+      "ui-web/hooks/*": ["./hooks/*"],
+      "ui-web/lib/*": ["./lib/*"]
     }
   },
   "include": [

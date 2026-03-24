@@ -2,9 +2,6 @@
   "name": "ararat-web",
   "version": "1.0.0",
   "private": true,
-  "workspaces": [
-    "deps/ui-web"
-  ],
   "scripts": {
     "dev": "concurrently \"bun run dev:proxy\" \"bun run dev:next\"",
     "dev:next": "next dev",
@@ -43,7 +40,6 @@
     "sonner": "^2.0.7",
     "swr": "^2.4.1",
     "tailwind-merge": "^3.4.0",
-    "ui-web": "workspace:*",
     "zod": "^4.3.6"
   },
   "devDependencies": {
