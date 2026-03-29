@@ -2,10 +2,19 @@
 .next/
 out/
 node_modules/
+dist/
 
 # Generated files
 coverage/
 *.log
 
-# Workflow files have specialized formatting
+# GitHub
 .github/workflows/
+.github/
+
+# AI
+.claude/
+.agents/
+
+# shadcn
+components/ui/

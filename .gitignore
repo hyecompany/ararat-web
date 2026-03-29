@@ -50,3 +50,6 @@ package-lock.json
 # pnpm
 pnpm-lock.yaml
 pnpm-workspace.yaml
+
+# claude
+.claude/settings.local.json
