@@ -1,3 +1,7 @@
+/**
+ * @file Development server that somewhat simulates how Ararat is served in production by the Incus web server (does not simulate SPA serving behavior)
+ * @author Joseph Maldjian <joseph.maldjian@hyecompany.com>
+ */
 import { existsSync, readFileSync } from 'node:fs';
 import forge from 'node-forge';
 
