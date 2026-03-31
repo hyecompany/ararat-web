@@ -227,7 +227,7 @@ export default function CreateCertificate() {
                         <code>chrome://settings/security</code>
                       </pre>
                       <p>
-                        2. Under &quot;Advanced Settings&quot;, press &quot;Manage device
+                        2. Under &quot;Advanced&quot;, press &quot;Manage
                         certificates&quot;
                       </p>
                       <p>
