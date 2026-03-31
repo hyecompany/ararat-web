@@ -9,7 +9,7 @@
     "build": "next build",
     "build:route-map": "bun run ./scripts/generate-route-map.ts",
     "build:copy": "sudo rm -rf /opt/incus/ui/* && sudo cp -r out/* /opt/incus/ui",
-    "build-install": "bun run build && bun run build:route-map && bun run build:copy",
+    "install-build": "bun run build && bun run build:route-map && bun run build:copy",
     "start": "next start",
     "lint": "eslint",
     "format": "prettier --write .",
