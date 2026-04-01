@@ -13,19 +13,19 @@ const UPSTREAM_CLIENT_PFX_ENABLED = process.env.DEV_PROXY_UPSTREAM_CLIENT_PFX ==
 const UPSTREAM_CLIENT_PFX_PATH = process.env.DEV_PROXY_UPSTREAM_CLIENT_PFX_PATH ?? './ararat.pfx';
 const UPSTREAM_CLIENT_PFX_PASSPHRASE = process.env.DEV_PROXY_UPSTREAM_CLIENT_PFX_PASSPHRASE ?? '';
 
-const API_HTTP_TARGET = 'https://127.0.0.1:8443';
-const API_WS_TARGET = 'wss://127.0.0.1:8443';
+const API_HTTP_TARGET = 'https://localhost:8443';
+const API_WS_TARGET = 'wss://localhost:8443';
 
-const APP_HTTP_TARGET = 'http://127.0.0.1:3000';
-const APP_WS_TARGET = 'ws://127.0.0.1:3000';
+const APP_HTTP_TARGET = 'http://localhost:3000';
+const APP_WS_TARGET = 'ws://localhost:3000';
 
-// Development only: allow proxying to self-signed TLS upstreams (e.g. 127.0.0.1:8443).
+// Development only: allow proxying to self-signed TLS upstreams (e.g. localhost:8443).
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 function isSelfSignedDevApiTarget(url: URL): boolean {
   return (
     (url.protocol === 'https:' || url.protocol === 'wss:') &&
-    url.hostname === '127.0.0.1' &&
+    url.hostname === 'localhost' &&
     url.port === '8443'
   );
 }
@@ -191,6 +191,13 @@ async function proxyHttpRequest(req: Request): Promise<Response> {
   }
 }
 
+if (!existsSync(TLS_CERT_PATH) || !existsSync(TLS_KEY_PATH)) {
+  console.error(
+    `TLS certificate or key not found at ${TLS_CERT_PATH} and ${TLS_KEY_PATH}. Please copy /var/lib/incus/server.crt and /var/lib/server.key from your Incus host to these paths.`,
+  );
+  process.exit(1);
+}
+
 const server = Bun.serve<ProxySocketData>({
   port: LISTEN_PORT,
   tls: {
@@ -345,7 +352,7 @@ const server = Bun.serve<ProxySocketData>({
   },
 });
 
-console.log(`Hye Ararat listening on https://127.0.0.1:${server.port}`);
+console.log(`Hye Ararat listening on https://localhost:${server.port}`);
 if (UPSTREAM_CLIENT_PFX_ENABLED) {
   console.log(
     `Development server PFX auto-authentication (TLS) enabled for API target using ${UPSTREAM_CLIENT_PFX_PATH}`,
