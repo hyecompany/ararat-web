@@ -68,7 +68,7 @@
     "concurrently": "^9.2.1",
     "eslint": "^9.39.1",
     "eslint-config-next": "16.2.1",
-    "prettier": "^3.3.3",
+    "prettier": "^3.8.1",
     "prettier-plugin-tailwindcss": "^0.7.2",
     "shadcn": "^4.1.0",
     "tailwindcss": "^4",
