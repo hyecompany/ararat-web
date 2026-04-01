@@ -166,6 +166,7 @@ export default function CreateCertificate() {
                   setSettingPassword(false);
                   generateCertificate();
                 }}
+                disabled={(password || confirmPassword) ? true : false}
               >
                 Skip & Generate
               </Button>
