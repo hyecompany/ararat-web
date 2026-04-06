@@ -1,6 +1,7 @@
 env = { SystemRoot="C:\\Windows", PROGRAMFILES="C:\\Program Files" }
 startup_timeout_ms = 20_000
 
+sandbox_mode = "workspace-write"
 [mcp_servers.next-devtools]
 command = "npx"
 args = ["-y", "next-devtools-mcp@latest"]
@@ -13,3 +14,6 @@ args = ["shadcn@latest", "mcp"]
 url = "https://api.githubcopilot.com/mcp/"
 # Replace with your real PAT (least-privilege scopes). Do NOT commit this.
 bearer_token_env_var = "GITHUB_PAT_TOKEN"
+
+[sandbox_workspace_write]
+network_access = true
