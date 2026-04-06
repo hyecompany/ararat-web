@@ -131,7 +131,7 @@ Traditional composition often creates deeply nested DOM structures. `asChild` el
 `asChild` enables seamless integration with your existing design system components:
 
 ```tsx
-import { Button } from '@/components/ui/button';
+import { Button } from "@/components/ui/button";
 
 <DropdownMenu.Trigger asChild>
   <Button variant="outline" size="icon">
@@ -250,7 +250,7 @@ Verify that custom components work correctly with `asChild`:
 ```tsx
 // Test that props are properly forwarded
 const TestButton = (props) => {
-  console.log('Received props:', props);
+  console.log("Received props:", props);
   return <button {...props} />;
 };
 

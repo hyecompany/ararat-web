@@ -24,8 +24,8 @@ In less modern components, you'll often see APIs like this:
   openClassName="bg-black"
   closedClassName="bg-white"
   classes={{
-    open: 'opacity-100',
-    closed: 'opacity-0',
+    open: "opacity-100",
+    closed: "opacity-0",
   }}
 />
 ```
@@ -47,8 +47,8 @@ const Dialog = ({ className, ...props }: DialogProps) => {
 
   return (
     <div
-      data-state={isOpen ? 'open' : 'closed'}
-      className={cn('transition-all', className)}
+      data-state={isOpen ? "open" : "closed"}
+      className={cn("transition-all", className)}
       {...props}
     />
   );
@@ -101,12 +101,12 @@ Tailwind supports arbitrary variants, making data attribute styling elegant:
 <Dialog
   className={cn(
     // Base styles
-    'rounded-lg border p-4',
+    "rounded-lg border p-4",
     // State-based styles
-    'data-[state=open]:animate-in data-[state=open]:fade-in',
-    'data-[state=closed]:animate-out data-[state=closed]:fade-out',
+    "data-[state=open]:animate-in data-[state=open]:fade-in",
+    "data-[state=closed]:animate-out data-[state=closed]:fade-out",
     // Multiple attributes
-    'data-[state=open][data-side=top]:slide-in-from-top-2',
+    "data-[state=open][data-side=top]:slide-in-from-top-2",
   )}
 />
 ```
@@ -138,7 +138,7 @@ Now you can use shorthand:
 This pattern is used extensively by [Radix UI](https://www.radix-ui.com/), which automatically applies data attributes to its primitives:
 
 ```tsx
-import * as Dialog from '@radix-ui/react-dialog';
+import * as Dialog from "@radix-ui/react-dialog";
 
 <Dialog.Root>
   <Dialog.Trigger />
@@ -186,15 +186,15 @@ Traditional approaches to styling child components have significant limitations:
 Use `data-slot` to give components stable identifiers that can be targeted by parents:
 
 ```tsx title="field-set.tsx"
-function FieldSet({ className, ...props }: React.ComponentProps<'fieldset'>) {
+function FieldSet({ className, ...props }: React.ComponentProps<"fieldset">) {
   return (
     <fieldset
       data-slot="field-set"
       className={cn(
-        'flex flex-col gap-6',
+        "flex flex-col gap-6",
         // Target specific child slots
-        'has-[>[data-slot=checkbox-group]]:gap-3',
-        'has-[>[data-slot=radio-group]]:gap-3',
+        "has-[>[data-slot=checkbox-group]]:gap-3",
+        "has-[>[data-slot=radio-group]]:gap-3",
         className,
       )}
       {...props}
@@ -204,11 +204,11 @@ function FieldSet({ className, ...props }: React.ComponentProps<'fieldset'>) {
 ```
 
 ```tsx title="checkbox-group.tsx"
-function CheckboxGroup({ className, ...props }: React.ComponentProps<'div'>) {
+function CheckboxGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="checkbox-group"
-      className={cn('flex flex-col gap-2', className)}
+      className={cn("flex flex-col gap-2", className)}
       {...props}
     />
   );
@@ -228,17 +228,17 @@ function CheckboxGroup({ className, ...props }: React.ComponentProps<'div'>) {
 Tailwind's `has-[]` selector combined with `data-slot` creates powerful parent-aware styling:
 
 ```tsx title="form.tsx"
-function Form({ className, ...props }: React.ComponentProps<'form'>) {
+function Form({ className, ...props }: React.ComponentProps<"form">) {
   return (
     <form
       data-slot="form"
       className={cn(
-        'space-y-4',
+        "space-y-4",
         // Adjust spacing when specific slots are present
-        'has-[>[data-slot=form-section]]:space-y-6',
-        'has-[>[data-slot=inline-fields]]:space-y-2',
+        "has-[>[data-slot=form-section]]:space-y-6",
+        "has-[>[data-slot=inline-fields]]:space-y-2",
         // Style based on slot states
-        'has-[[data-slot=submit-button][data-loading=true]]:opacity-50',
+        "has-[[data-slot=submit-button][data-loading=true]]:opacity-50",
         className,
       )}
       {...props}
@@ -252,17 +252,17 @@ function Form({ className, ...props }: React.ComponentProps<'form'>) {
 For deeper nesting, use the `[&_selector]` pattern to target any descendant:
 
 ```tsx title="card.tsx"
-function Card({ className, ...props }: React.ComponentProps<'div'>) {
+function Card({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card"
       className={cn(
-        'rounded-lg border p-4',
+        "rounded-lg border p-4",
         // Target any descendant with data-slot
-        '[&_[data-slot=card-header]]:mb-4',
-        '[&_[data-slot=card-title]]:text-lg [&_[data-slot=card-title]]:font-semibold',
-        '[&_[data-slot=card-description]]:text-sm [&_[data-slot=card-description]]:text-muted-foreground',
-        '[&_[data-slot=card-footer]]:mt-4 [&_[data-slot=card-footer]]:border-t [&_[data-slot=card-footer]]:pt-4',
+        "[&_[data-slot=card-header]]:mb-4",
+        "[&_[data-slot=card-title]]:text-lg [&_[data-slot=card-title]]:font-semibold",
+        "[&_[data-slot=card-description]]:text-sm [&_[data-slot=card-description]]:text-muted-foreground",
+        "[&_[data-slot=card-footer]]:mt-4 [&_[data-slot=card-footer]]:border-t [&_[data-slot=card-footer]]:pt-4",
         className,
       )}
       {...props}
@@ -277,22 +277,22 @@ Data slots work beautifully with global CSS for theme-wide consistency:
 
 ```css title="globals.css"
 /* Style all buttons within forms */
-[data-slot='form'] [data-slot='button'] {
+[data-slot="form"] [data-slot="button"] {
   @apply w-full sm:w-auto;
 }
 
 /* Style submit buttons specifically */
-[data-slot='form'] [data-slot='submit-button'] {
+[data-slot="form"] [data-slot="submit-button"] {
   @apply bg-primary text-primary-foreground;
 }
 
 /* Adjust inputs within inline layouts */
-[data-slot='inline-fields'] [data-slot='input'] {
+[data-slot="inline-fields"] [data-slot="input"] {
   @apply flex-1;
 }
 
 /* Style based on state combinations */
-[data-slot='dialog'][data-state='open'] [data-slot='dialog-content'] {
+[data-slot="dialog"][data-state="open"] [data-slot="dialog-content"] {
   @apply animate-in fade-in;
 }
 ```
@@ -351,8 +351,8 @@ A well-designed component uses all three patterns appropriately:
 
 ```tsx title="button.tsx"
 type ButtonProps = {
-  variant?: 'primary' | 'secondary' | 'destructive';
-  size?: 'sm' | 'md' | 'lg';
+  variant?: "primary" | "secondary" | "destructive";
+  size?: "sm" | "md" | "lg";
   loading?: boolean;
   disabled?: boolean;
   onClick?: () => void;
@@ -360,8 +360,8 @@ type ButtonProps = {
 };
 
 const Button = ({
-  variant = 'primary',
-  size = 'md',
+  variant = "primary",
+  size = "md",
   loading,
   disabled,
   className,

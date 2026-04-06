@@ -31,26 +31,26 @@ The `tailwind-merge` library solves this by understanding Tailwind's class struc
 ```
 
 ```tsx title="With tailwind-merge"
-import { twMerge } from 'tailwind-merge';
+import { twMerge } from "tailwind-merge";
 
 // bg-blue-500 wins as it comes last
-const className = twMerge('bg-red-500', 'bg-blue-500');
+const className = twMerge("bg-red-500", "bg-blue-500");
 // Returns: "bg-blue-500"
 ```
 
 This works for all Tailwind utilities:
 
 ```tsx
-twMerge('px-4 py-2', 'px-8'); // Returns: "py-2 px-8"
-twMerge('text-sm', 'text-lg'); // Returns: "text-lg"
-twMerge('hover:bg-red-500', 'hover:bg-blue-500'); // Returns: "hover:bg-blue-500"
+twMerge("px-4 py-2", "px-8"); // Returns: "py-2 px-8"
+twMerge("text-sm", "text-lg"); // Returns: "text-lg"
+twMerge("hover:bg-red-500", "hover:bg-blue-500"); // Returns: "hover:bg-blue-500"
 ```
 
 The library understands Tailwind's modifier system too:
 
 ```tsx
 // Modifiers are handled correctly
-twMerge('hover:bg-red-500 focus:bg-red-500', 'hover:bg-blue-500');
+twMerge("hover:bg-red-500 focus:bg-red-500", "hover:bg-blue-500");
 // Returns: "focus:bg-red-500 hover:bg-blue-500"
 ```
 
@@ -59,27 +59,27 @@ twMerge('hover:bg-red-500 focus:bg-red-500', 'hover:bg-blue-500');
 Often you need to apply classes conditionally based on props or state. The `clsx` library provides a clean API for this:
 
 ```tsx title="Using clsx"
-import clsx from 'clsx';
+import clsx from "clsx";
 
 // Basic conditionals
-clsx('base', isActive && 'active');
+clsx("base", isActive && "active");
 // Returns: "base active" (if isActive is true)
 
 // Object syntax
-clsx('base', {
+clsx("base", {
   active: isActive,
   disabled: isDisabled,
 });
 
 // Arrays
-clsx(['base', isLarge ? 'text-lg' : 'text-sm']);
+clsx(["base", isLarge ? "text-lg" : "text-sm"]);
 
 // Mixed
 clsx(
-  'base',
-  ['array-item'],
-  { 'object-conditional': true },
-  isActive && 'conditional',
+  "base",
+  ["array-item"],
+  { "object-conditional": true },
+  isActive && "conditional",
 );
 ```
 
@@ -92,8 +92,8 @@ const Component = ({ className, ...props }: ComponentProps) => {
   return (
     <div
       className={cn(
-        'rounded-lg border bg-white shadow-sm',
-        isOpen && 'bg-blue-500',
+        "rounded-lg border bg-white shadow-sm",
+        isOpen && "bg-blue-500",
         className,
       )}
       {...props}
@@ -107,8 +107,8 @@ const Component = ({ className, ...props }: ComponentProps) => {
 The `cn` function, popularized by [shadcn/ui](https://ui.shadcn.com/), combines `clsx` and `tailwind-merge` to give you both conditional logic and intelligent merging:
 
 ```tsx title="lib/utils.ts"
-import { type ClassValue, clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { type ClassValue, clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -129,27 +129,27 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'bg-primary text-primary-foreground hover:bg-primary/90',
+        default: "bg-primary text-primary-foreground hover:bg-primary/90",
         destructive:
-          'bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60',
+          "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
         outline:
-          'border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50',
+          "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
         secondary:
-          'bg-secondary text-secondary-foreground hover:bg-secondary/80',
+          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost:
-          'hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50',
-        link: 'text-primary underline-offset-4 hover:underline',
+          "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
+        link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
-        default: 'h-9 px-4 py-2 has-[>svg]:px-3',
-        sm: 'h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5',
-        lg: 'h-10 rounded-md px-6 has-[>svg]:px-4',
-        icon: 'size-9',
+        default: "h-9 px-4 py-2 has-[>svg]:px-3",
+        sm: "h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5",
+        lg: "h-10 rounded-md px-6 has-[>svg]:px-4",
+        icon: "size-9",
       },
     },
     defaultVariants: {
-      variant: 'default',
-      size: 'default',
+      variant: "default",
+      size: "default",
     },
   },
 );
@@ -185,13 +185,13 @@ type ButtonProps = {
    * The visual style of the button
    * @default "primary"
    */
-  variant?: 'primary' | 'secondary' | 'destructive' | 'ghost';
+  variant?: "primary" | "secondary" | "destructive" | "ghost";
 
   /**
    * The size of the button
    * @default "md"
    */
-  size?: 'sm' | 'md' | 'lg';
+  size?: "sm" | "md" | "lg";
 };
 ```
 
@@ -214,18 +214,18 @@ If you're migrating from a different styling approach, here's how to adapt commo
 ### From CSS Modules
 
 ```tsx title="Before - CSS Modules"
-import styles from './Button.module.css';
+import styles from "./Button.module.css";
 
 <button className={`${styles.button} ${styles[variant]} ${className}`} />;
 ```
 
 ```tsx title="After - cn + Tailwind"
-import { cn } from '@/lib/utils';
+import { cn } from "@/lib/utils";
 
 <button
   className={cn(
-    'px-4 py-2 rounded-lg',
-    variant === 'primary' && 'bg-blue-500 text-white',
+    "px-4 py-2 rounded-lg",
+    variant === "primary" && "bg-blue-500 text-white",
     className,
   )}
 />;
@@ -236,7 +236,7 @@ import { cn } from '@/lib/utils';
 ```tsx title="Before - styled-components"
 const Button = styled.button<{ $primary?: boolean }>`
   padding: 8px 16px;
-  background: ${(props) => (props.$primary ? 'blue' : 'gray')};
+  background: ${(props) => (props.$primary ? "blue" : "gray")};
 `;
 ```
 
@@ -245,8 +245,8 @@ function Button({ primary, className, ...props }) {
   return (
     <button
       className={cn(
-        'px-4 py-2',
-        primary ? 'bg-blue-500' : 'bg-gray-500',
+        "px-4 py-2",
+        primary ? "bg-blue-500" : "bg-gray-500",
         className,
       )}
       {...props}

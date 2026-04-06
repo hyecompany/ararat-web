@@ -23,7 +23,7 @@ function UserProfile({ user, theme }) {
       src={user.avatarUrl}
       className={theme === 'dark' ? 'avatar-dark' : 'avatar-light'}
     />
-  );
+  )
 
   // Defined inside to access `user` - BAD
   const Stats = () => (
@@ -31,14 +31,14 @@ function UserProfile({ user, theme }) {
       <span>{user.followers} followers</span>
       <span>{user.posts} posts</span>
     </div>
-  );
+  )
 
   return (
     <div>
       <Avatar />
       <Stats />
     </div>
-  );
+  )
 }
 ```
 
@@ -53,7 +53,7 @@ function Avatar({ src, theme }: { src: string; theme: string }) {
       src={src}
       className={theme === 'dark' ? 'avatar-dark' : 'avatar-light'}
     />
-  );
+  )
 }
 
 function Stats({ followers, posts }: { followers: number; posts: number }) {
@@ -62,7 +62,7 @@ function Stats({ followers, posts }: { followers: number; posts: number }) {
       <span>{followers} followers</span>
       <span>{posts} posts</span>
     </div>
-  );
+  )
 }
 
 function UserProfile({ user, theme }) {
@@ -71,12 +71,11 @@ function UserProfile({ user, theme }) {
       <Avatar src={user.avatarUrl} theme={theme} />
       <Stats followers={user.followers} posts={user.posts} />
     </div>
-  );
+  )
 }
 ```
 
 **Symptoms of this bug:**
-
 - Input fields lose focus on every keystroke
 - Animations restart unexpectedly
 - `useEffect` cleanup/setup runs on every parent render

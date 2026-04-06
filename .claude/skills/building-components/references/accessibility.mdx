@@ -46,19 +46,19 @@ Every interactive element must be keyboard accessible. Users should be able to n
 function Menu() {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     switch (e.key) {
-      case 'ArrowDown':
+      case "ArrowDown":
         focusNextItem();
         break;
-      case 'ArrowUp':
+      case "ArrowUp":
         focusPreviousItem();
         break;
-      case 'Home':
+      case "Home":
         focusFirstItem();
         break;
-      case 'End':
+      case "End":
         focusLastItem();
         break;
-      case 'Escape':
+      case "Escape":
         closeMenu();
         break;
     }
@@ -235,24 +235,24 @@ function Modal({ isOpen, onClose, children }) {
       firstFocusable?.focus();
 
       // Prevent body scroll
-      document.body.style.overflow = 'hidden';
+      document.body.style.overflow = "hidden";
     } else {
       // Restore focus
       previousFocus.current?.focus();
-      document.body.style.overflow = '';
+      document.body.style.overflow = "";
     }
 
     return () => {
-      document.body.style.overflow = '';
+      document.body.style.overflow = "";
     };
   }, [isOpen]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
+    if (e.key === "Escape") {
       onClose();
     }
 
-    if (e.key === 'Tab') {
+    if (e.key === "Tab") {
       // Trap focus within modal
       const focusables = modalRef.current?.querySelectorAll<HTMLElement>(
         'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
@@ -309,7 +309,7 @@ function DropdownMenu({ items }) {
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     switch (e.key) {
-      case 'ArrowDown':
+      case "ArrowDown":
         e.preventDefault();
         if (!isOpen) {
           setIsOpen(true);
@@ -319,15 +319,15 @@ function DropdownMenu({ items }) {
         }
         break;
 
-      case 'ArrowUp':
+      case "ArrowUp":
         e.preventDefault();
         if (isOpen) {
           setSelectedIndex((prev) => (prev > 0 ? prev - 1 : items.length - 1));
         }
         break;
 
-      case 'Enter':
-      case ' ':
+      case "Enter":
+      case " ":
         e.preventDefault();
         if (!isOpen) {
           setIsOpen(true);
@@ -337,7 +337,7 @@ function DropdownMenu({ items }) {
         }
         break;
 
-      case 'Escape':
+      case "Escape":
         setIsOpen(false);
         setSelectedIndex(-1);
         break;
@@ -396,16 +396,16 @@ function Tabs({ tabs, defaultTab = 0 }) {
     let newIndex = index;
 
     switch (e.key) {
-      case 'ArrowLeft':
+      case "ArrowLeft":
         newIndex = index > 0 ? index - 1 : tabs.length - 1;
         break;
-      case 'ArrowRight':
+      case "ArrowRight":
         newIndex = index < tabs.length - 1 ? index + 1 : 0;
         break;
-      case 'Home':
+      case "Home":
         newIndex = 0;
         break;
-      case 'End':
+      case "End":
         newIndex = tabs.length - 1;
         break;
       default:
@@ -476,7 +476,7 @@ function AccessibleForm() {
           type="email"
           aria-required="true"
           aria-invalid={!!errors.email}
-          aria-describedby={errors.email ? 'email-error' : 'email-help'}
+          aria-describedby={errors.email ? "email-error" : "email-help"}
         />
         <span id="email-help" className="help-text">
           We'll never share your email
@@ -559,7 +559,7 @@ function useFocusTrap(ref: React.RefObject<HTMLElement>, isActive: boolean) {
     const lastFocusable = focusableElements[focusableElements.length - 1];
 
     const handleTabKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Tab') return;
+      if (e.key !== "Tab") return;
 
       if (e.shiftKey) {
         if (document.activeElement === firstFocusable) {
@@ -574,11 +574,11 @@ function useFocusTrap(ref: React.RefObject<HTMLElement>, isActive: boolean) {
       }
     };
 
-    element.addEventListener('keydown', handleTabKey);
+    element.addEventListener("keydown", handleTabKey);
     firstFocusable?.focus();
 
     return () => {
-      element.removeEventListener('keydown', handleTabKey);
+      element.removeEventListener("keydown", handleTabKey);
     };
   }, [ref, isActive]);
 }
@@ -725,7 +725,7 @@ Ensure touch targets are large enough:
 }
 
 .icon-button::before {
-  content: '';
+  content: "";
   position: absolute;
   top: -8px;
   right: -8px;

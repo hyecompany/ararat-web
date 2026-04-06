@@ -23,7 +23,7 @@ npm install @acme/ui-components
 ```
 
 ```tsx title="MyApp.tsx"
-import { Button } from '@acme/ui-components';
+import { Button } from "@acme/ui-components";
 
 // Component is imported from node_modules
 // Source code is not directly editable
@@ -113,7 +113,7 @@ By default, Tailwind only generates styles for classes it finds in your project 
 To fix this, users need to add a `@source` directive to their Tailwind configuration, telling it to scan your package for class names:
 
 ```css title="globals.css"
-@import 'tailwindcss';
+@import "tailwindcss";
 
 /* Tell Tailwind to look for classes in your package */
 @source "../node_modules/@acme/ui-components";

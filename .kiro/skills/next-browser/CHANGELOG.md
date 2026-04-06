@@ -1,0 +1,39 @@
+# @vercel/next-browser
+
+## 0.4.0
+
+### Minor Changes
+
+- [#16](https://github.com/vercel-labs/next-browser/pull/16) [`0d1c5f2`](https://github.com/vercel-labs/next-browser/commit/0d1c5f2d009f8ad8b31b68fcd38e5f77b698587c) Thanks [@gaojude](https://github.com/gaojude)! - Add `browser-logs` command to capture browser console output
+
+- [#18](https://github.com/vercel-labs/next-browser/pull/18) [`08d49f5`](https://github.com/vercel-labs/next-browser/commit/08d49f5606482cc9b88a6428db58d737265cdc15) Thanks [@gaojude](https://github.com/gaojude)! - Add `renders start` and `renders stop` commands for React re-render profiling
+
+- [#21](https://github.com/vercel-labs/next-browser/pull/21) [`a5e0759`](https://github.com/vercel-labs/next-browser/commit/a5e0759a5bd4a2d02e968c3249c8420fe34b77f8) Thanks [@gaojude](https://github.com/gaojude)! - Distinguish mounts from re-renders in `renders stop` output with `Insts`, `Mounts`, and `Re-renders` columns
+
+### Patch Changes
+
+- [#19](https://github.com/vercel-labs/next-browser/pull/19) [`18eb8e8`](https://github.com/vercel-labs/next-browser/commit/18eb8e8220b2ff507ccb9fcc0e2164e068dd9fcb) Thanks [@gaojude](https://github.com/gaojude)! - Remove `prototypes/` directory
+
+- [#20](https://github.com/vercel-labs/next-browser/pull/20) [`979339e`](https://github.com/vercel-labs/next-browser/commit/979339ef6f3bdfa5b7c806a8b2d264f75e57dfba) Thanks [@gaojude](https://github.com/gaojude)! - Fold `preview` into `screenshot` — every screenshot now automatically opens a Screenshot Log window in headed mode
+
+## 0.3.0
+
+### Minor Changes
+
+- [#12](https://github.com/vercel-labs/next-browser/pull/12) [`c3afe66`](https://github.com/vercel-labs/next-browser/commit/c3afe66b840def548ca2b1113b955bb54942b404) Thanks [@gaojude](https://github.com/gaojude)! - Add `preview` command for visual feedback and `--full-page` flag for `screenshot`
+
+- [#10](https://github.com/vercel-labs/next-browser/pull/10) [`3e2704b`](https://github.com/vercel-labs/next-browser/commit/3e2704b6ed631a3013f6692072afd8a75e466a05) Thanks [@gaojude](https://github.com/gaojude)! - Replace `ssr-goto` with `ssr lock` / `ssr unlock` for persistent SSR inspection across navigations. Auto-open browser on `goto` when not already open. Make lock commands idempotent.
+
+## 0.2.0
+
+### Minor Changes
+
+- [#4](https://github.com/vercel-labs/next-browser/pull/4) [`0f0aa67`](https://github.com/vercel-labs/next-browser/commit/0f0aa670c2a40e7927ca1dba2f9550d56bb89f81) Thanks [@gaojude](https://github.com/gaojude)! - Add `perf` command that profiles a full page load — collects Core Web Vitals (TTFB, LCP, CLS) and React hydration timing in one pass. Also exposes `hydration` as a standalone command for React-only timing. Restructure PPR analysis output to use a Quick Reference table.
+
+- [#6](https://github.com/vercel-labs/next-browser/pull/6) [`b53f406`](https://github.com/vercel-labs/next-browser/commit/b53f406a66e1142e5e1b0b24233beb14a609ec53) Thanks [@gaojude](https://github.com/gaojude)! - Add `--file` and stdin (`-`) modes to `eval` command to avoid shell quoting failures
+
+- [#8](https://github.com/vercel-labs/next-browser/pull/8) [`9b3dd4c`](https://github.com/vercel-labs/next-browser/commit/9b3dd4ce618e4786d8ff4bba4f4e8a08fff8d153) Thanks [@gaojude](https://github.com/gaojude)! - Add `snapshot`, `click`, and `fill` commands for page interaction via accessibility tree refs
+
+### Patch Changes
+
+- [#7](https://github.com/vercel-labs/next-browser/pull/7) [`4162ca1`](https://github.com/vercel-labs/next-browser/commit/4162ca172776669e9c3e883d1479d21bb5b2ad4a) Thanks [@gaojude](https://github.com/gaojude)! - Use named pipes on Windows instead of Unix domain sockets to fix daemon startup failure

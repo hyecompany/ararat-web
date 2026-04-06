@@ -19,7 +19,7 @@ Uncontrolled state is when the component manages its own state internally. This 
 For example, here's a simple `Stepper` component that manages its own state internally:
 
 ```tsx title="stepper.tsx"
-import { useState } from 'react';
+import { useState } from "react";
 
 export const Stepper = () => {
   const [value, setValue] = useState(0);
@@ -70,7 +70,7 @@ This lightweight hook gives you the same state management patterns used internal
 The hook accepts three main parameters and returns a tuple with the current value and setter. Let's use it to merge the controlled and uncontrolled state of the `Stepper` component:
 
 ```tsx title="stepper.tsx"
-import { useControllableState } from '@radix-ui/react-use-controllable-state';
+import { useControllableState } from "@radix-ui/react-use-controllable-state";
 
 type StepperProps = {
   value: number;
