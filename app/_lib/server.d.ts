@@ -28,6 +28,8 @@ export interface ConfigOption {
   fullKey?: string;
   supported_types?: ('container' | 'virtual-machine')[];
   required_for?: ('container' | 'virtual-machine')[];
+  unit_options?: string[];
+  default_unit?: string;
 }
 
 export interface DeviceTypeConfig {

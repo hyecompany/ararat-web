@@ -47,7 +47,48 @@ function processConfigurableOptions(config: ConfigurableOptions) {
   // Helper to process a single option
   const MATCHED_TYPE_BOTH = 'both' as const;
 
-  const processOption = (option: ConfigOption) => {
+  const annotateUnitOptions = (
+    option: ConfigOption,
+    key: string,
+    categoryName: string,
+    textToCheck: string,
+  ) => {
+    if (!textToCheck.includes('instances-limit-units')) return;
+
+    const context = `${categoryName}.${key} ${textToCheck}`;
+
+    if (
+      categoryName.includes('nic') ||
+      context.includes('network') ||
+      context.includes('bandwidth')
+    ) {
+      option.unit_options = ['kbit', 'Mbit', 'Gbit'];
+      option.default_unit = 'Mbit';
+      return;
+    }
+
+    if (context.includes('memory')) {
+      option.unit_options = ['MiB', 'GiB', 'TiB'];
+      option.default_unit = 'GiB';
+      return;
+    }
+
+    if (
+      categoryName.includes('disk') ||
+      context.includes('disk') ||
+      context.includes('storage') ||
+      key === 'size'
+    ) {
+      option.unit_options = ['MB', 'GB', 'TB', 'MiB', 'GiB', 'TiB'];
+      option.default_unit = 'GiB';
+    }
+  };
+
+  const processOption = (
+    option: ConfigOption,
+    key: string,
+    categoryName: string,
+  ) => {
     const textToCheck = [option.condition, option.shortdesc, option.longdesc]
       .filter(Boolean)
       .join(' ')
@@ -55,7 +96,8 @@ function processConfigurableOptions(config: ConfigurableOptions) {
 
     // Default to supporting both types
     option.supported_types = ['container', 'virtual-machine'];
-    let typeMatchCategory: 'both' | 'container' | 'virtual-machine' = MATCHED_TYPE_BOTH;
+    let typeMatchCategory: 'both' | 'container' | 'virtual-machine' =
+      MATCHED_TYPE_BOTH;
     // Check for container-only patterns
     if (
       TYPE_PATTERNS.container.some((pattern) => textToCheck.includes(pattern))
@@ -71,10 +113,13 @@ function processConfigurableOptions(config: ConfigurableOptions) {
       typeMatchCategory = 'virtual-machine';
     }
     // Warn if no pattern matched and falling back to both
-    if (typeMatchCategory === MATCHED_TYPE_BOTH && process.env.NODE_ENV === 'development') {
+    if (
+      typeMatchCategory === MATCHED_TYPE_BOTH &&
+      process.env.NODE_ENV === 'development'
+    ) {
       console.warn(
         `[processOption] Option ${option.name || option.key || '[unknown key]'} uses the default 'both' instance types due to unmatched pattern:`,
-        textToCheck
+        textToCheck,
       );
     }
 
@@ -95,15 +140,19 @@ function processConfigurableOptions(config: ConfigurableOptions) {
         option.required_for = ['virtual-machine'];
       }
     }
+
+    annotateUnitOptions(option, key, categoryName.toLowerCase(), textToCheck);
   };
 
   const configs = config.configs as ConfigsShape;
 
   const traverseCategories = (collection?: Record<string, OptionCategory>) => {
     if (!collection) return;
-    Object.values(collection).forEach((category) => {
+    Object.entries(collection).forEach(([categoryName, category]) => {
       category.keys?.forEach((keyObj) => {
-        Object.values(keyObj).forEach((opt) => processOption(opt));
+        Object.entries(keyObj).forEach(([key, opt]) =>
+          processOption(opt, key, categoryName),
+        );
       });
     });
   };

@@ -7,6 +7,7 @@ import { Button } from 'ui-web/components/button';
 import { IconRotateClockwise } from '@tabler/icons-react';
 import { useConfigurableOptions } from '@/app/_hooks/server';
 import { ConfigOption } from '@/app/_lib/server.d';
+import { UnitInput } from '@/app/(main)/_components/unit-input';
 import { ScrollArea } from 'ui-web/components/scroll-area';
 import { SearchIcon } from 'lucide-react';
 import { VerticalTabsLayout } from '@/app/_components/layout/vertical-tabs-layout';
@@ -153,6 +154,10 @@ export default function GeneralConfiguration({
     }
 
     const canReset = hasLocalValue && !readOnly;
+    const hasUnitOptions =
+      metadata.unit_options &&
+      metadata.unit_options.length > 0 &&
+      metadata.default_unit;
 
     return (
       <Field key={fullKey} className="pb-6 border-b last:border-0 last:pb-0">
@@ -201,6 +206,19 @@ export default function GeneralConfiguration({
                   {effectiveValue === 'true' ? 'Enabled' : 'Disabled'}
                 </span>
               </div>
+            ) : hasUnitOptions ? (
+              <UnitInput
+                id={fullKey}
+                value={effectiveValue}
+                unitOptions={metadata.unit_options!}
+                defaultUnit={metadata.default_unit!}
+                onValueChange={(value) => handleValueChange(fullKey, value)}
+                disabled={readOnly}
+                placeholder={defaultValueDisplay}
+                inputClassName="text-sm"
+                selectClassName="h-9 w-24 shrink-0"
+                wrapperClassName="flex max-w-md items-center gap-2"
+              />
             ) : metadata.type === 'integer' ? (
               <Input
                 id={fullKey}

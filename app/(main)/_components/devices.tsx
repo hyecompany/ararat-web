@@ -52,6 +52,7 @@ import {
 import { useNetworks } from '@/app/(main)/_hooks/networks';
 import type { Device } from '@/app/(main)/instances/_lib/instances.d';
 import type { ConfigOption } from '@/app/_lib/server.d';
+import { UnitInput } from '@/app/(main)/_components/unit-input';
 import { useResources } from '@/app/(main)/_hooks/resources';
 import { VerticalTabsLayout } from '@/app/_components/layout/vertical-tabs-layout';
 
@@ -1500,6 +1501,11 @@ function AddDeviceForm({
       effectiveConfig = { ...config, required: 'yes' as const };
     }
 
+    const hasUnitOptions =
+      effectiveConfig.unit_options &&
+      effectiveConfig.unit_options.length > 0 &&
+      effectiveConfig.default_unit;
+
     return (
       <div key={fieldKey} className="space-y-2">
         <Label
@@ -1724,6 +1730,26 @@ function AddDeviceForm({
                 ))}
             </ComboboxContent>
           </Combobox>
+        ) : hasUnitOptions ? (
+          <UnitInput
+            id={fieldId}
+            value={properties[fieldKey]}
+            unitOptions={effectiveConfig.unit_options!}
+            defaultUnit={effectiveConfig.default_unit!}
+            onValueChange={(value) =>
+              setProperties((prev) => ({
+                ...prev,
+                [fieldKey]: value,
+              }))
+            }
+            placeholder={effectiveConfig.default || fieldKey}
+            inputClassName={isTopLevel ? 'h-9' : 'h-8 text-xs'}
+            selectClassName={
+              isTopLevel
+                ? 'h-9 w-24 shrink-0'
+                : 'h-8 w-24 shrink-0 text-xs'
+            }
+          />
         ) : hasCondition ? (
           <Select
             value={properties[fieldKey] || ''}
