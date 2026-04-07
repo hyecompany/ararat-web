@@ -1,0 +1,58 @@
+name: Feature request
+description: Propose a request, idea, or new functionality for Ararat.
+title: ""
+type: Feature
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: Summarize the request, idea, or new functionality you're proposing in one or two sentences.
+      placeholder: Allow executing commands on an instance directly in Ararat.
+    validations:
+      required: true
+
+  - type: textarea
+    id: high-level-requirements
+    attributes:
+      label: High-level requirements
+      description: Describe the workflow you imagine for this feature as a short list of requirements. Include where it should appear, what the user does, and what should happen in response.
+      placeholder: |
+        - Add a command execution button on the instance console page.
+        - Open a dialog that asks for the command to execute.
+        - Show an interactive terminal once the command is submitted.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Add feature-specific context that may help us plan or implement the request, such as relevant screens, workflows, APIs, docs, designs, related issues, examples, or code paths if you know them.
+      placeholder: |
+        Relevant screen: instance console page
+        Relevant API: Incus instance exec endpoint
+        Relevant code path: app/... if known
+    validations:
+      required: false
+
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints
+      description: List feature-specific requirements, limits, or boundaries that would make one implementation right or wrong. Include required options, excluded behavior, compatibility needs, source-of-truth examples, or request-specific implementation notes.
+      placeholder: |
+        - The exec request should always be interactive.
+        - Keep non-command exec options at their defaults.
+        - Reuse shared console logic where it applies instead of duplicating it.
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-information
+    attributes:
+      label: Additional information
+      description: Share anything else about this feature request that does not fit above.
+      placeholder: This can be left blank if the fields above cover the request.
+    validations:
+      required: false
