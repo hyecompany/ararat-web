@@ -1,0 +1,100 @@
+name: Bug report
+description: Report broken or unexpected behavior in Ararat.
+type: Bug
+body:
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      description: Summarize the broken or unexpected behavior in one or two sentences.
+      placeholder: The instance console disconnects when resizing the terminal.
+    validations:
+      required: true
+
+  - type: textarea
+    id: current-behavior
+    attributes:
+      label: Current behavior
+      description: Describe what happens now, including any visible errors, incorrect output, or missing behavior.
+      placeholder: |
+        When I resize the browser window on the instance console page, the terminal disconnects and stops accepting input.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior
+      description: Describe what should happen instead.
+      placeholder: |
+        The terminal should resize with the browser window and continue accepting input without disconnecting.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Steps to reproduce
+      description: List the exact steps someone can follow to reproduce the bug.
+      placeholder: |
+        1. Open the instance console page for a running instance.
+        2. Wait for the terminal to connect.
+        3. Resize the browser window.
+        4. Try typing into the terminal.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Add bug-specific context that may help us diagnose or fix the issue, such as relevant screens, workflows, APIs, docs, screenshots, related issues, examples, or code paths if you know them.
+      placeholder: |
+        Relevant screen: instance console page
+        Relevant API: Incus instance console endpoint
+        Relevant code path: app/... if known
+    validations:
+      required: false
+
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints
+      description: List bug-specific requirements, limits, or boundaries that would make one fix right or wrong. Include required behavior, excluded behavior, compatibility needs, source-of-truth examples, or request-specific implementation notes.
+      placeholder: |
+        - Keep the console connected during browser resize.
+        - Reuse shared console resize logic where it applies instead of duplicating it.
+        - Do not change the Incus API request shape.
+    validations:
+      required: false
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Share only the environment details needed to reproduce this bug, such as browser, OS, Ararat version or commit, Incus/server setup, or deployment mode.
+      placeholder: |
+        Browser: Chrome 123
+        OS: Windows 11
+        Ararat version or commit: ...
+        Incus/server setup: ...
+    validations:
+      required: false
+
+  - type: textarea
+    id: relevant-log-output
+    attributes:
+      label: Relevant log output
+      description: Paste any relevant browser console, server, or terminal logs.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-information
+    attributes:
+      label: Additional information
+      description: Share anything else about this bug report that does not fit above.
+      placeholder: This can be left blank if the fields above cover the report.
+    validations:
+      required: false
