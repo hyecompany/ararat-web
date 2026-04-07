@@ -1,6 +1,5 @@
 name: Feature request
 description: Propose a request, idea, or new functionality for Ararat.
-title: ""
 type: Feature
 body:
   - type: textarea
