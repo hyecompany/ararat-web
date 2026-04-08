@@ -201,7 +201,7 @@ export function FileBrowser({
               <FileIcon className="h-4 w-4 text-gray-500" />
             )}
             <span
-              className="cursor-pointer font-medium select-none hover:underline"
+              className="cursor-pointer font-medium hover:underline"
               onClick={() => {
                 if (isDirectory) {
                   onNavigate(`${currentPath === '/' ? '' : currentPath}/${name}`);
