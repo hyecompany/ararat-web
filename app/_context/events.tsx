@@ -132,16 +132,6 @@ function parseCacheKey(key: unknown) {
   }
 }
 
-function isSameCacheKeyPath(key: unknown, target: string) {
-  const parsedKey = parseCacheKey(key);
-  const parsedTarget = parseCacheKey(target);
-
-  return (
-    parsedKey?.pathname === parsedTarget?.pathname &&
-    parsedKey?.params.toString() === parsedTarget?.params.toString()
-  );
-}
-
 function getResourcePaths(resources: OperationMetadata['resources']) {
   return Array.from(
     new Set(
@@ -301,13 +291,19 @@ export function EventEmitterProvider({ children }: { children: React.ReactNode }
       if (INSTANCE_FILE_LIFECYCLE_ACTIONS.has(lifecycle.action)) {
         if (!filesPath) return;
 
+        const parsedFilesPath = parseCacheKey(filesPath);
+        if (!parsedFilesPath) return;
+
         for (const key of cache.keys()) {
           const parsed = parseCacheKey(key);
           if (!parsed || !isProjectMatch(parsed.params, project)) {
             continue;
           }
 
-          if (isSameCacheKeyPath(key, filesPath)) {
+          if (
+            parsed.pathname === parsedFilesPath.pathname &&
+            parsed.params.toString() === parsedFilesPath.params.toString()
+          ) {
             void mutate(key);
           }
         }
