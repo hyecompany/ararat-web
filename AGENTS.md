@@ -21,7 +21,7 @@ Use `bun install` when dependencies change so `bun.lock` stays authoritative.
 
 Write TypeScript and TSX with strict TypeScript enabled. Prettier enforces 2-space indentation, semicolons, single quotes in TypeScript, double quotes in JSX, trailing commas, and a 100-column print width. Tailwind classes are sorted by `prettier-plugin-tailwindcss`.
 
-Use PascalCase for React components, camelCase for functions and variables, and kebab-case for route folders and filenames following that pattern, such as `general-configuration.tsx`. Prefer configured aliases (`@/*`, `ui-web/components/*`, `ui-web/hooks/*`, `ui-web/lib/*`) when they improve readability.
+Use PascalCase for React components, camelCase for functions and variables, and kebab-case for route folders. Prefer configured aliases (@/*) when they improve readability.
 
 ## Testing Guidelines
 
