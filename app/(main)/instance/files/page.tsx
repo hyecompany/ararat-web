@@ -1,11 +1,12 @@
 'use client';
 
 import React from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useInstanceContext } from '../_context/instance';
 import { useFiles } from '../_hooks/files';
 import { Spinner } from 'ui-web/components/spinner';
 import { FileBrowser } from '../../_components/files';
+import type { Instance } from '../../instances/_lib/instances.d';
 
 export default function FilesPage() {
   const { instance, isLoading } = useInstanceContext();
@@ -21,45 +22,22 @@ export default function FilesPage() {
   return <Files instance={instance} />;
 }
 
-function Files({ instance }: { instance: any }) {
+function Files({ instance }: { instance: Instance }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [currentPath, setCurrentPath] = React.useState('/');
-
-  // Read path from URL on mount using manual JS
-  React.useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const pathParam = params.get('path') || '/';
-      setCurrentPath(pathParam);
-    }
-  }, []);
-
-  // Listen for back/forward navigation
-  React.useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const handlePopState = () => {
-      const params = new URLSearchParams(window.location.search);
-      const pathParam = params.get('path') || '/';
-      setCurrentPath(pathParam);
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  const searchParams = useSearchParams();
+  const currentPath = searchParams.get('path') || '/';
 
   const handleNavigate = (path: string) => {
-    setCurrentPath(path);
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      if (path === '/') {
-        params.delete('path');
-      } else {
-        params.set('path', path);
-      }
-      router.push(`${pathname}?${params.toString()}`);
+    const params = new URLSearchParams(searchParams.toString());
+    if (path === '/') {
+      params.delete('path');
+    } else {
+      params.set('path', path);
     }
+
+    const query = params.toString();
+    router.push(query ? `${pathname}?${query}` : pathname);
   };
 
   const {

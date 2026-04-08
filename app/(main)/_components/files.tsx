@@ -59,11 +59,7 @@ interface FileBrowserProps {
   onDelete: (path: string) => Promise<void>;
   onDownload: (path: string) => void;
   onFetchContent: (path: string) => Promise<{ content: string; mode?: string }>;
-  onSaveContent: (
-    path: string,
-    content: string,
-    mode?: string,
-  ) => Promise<void>;
+  onSaveContent: (path: string, content: string, mode?: string) => Promise<void>;
 }
 
 export interface FileItem {
@@ -195,8 +191,7 @@ export function FileBrowser({
         const name = row.original.name;
         const type = row.original.type;
         // Fallback to extension check if type is missing
-        const isDirectory =
-          type === 'directory' || (!type && !name.includes('.'));
+        const isDirectory = type === 'directory' || (!type && !name.includes('.'));
 
         return (
           <div className="flex items-center gap-2">
@@ -206,12 +201,10 @@ export function FileBrowser({
               <FileIcon className="h-4 w-4 text-gray-500" />
             )}
             <span
-              className="font-medium cursor-pointer hover:underline"
+              className="cursor-pointer font-medium select-none hover:underline"
               onClick={() => {
                 if (isDirectory) {
-                  onNavigate(
-                    `${currentPath === '/' ? '' : currentPath}/${name}`,
-                  );
+                  onNavigate(`${currentPath === '/' ? '' : currentPath}/${name}`);
                 } else {
                   handleEdit(name);
                 }
@@ -247,8 +240,7 @@ export function FileBrowser({
       cell: ({ row }) => {
         const name = row.original.name;
         const type = row.original.type;
-        const isDirectory =
-          type === 'directory' || (!type && !name.includes('.'));
+        const isDirectory = type === 'directory' || (!type && !name.includes('.'));
         const fullPath = `${currentPath === '/' ? '' : currentPath}/${name}`;
 
         return (
@@ -278,9 +270,7 @@ export function FileBrowser({
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  onClick={() =>
-                    onDelete(fullPath).catch((e) => setActionError(e.message))
-                  }
+                  onClick={() => onDelete(fullPath).catch((e) => setActionError(e.message))}
                   className="text-red-600"
                 >
                   <TrashIcon className="mr-2 h-4 w-4" />
@@ -296,7 +286,7 @@ export function FileBrowser({
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
@@ -311,7 +301,7 @@ export function FileBrowser({
               <BreadcrumbItem>
                 <BreadcrumbLink
                   onClick={() => onNavigate('/')}
-                  className="cursor-pointer"
+                  className="cursor-pointer select-none"
                 >
                   <HomeIcon className="h-4 w-4" />
                 </BreadcrumbLink>
@@ -322,7 +312,7 @@ export function FileBrowser({
                   <BreadcrumbItem>
                     <BreadcrumbLink
                       onClick={() => !editingFile && onNavigate(crumb.path)}
-                      className={!editingFile ? 'cursor-pointer' : ''}
+                      className={!editingFile ? 'cursor-pointer select-none' : 'select-none'}
                     >
                       {crumb.name}
                     </BreadcrumbLink>
@@ -335,11 +325,7 @@ export function FileBrowser({
 
         {editingFile ? (
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={handleCancel}
-              disabled={isSaving}
-            >
+            <Button variant="outline" onClick={handleCancel} disabled={isSaving}>
               <XIcon className="mr-2 h-4 w-4" />
               Cancel
             </Button>
@@ -358,17 +344,13 @@ export function FileBrowser({
               currentPath={currentPath}
               open={isCreateDirOpen}
               onOpenChange={setIsCreateDirOpen}
-              onCreate={(name) =>
-                onCreateDirectory(name).catch((e) => setActionError(e.message))
-              }
+              onCreate={(name) => onCreateDirectory(name).catch((e) => setActionError(e.message))}
             />
             <UploadFileDialog
               currentPath={currentPath}
               open={isUploadOpen}
               onOpenChange={setIsUploadOpen}
-              onUpload={(file) =>
-                onUpload(file).catch((e) => setActionError(e.message))
-              }
+              onUpload={(file) => onUpload(file).catch((e) => setActionError(e.message))}
             />
           </div>
         )}
@@ -414,11 +396,7 @@ export function FileBrowser({
                 <AlertDescription>Failed to load files.</AlertDescription>
               </Alert>
             ) : (
-              <DataTable
-                data={fileData}
-                cols={columns as any}
-                disablePagination
-              />
+              <DataTable data={fileData} cols={columns as any} disablePagination />
             )}
           </>
         )}
@@ -464,9 +442,7 @@ function CreateDirectoryDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Create Directory</DialogTitle>
-          <DialogDescription>
-            Create a new directory in {currentPath}.
-          </DialogDescription>
+          <DialogDescription>Create a new directory in {currentPath}.</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">

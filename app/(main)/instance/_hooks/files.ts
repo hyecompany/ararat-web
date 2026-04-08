@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import useSWR, { mutate } from 'swr';
+import useSWR, { useSWRConfig } from 'swr';
 import {
   uploadFile as apiUploadFile,
   createDirectory as apiCreateDirectory,
@@ -10,38 +10,70 @@ import {
   getFileMetadata as apiFetchFileMetadata,
 } from '../_lib/files';
 
+type DirectoryResponse = {
+  type: 'sync';
+  metadata: string[];
+};
+
+type FileWithMetadata = {
+  name: string;
+  type?: string;
+  size?: number;
+  mode?: string;
+  uid?: string;
+  gid?: string;
+};
+
+function isDirectoryResponse(value: unknown): value is DirectoryResponse {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'type' in value &&
+    value.type === 'sync' &&
+    'metadata' in value &&
+    Array.isArray(value.metadata)
+  );
+}
+
 const directoryFetcher = async (url: string) => {
   const res = await fetch(url);
   if (!res.ok) {
-    const error = new Error('An error occurred while fetching the data.');
-    (error as any).status = res.status;
+    const error: Error & { status?: number } = new Error(
+      'An error occurred while fetching the data.',
+    );
+    error.status = res.status;
     throw error;
   }
 
   const text = await res.text();
   try {
-    const json = JSON.parse(text);
-    if (json.type === 'sync' && Array.isArray(json.metadata)) {
+    const json: unknown = JSON.parse(text);
+    if (isDirectoryResponse(json)) {
       return json;
     }
-  } catch (e) {
+  } catch {
     // Not JSON
   }
 
   throw new Error('NOT_A_DIRECTORY');
 };
 
+function buildFilesCacheKey(instanceName: string, path: string) {
+  return `/1.0/instances/${instanceName}/files?path=${encodeURIComponent(path)}`;
+}
+
 export function useFiles(instanceName: string, path: string) {
+  const { mutate } = useSWRConfig();
   // Ensure path starts with /
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
 
   // Fetch file listing
   const { data, error, isLoading } = useSWR(
-    `/1.0/instances/${instanceName}/files?path=${encodeURIComponent(normalizedPath)}`,
+    buildFilesCacheKey(instanceName, normalizedPath),
     directoryFetcher,
   );
 
-  const [filesWithMetadata, setFilesWithMetadata] = useState<any[]>([]);
+  const [filesWithMetadata, setFilesWithMetadata] = useState<FileWithMetadata[]>([]);
   const [isMetadataLoading, setIsMetadataLoading] = useState(false);
 
   useEffect(() => {
@@ -60,11 +92,11 @@ export function useFiles(instanceName: string, path: string) {
             const meta = await apiFetchFileMetadata(instanceName, filePath);
             return {
               name: fileName,
-              type: meta.type,
+              type: meta.type ?? undefined,
               size: meta.size ? parseInt(meta.size, 10) : undefined,
-              mode: meta.mode,
-              uid: meta.uid,
-              gid: meta.gid,
+              mode: meta.mode ?? undefined,
+              uid: meta.uid ?? undefined,
+              gid: meta.gid ?? undefined,
             };
           } catch (e) {
             console.error(`Failed to fetch metadata for ${fileName}`, e);
@@ -86,25 +118,18 @@ export function useFiles(instanceName: string, path: string) {
 
   const uploadFile = async (currentPath: string, file: File) => {
     await apiUploadFile(instanceName, currentPath, file);
-    await mutate(
-      `/1.0/instances/${instanceName}/files?path=${encodeURIComponent(currentPath)}`,
-    );
+    await mutate(buildFilesCacheKey(instanceName, currentPath));
   };
 
   const createDirectory = async (currentPath: string, dirName: string) => {
     await apiCreateDirectory(instanceName, currentPath, dirName);
-    await mutate(
-      `/1.0/instances/${instanceName}/files?path=${encodeURIComponent(currentPath)}`,
-    );
+    await mutate(buildFilesCacheKey(instanceName, currentPath));
   };
 
   const deleteFile = async (filePath: string) => {
     await apiDeleteFile(instanceName, filePath);
-    // Mutate the parent directory
     const parentPath = filePath.substring(0, filePath.lastIndexOf('/')) || '/';
-    await mutate(
-      `/1.0/instances/${instanceName}/files?path=${encodeURIComponent(parentPath)}`,
-    );
+    await mutate(buildFilesCacheKey(instanceName, parentPath));
   };
 
   const downloadFile = (filePath: string) => {
@@ -115,17 +140,15 @@ export function useFiles(instanceName: string, path: string) {
     return apiFetchFileContent(instanceName, filePath);
   };
 
-  const saveFileContent = async (
-    filePath: string,
-    content: string,
-    mode?: string,
-  ) => {
+  const saveFileContent = async (filePath: string, content: string, mode?: string) => {
     await apiSaveFileContent(instanceName, filePath, content, mode);
+    const parentPath = filePath.substring(0, filePath.lastIndexOf('/')) || '/';
+    await mutate(buildFilesCacheKey(instanceName, parentPath));
   };
 
   return {
     files: filesWithMetadata,
-    isLoading: isLoading || isMetadataLoading,
+    isLoading: isLoading || (isMetadataLoading && filesWithMetadata.length === 0),
     isError: error,
     uploadFile,
     createDirectory,
