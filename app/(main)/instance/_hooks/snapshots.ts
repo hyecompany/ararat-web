@@ -1,4 +1,4 @@
-import { mutate } from 'swr';
+import { useSWRConfig } from 'swr';
 import {
   createSnapshot as apiCreateSnapshot,
   deleteSnapshot as apiDeleteSnapshot,
@@ -7,6 +7,8 @@ import {
 } from '../_lib/snapshots';
 
 export function useSnapshots(instanceName: string) {
+  const { mutate } = useSWRConfig();
+
   const createSnapshot = async (name?: string, stateful?: boolean) => {
     await apiCreateSnapshot(instanceName, name, stateful);
     await mutate(`/1.0/instances/${instanceName}?recursion=1`);

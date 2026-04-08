@@ -1,4 +1,4 @@
-import useSWR, { mutate } from 'swr';
+import useSWR, { useSWRConfig } from 'swr';
 import { jsonFetcher } from '../../../_lib/fetcher';
 import { Backup } from '../../_components/backups';
 import { StandardResponse } from '../../../_lib/response';
@@ -10,6 +10,7 @@ import {
 } from '../_lib/backups';
 
 export function useBackups(instanceName: string) {
+  const { mutate } = useSWRConfig();
   const { data, error, isLoading } = useSWR<StandardResponse<Backup[]>>(
     `/1.0/instances/${instanceName}/backups?recursion=1`,
     (url: string) => jsonFetcher<Backup[]>(url),
