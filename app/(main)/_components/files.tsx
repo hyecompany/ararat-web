@@ -312,7 +312,7 @@ export function FileBrowser({
                   <BreadcrumbItem>
                     <BreadcrumbLink
                       onClick={() => !editingFile && onNavigate(crumb.path)}
-                      className={!editingFile ? 'cursor-pointer select-none' : 'select-none'}
+                      className={!editingFile ? 'cursor-pointer' : ''}
                     >
                       {crumb.name}
                     </BreadcrumbLink>
