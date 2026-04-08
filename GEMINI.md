@@ -47,7 +47,7 @@ Components are based on **shadcn/ui** and are located in `components/ui/`. They 
 
 ### Routing
 - Add new routes in the `app/` directory as usual.
-- During the build process, `scripts/generate-route-map.ts` scans the `app` directory to generate `route-map.json`, which the `Router` component uses to validate client-side transitions.
+- During the build process, scripts/generate-route-map.ts scans the build manifests to generate route-map.json, which the Router component uses to validate client-side transitions.
 
 ### Path Aliases
 - `@/*`: Maps to the project root.
