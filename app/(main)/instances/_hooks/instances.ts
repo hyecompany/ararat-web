@@ -27,7 +27,7 @@ function shouldSeedUnscopedInstanceDetail(project: string | null | undefined, in
 }
 
 export function useInstances(project?: string | null) {
-  const { mutate: mutateCache } = useSWRConfig();
+  const { cache, mutate: mutateCache } = useSWRConfig();
   const url = buildApiPath('/1.0/instances', {
     project: project ?? null,
     params: { recursion: 2 },
@@ -42,13 +42,12 @@ export function useInstances(project?: string | null) {
         continue;
       }
 
-      void mutateCache(
-        `/1.0/instances/${instance.name}?recursion=1`,
-        buildInstanceDetailCacheValue(instance),
-        { revalidate: false },
-      );
+      const detailKey = `/1.0/instances/${instance.name}?recursion=1`;
+      if (cache.get(detailKey) === undefined) {
+        void mutateCache(detailKey, buildInstanceDetailCacheValue(instance), { revalidate: false });
+      }
     }
-  }, [mutateCache, project, result.data]);
+  }, [cache, mutateCache, project, result.data]);
 
   return result;
 }
