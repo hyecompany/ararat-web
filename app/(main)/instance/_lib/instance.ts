@@ -154,6 +154,10 @@ async function waitForOperation({
     }
 
     const payload = (await res.json().catch(() => null)) as OperationStatusResponse | null;
+    if (!payload?.metadata) {
+      throw new Error('Received an invalid response while waiting for instance rename.');
+    }
+
     const status = payload?.metadata?.status;
     const statusCode = payload?.metadata?.status_code;
 
