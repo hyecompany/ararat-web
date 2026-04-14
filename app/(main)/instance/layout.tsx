@@ -4,6 +4,7 @@ import React from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { mutate as mutateCache } from 'swr';
 import { InstanceProvider, useInstanceContext } from './_context/instance';
+import { getInstanceCacheKey } from './_hooks/instance';
 import { Spinner } from 'ui-web/components/spinner';
 import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
 import { Instance } from '../instances/_lib/instances.d';
@@ -298,21 +299,20 @@ function InstanceHeader({
         signal: abortController.signal,
       });
 
-      const projectSuffix = instance.project
-        ? `&project=${encodeURIComponent(instance.project)}`
-        : '';
-      const nextKey = `/1.0/instances/${encodeURIComponent(updatedInstance.name)}?recursion=1${projectSuffix}`;
+      const nextKey = getInstanceCacheKey(updatedInstance.name);
 
-      await mutateCache(
-        nextKey,
-        {
-          type: 'sync',
-          status: 'Success',
-          status_code: 200,
-          metadata: updatedInstance,
-        },
-        { revalidate: false },
-      );
+      if (nextKey) {
+        await mutateCache(
+          nextKey,
+          {
+            type: 'sync',
+            status: 'Success',
+            status_code: 200,
+            metadata: updatedInstance,
+          },
+          { revalidate: false },
+        );
+      }
 
       if (updatedInstance.name !== instance.name) {
         const nextQuery = new URLSearchParams(window.location.search);
