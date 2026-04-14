@@ -9,6 +9,7 @@ interface UpdateInstanceMetadataInput {
   instance: Instance;
   nextName: string;
   nextDescription: string;
+  signal?: AbortSignal;
 }
 
 interface OperationStatusResponse {
@@ -126,9 +127,11 @@ async function renameInstance({
 async function waitForOperation({
   operation,
   project,
+  signal,
 }: {
   operation: string;
   project?: string;
+  signal?: AbortSignal;
 }) {
   const deadline = Date.now() + OPERATION_TIMEOUT_MS;
   const operationUrl = new URL(operation, window.location.origin);
@@ -138,7 +141,8 @@ async function waitForOperation({
   }
 
   while (Date.now() < deadline) {
-    const res = await fetch(operationUrl.toString());
+    signal?.throwIfAborted();
+    const res = await fetch(operationUrl.toString(), { signal });
 
     if (!res.ok) {
       throw new Error(
@@ -157,8 +161,19 @@ async function waitForOperation({
       throw new Error(payload?.metadata?.err || 'Instance rename failed.');
     }
 
-    await new Promise((resolve) => {
-      window.setTimeout(resolve, OPERATION_POLL_INTERVAL_MS);
+    await new Promise<void>((resolve, reject) => {
+      const timeoutId = window.setTimeout(() => {
+        signal?.removeEventListener('abort', handleAbort);
+        resolve();
+      }, OPERATION_POLL_INTERVAL_MS);
+
+      const handleAbort = () => {
+        window.clearTimeout(timeoutId);
+        signal?.removeEventListener('abort', handleAbort);
+        reject(signal?.reason ?? new DOMException('Operation aborted', 'AbortError'));
+      };
+
+      signal?.addEventListener('abort', handleAbort, { once: true });
     });
   }
 
@@ -169,6 +184,7 @@ export async function updateInstanceMetadata({
   instance,
   nextName,
   nextDescription,
+  signal,
 }: UpdateInstanceMetadataInput) {
   const normalizedName = nextName.trim();
   const normalizedDescription = nextDescription.trim();
@@ -204,6 +220,7 @@ export async function updateInstanceMetadata({
     await waitForOperation({
       operation: renameOperation.operation,
       project: instance.project,
+      signal,
     });
   }
 

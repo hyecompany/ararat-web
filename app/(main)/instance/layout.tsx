@@ -183,6 +183,13 @@ function InstanceHeader({
   const [isSavingField, setIsSavingField] = React.useState(false);
   const fieldContainerRef = React.useRef<HTMLDivElement | null>(null);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
+  const saveAbortControllerRef = React.useRef<AbortController | null>(null);
+
+  React.useEffect(() => {
+    return () => {
+      saveAbortControllerRef.current?.abort();
+    };
+  }, []);
 
   const handleAction = async (action: InstanceAction) => {
     try {
@@ -280,15 +287,21 @@ function InstanceHeader({
     try {
       setFieldError(null);
       setIsSavingField(true);
+      saveAbortControllerRef.current?.abort();
+      const abortController = new AbortController();
+      saveAbortControllerRef.current = abortController;
 
       const { instance: updatedInstance } = await updateInstanceMetadata({
         instance,
         nextName,
         nextDescription,
+        signal: abortController.signal,
       });
 
-      const projectSuffix = instance.project ? "&project=" + encodeURIComponent(instance.project) : "";
-      const nextKey = "/1.0/instances/" + encodeURIComponent(updatedInstance.name) + "?recursion=1" + projectSuffix;
+      const projectSuffix = instance.project
+        ? `&project=${encodeURIComponent(instance.project)}`
+        : '';
+      const nextKey = `/1.0/instances/${encodeURIComponent(updatedInstance.name)}?recursion=1${projectSuffix}`;
 
       await mutateCache(
         nextKey,
@@ -303,9 +316,7 @@ function InstanceHeader({
 
       if (updatedInstance.name !== instance.name) {
         const nextQuery = new URLSearchParams(window.location.search);
-        nextQuery.set("name", updatedInstance.name);
-        React.startTransition(() => {
-          router.replace(pathname + "?" + nextQuery.toString(), {
+        nextQuery.set('name', updatedInstance.name);
         React.startTransition(() => {
           router.replace(`${pathname}?${nextQuery.toString()}`, {
             scroll: false,
@@ -318,10 +329,14 @@ function InstanceHeader({
       setActiveField(null);
       setDraftValue('');
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        return;
+      }
       setFieldError(
         err instanceof Error ? err.message : 'Unable to update instance field.',
       );
     } finally {
+      saveAbortControllerRef.current = null;
       setIsSavingField(false);
     }
   };
@@ -419,7 +434,7 @@ function InstanceHeader({
           <button
             type="button"
             className={cn(
-              'flex max-w-full items-center gap-2 rounded-md text-left transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+              'flex max-w-full items-center gap-2 rounded-md text-left transition-colors select-none hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
               !value && 'text-muted-foreground/80 italic',
             )}
             onClick={() => startEditing(field)}
