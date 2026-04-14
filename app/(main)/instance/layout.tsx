@@ -287,7 +287,8 @@ function InstanceHeader({
         nextDescription,
       });
 
-      const nextKey = `/1.0/instances/${encodeURIComponent(updatedInstance.name)}?recursion=1`;
+      const projectSuffix = instance.project ? "&project=" + encodeURIComponent(instance.project) : "";
+      const nextKey = "/1.0/instances/" + encodeURIComponent(updatedInstance.name) + "?recursion=1" + projectSuffix;
 
       await mutateCache(
         nextKey,
