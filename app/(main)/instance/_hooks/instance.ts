@@ -1,13 +1,20 @@
-import useSWR from 'swr';
+import useSWR, { type SWRConfiguration } from 'swr';
 import { Instance } from '../../instances/_lib/instances.d';
 import { StandardResponse } from '../../../_lib/response';
 import { jsonFetcher } from '../../../_lib/fetcher';
 
-export function useInstance(name: string | null, config?: any) {
+export function getInstanceCacheKey(name: string | null) {
+  return name ? `/1.0/instances/${encodeURIComponent(name)}?recursion=1` : null;
+}
+
+export function useInstance(
+  name: string | null,
+  config?: SWRConfiguration<StandardResponse<Instance>>,
+) {
   const { data, error, isLoading, mutate, isValidating } = useSWR<
     StandardResponse<Instance>
   >(
-    name ? `/1.0/instances/${name}?recursion=1` : null,
+    getInstanceCacheKey(name),
     (url) => jsonFetcher<Instance>(url),
     config,
   );

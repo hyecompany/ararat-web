@@ -2,11 +2,14 @@
 
 import React from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { mutate as mutateCache } from 'swr';
 import { InstanceProvider, useInstanceContext } from './_context/instance';
+import { getInstanceCacheKey } from './_hooks/instance';
 import { Spinner } from 'ui-web/components/spinner';
 import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
 import { Instance } from '../instances/_lib/instances.d';
 import { Button } from 'ui-web/components/button';
+import { Input } from 'ui-web/components/input';
 import {
   PlayIcon,
   SquareIcon,
@@ -19,11 +22,18 @@ import {
   Camera,
   Cpu,
   Settings,
+  PencilIcon,
+  CheckIcon,
+  XIcon,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from 'ui-web/components/tabs';
 import { OSLogo } from '@/app/_components/OSLogo';
 import { getBaseImage } from './_lib/utils';
-import { performInstanceAction, type InstanceAction } from './_lib/instance';
+import {
+  performInstanceAction,
+  updateInstanceMetadata,
+  type InstanceAction,
+} from './_lib/instance';
 import { SiteHeader } from '@/app/(main)/_components/header';
 import {
   Breadcrumb,
@@ -33,6 +43,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from 'ui-web/components/breadcrumb';
+import { cn } from 'ui-web/lib/utils';
 import Link from 'next/link';
 
 function InstanceLayoutContent({ children }: { children: React.ReactNode }) {
@@ -53,13 +64,13 @@ function InstanceLayoutContent({ children }: { children: React.ReactNode }) {
     if (!name) {
       return (
         <div className="p-6">
-          <Alert variant="destructive">
-            <AlertTitle>Missing Parameter</AlertTitle>
-            <AlertDescription>
-              The "name" query parameter is required.
-            </AlertDescription>
-          </Alert>
-        </div>
+            <Alert variant="destructive">
+              <AlertTitle>Missing Parameter</AlertTitle>
+              <AlertDescription>
+                The <code>name</code> query parameter is required.
+              </AlertDescription>
+            </Alert>
+          </div>
       );
     }
 
@@ -152,6 +163,8 @@ const instanceActionDetails: Record<
   freeze: { label: 'Freeze', Icon: SnowflakeIcon },
 };
 
+type EditableField = 'name' | 'description' | null;
+
 function InstanceHeader({
   instance,
   onMutate,
@@ -159,9 +172,25 @@ function InstanceHeader({
   instance: Instance;
   onMutate: () => Promise<void>;
 }) {
+  const router = useRouter();
+  const pathname = usePathname();
   const [actionInFlight, setActionInFlight] =
     React.useState<InstanceAction | null>(null);
   const [actionError, setActionError] = React.useState<string | null>(null);
+  const [activeField, setActiveField] = React.useState<EditableField>(null);
+  const [hoveredField, setHoveredField] = React.useState<EditableField>(null);
+  const [draftValue, setDraftValue] = React.useState('');
+  const [fieldError, setFieldError] = React.useState<string | null>(null);
+  const [isSavingField, setIsSavingField] = React.useState(false);
+  const fieldContainerRef = React.useRef<HTMLDivElement | null>(null);
+  const inputRef = React.useRef<HTMLInputElement | null>(null);
+  const saveAbortControllerRef = React.useRef<AbortController | null>(null);
+
+  React.useEffect(() => {
+    return () => {
+      saveAbortControllerRef.current?.abort();
+    };
+  }, []);
 
   const handleAction = async (action: InstanceAction) => {
     try {
@@ -175,6 +204,140 @@ function InstanceHeader({
       setActionError(message);
     } finally {
       setActionInFlight(null);
+    }
+  };
+
+  const currentDescription = instance.description ?? '';
+  const isBusy = actionInFlight !== null || isSavingField;
+
+  const cancelEditing = React.useCallback(() => {
+    if (isSavingField) {
+      return;
+    }
+    setActiveField(null);
+    setFieldError(null);
+    setDraftValue('');
+  }, [isSavingField]);
+
+  const startEditing = React.useCallback(
+    (field: Exclude<EditableField, null>) => {
+      if (isBusy) {
+        return;
+      }
+
+      setFieldError(null);
+      setActiveField(field);
+      setDraftValue(field === 'name' ? instance.name : currentDescription);
+    },
+    [currentDescription, instance.name, isBusy],
+  );
+
+  React.useEffect(() => {
+    if (!activeField || !inputRef.current) {
+      return;
+    }
+
+    inputRef.current.focus();
+    inputRef.current.select();
+  }, [activeField]);
+
+  React.useEffect(() => {
+    if (!activeField) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+
+      if (fieldContainerRef.current?.contains(target)) {
+        return;
+      }
+
+      cancelEditing();
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+    };
+  }, [activeField, cancelEditing]);
+
+  const saveField = async () => {
+    if (!activeField || isSavingField) {
+      return;
+    }
+
+    const trimmedValue = draftValue.trim();
+    if (activeField === 'name' && trimmedValue.length === 0) {
+      setFieldError('Instance name is required.');
+      return;
+    }
+
+    const nextName = activeField === 'name' ? trimmedValue : instance.name;
+    const nextDescription =
+      activeField === 'description' ? trimmedValue : currentDescription;
+
+    if (nextName === instance.name && nextDescription === currentDescription) {
+      cancelEditing();
+      return;
+    }
+
+    try {
+      setFieldError(null);
+      setIsSavingField(true);
+      saveAbortControllerRef.current?.abort();
+      const abortController = new AbortController();
+      saveAbortControllerRef.current = abortController;
+
+      const { instance: updatedInstance } = await updateInstanceMetadata({
+        instance,
+        nextName,
+        nextDescription,
+        signal: abortController.signal,
+      });
+
+      const nextKey = getInstanceCacheKey(updatedInstance.name);
+
+      if (nextKey) {
+        await mutateCache(
+          nextKey,
+          {
+            type: 'sync',
+            status: 'Success',
+            status_code: 200,
+            metadata: updatedInstance,
+          },
+          { revalidate: false },
+        );
+      }
+
+      if (updatedInstance.name !== instance.name) {
+        const nextQuery = new URLSearchParams(window.location.search);
+        nextQuery.set('name', updatedInstance.name);
+        React.startTransition(() => {
+          router.replace(`${pathname}?${nextQuery.toString()}`, {
+            scroll: false,
+          });
+        });
+      } else {
+        await onMutate();
+      }
+
+      setActiveField(null);
+      setDraftValue('');
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        return;
+      }
+      setFieldError(
+        err instanceof Error ? err.message : 'Unable to update instance field.',
+      );
+    } finally {
+      saveAbortControllerRef.current = null;
+      setIsSavingField(false);
     }
   };
 
@@ -193,6 +356,106 @@ function InstanceHeader({
   }
 
   const isUnknownStatus = !isRunning && !isStopped && !isFrozen;
+
+  const renderEditableField = ({
+    field,
+    value,
+    placeholder,
+    displayClassName,
+    inputClassName,
+  }: {
+    field: Exclude<EditableField, null>;
+    value: string;
+    placeholder: string;
+    displayClassName: string;
+    inputClassName: string;
+  }) => {
+    const isActive = activeField === field;
+    const showPencil = hoveredField === field && !isActive && !isBusy;
+    const displayValue = value || placeholder;
+
+    return (
+      <div
+        className="group relative"
+        onMouseEnter={() => setHoveredField(field)}
+        onMouseLeave={() => setHoveredField((current) => (current === field ? null : current))}
+      >
+        {isActive ? (
+          <div className="flex items-center gap-2">
+            <Input
+              ref={inputRef}
+              value={draftValue}
+              disabled={isSavingField}
+              onChange={(event) => setDraftValue(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  void saveField();
+                }
+
+                if (event.key === 'Escape') {
+                  event.preventDefault();
+                  cancelEditing();
+                }
+              }}
+              className={inputClassName}
+              aria-label={
+                field === 'name' ? 'Edit instance name' : 'Edit instance description'
+              }
+            />
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="size-8 shrink-0"
+              disabled={isSavingField}
+              onClick={() => void saveField()}
+              aria-label={`Save instance ${field}`}
+            >
+              {isSavingField ? (
+                <Spinner className="size-4" />
+              ) : (
+                <CheckIcon className="size-4" />
+              )}
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="size-8 shrink-0"
+              disabled={isSavingField}
+              onClick={cancelEditing}
+              aria-label={`Cancel editing instance ${field}`}
+            >
+              <XIcon className="size-4" />
+            </Button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className={cn(
+              'flex max-w-full items-center gap-2 rounded-md text-left transition-colors select-none hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+              !value && 'text-muted-foreground/80 italic',
+            )}
+            onClick={() => startEditing(field)}
+            disabled={isBusy}
+          >
+            <span className={cn(displayClassName, !value && 'font-normal')}>
+              {displayValue}
+            </span>
+            <PencilIcon
+              className={cn(
+                'size-4 shrink-0 text-muted-foreground transition-opacity',
+                showPencil ? 'opacity-100' : 'opacity-0',
+              )}
+              aria-hidden="true"
+            />
+          </button>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
@@ -218,11 +481,21 @@ function InstanceHeader({
           )}
         </div>
 
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold">{instance.name}</h1>
-          {instance.description && (
-            <p className="text-muted-foreground">{instance.description}</p>
-          )}
+        <div ref={fieldContainerRef} className="flex-1 space-y-1">
+          {renderEditableField({
+            field: 'name',
+            value: instance.name,
+            placeholder: 'Untitled instance',
+            displayClassName: 'truncate text-2xl font-bold',
+            inputClassName: 'h-11 text-2xl font-bold',
+          })}
+          {renderEditableField({
+            field: 'description',
+            value: currentDescription,
+            placeholder: 'Add a description',
+            displayClassName: 'truncate text-sm text-muted-foreground',
+            inputClassName: 'h-9 text-sm',
+          })}
         </div>
 
         <div className="flex gap-2">
@@ -247,6 +520,13 @@ function InstanceHeader({
           })}
         </div>
       </div>
+
+      {fieldError && (
+        <Alert variant="destructive">
+          <AlertTitle>Update failed</AlertTitle>
+          <AlertDescription>{fieldError}</AlertDescription>
+        </Alert>
+      )}
 
       {actionError && (
         <Alert variant="destructive">
@@ -294,7 +574,7 @@ function InstanceTabs() {
           {TABS.map((tab) => {
             const targetPath =
               tab.value === 'dashboard' ? '/instance' : `/instance/${tab.value}`;
-            
+
             return (
               <TabsTrigger key={tab.value} value={tab.value} asChild>
                 <Link
