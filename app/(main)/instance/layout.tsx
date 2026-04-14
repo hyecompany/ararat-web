@@ -302,7 +302,10 @@ function InstanceHeader({
       );
 
       if (updatedInstance.name !== instance.name) {
-        const nextQuery = new URLSearchParams({ name: updatedInstance.name });
+        const nextQuery = new URLSearchParams(window.location.search);
+        nextQuery.set("name", updatedInstance.name);
+        React.startTransition(() => {
+          router.replace(pathname + "?" + nextQuery.toString(), {
         React.startTransition(() => {
           router.replace(`${pathname}?${nextQuery.toString()}`, {
             scroll: false,
