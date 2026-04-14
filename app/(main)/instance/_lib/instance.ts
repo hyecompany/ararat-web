@@ -2,7 +2,6 @@ import { Instance } from '../../instances/_lib/instances.d';
 import type { BackgroundOperationResponse } from '../../../_lib/response';
 
 export type InstanceAction = 'start' | 'stop' | 'restart' | 'freeze';
-const OPERATION_POLL_INTERVAL_MS = 500;
 const OPERATION_TIMEOUT_MS = 30000;
 
 interface UpdateInstanceMetadataInput {
@@ -15,6 +14,7 @@ interface UpdateInstanceMetadataInput {
 interface OperationStatusResponse {
   metadata?: {
     status?: string;
+    status_code?: number;
     err?: string;
   };
   error?: string;
@@ -133,51 +133,42 @@ async function waitForOperation({
   project?: string;
   signal?: AbortSignal;
 }) {
-  const deadline = Date.now() + OPERATION_TIMEOUT_MS;
-  const operationUrl = new URL(operation, window.location.origin);
+  const waitUrl = new URL(`${operation}/wait`, window.location.origin);
+  waitUrl.searchParams.set(
+    'timeout',
+    String(Math.ceil(OPERATION_TIMEOUT_MS / 1000)),
+  );
 
-  if (project && !operationUrl.searchParams.has('project')) {
-    operationUrl.searchParams.set('project', project);
+  if (project && !waitUrl.searchParams.has('project')) {
+    waitUrl.searchParams.set('project', project);
   }
 
-  while (Date.now() < deadline) {
+  while (true) {
     signal?.throwIfAborted();
-    const res = await fetch(operationUrl.toString(), { signal });
+    const res = await fetch(waitUrl.toString(), { signal });
 
     if (!res.ok) {
       throw new Error(
-        await getErrorMessage(res, 'Unable to monitor instance rename operation'),
+        await getErrorMessage(res, 'Unable to wait for instance rename operation'),
       );
     }
 
     const payload = (await res.json().catch(() => null)) as OperationStatusResponse | null;
     const status = payload?.metadata?.status;
+    const statusCode = payload?.metadata?.status_code;
+
+    if (statusCode === 400 || status === 'Failure') {
+      throw new Error(payload?.metadata?.err || 'Instance rename failed.');
+    }
+
+    if (statusCode === 401 || status === 'Cancelled') {
+      throw new Error(payload?.metadata?.err || 'Instance rename was cancelled.');
+    }
 
     if (status === 'Success') {
       return;
     }
-
-    if (status === 'Failure' || status === 'Cancelled') {
-      throw new Error(payload?.metadata?.err || 'Instance rename failed.');
-    }
-
-    await new Promise<void>((resolve, reject) => {
-      const timeoutId = window.setTimeout(() => {
-        signal?.removeEventListener('abort', handleAbort);
-        resolve();
-      }, OPERATION_POLL_INTERVAL_MS);
-
-      const handleAbort = () => {
-        window.clearTimeout(timeoutId);
-        signal?.removeEventListener('abort', handleAbort);
-        reject(signal?.reason ?? new DOMException('Operation aborted', 'AbortError'));
-      };
-
-      signal?.addEventListener('abort', handleAbort, { once: true });
-    });
   }
-
-  throw new Error('Timed out while waiting for the instance rename to finish.');
 }
 
 export async function updateInstanceMetadata({
