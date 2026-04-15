@@ -199,6 +199,11 @@ function createDeviceCollectionRowId(prefix: string) {
   return `${prefix}-${nextDeviceCollectionRowId}`;
 }
 
+function getInitialPropertyKey(keyName: string) {
+  const trimmedKeyName = keyName.trim();
+  return trimmedKeyName ? `initial.${trimmedKeyName}` : null;
+}
+
 function DeviceCsvListInput({
   id,
   value,
@@ -287,15 +292,24 @@ function DeviceInitialKeyValueInput({
   );
 
   React.useEffect(() => {
+    const previousRowsByKey = new Map(
+      rows
+        .map((row) => [getInitialPropertyKey(row.keyName), row] as const)
+        .filter(([key]) => key !== null),
+    );
+
     const currentRows = Object.entries(properties)
       .filter(([key]) => key.startsWith('initial.'))
       .map(([key, value]) => ({
-        id: key,
+        id: previousRowsByKey.get(key)?.id ?? key,
         keyName: key.slice('initial.'.length),
         value,
       }));
 
-    const existingDrafts = rows.filter((row) => !row.keyName.trim() && !row.value.trim());
+    const existingDrafts = rows.filter((row) => {
+      const propertyKey = getInitialPropertyKey(row.keyName);
+      return !propertyKey || !Object.prototype.hasOwnProperty.call(properties, propertyKey);
+    });
     const nextRows = [...currentRows, ...existingDrafts];
     const currentSignature = stableStringify(rows);
     const nextSignature = stableStringify(nextRows);
@@ -312,7 +326,7 @@ function DeviceInitialKeyValueInput({
       const initialEntries = Object.fromEntries(
         nextRows
           .map((row) => [row.keyName.trim(), row.value] as const)
-          .filter(([keyName]) => keyName.length > 0)
+          .filter(([keyName, value]) => keyName.length > 0 && value !== '')
           .map(([keyName, value]) => [`initial.${keyName}`, value] as const),
       );
 
@@ -844,6 +858,17 @@ function AddDeviceForm({
   );
   // Counter used to force a rerender/reset of certain controlled inputs (e.g. pool combobox)
   const [resetCounter, setResetCounter] = React.useState(0);
+  const setPropertyValue = React.useCallback((key: string, value: string | undefined) => {
+    setProperties((prev) => {
+      const next = { ...prev };
+      if (value === undefined || value === '') {
+        delete next[key];
+      } else {
+        next[key] = value;
+      }
+      return next;
+    });
+  }, []);
   // Check if a root disk already exists
   const hasRootDiskAlready = React.useMemo(() => {
     const allDevices = { ...inheritedDevices, ...existingDevices };
@@ -1547,12 +1572,24 @@ function AddDeviceForm({
   const lastAutoAppliedSignature = React.useRef<string | null>(null);
   const isInitializingEditState = React.useRef(false);
   const lastHydratedSignature = React.useRef<string | null>(null);
+  const autoApplyTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingAutoApplyRef = React.useRef<{
+    oldName: string;
+    newName: string;
+    device: Device;
+    signature: string;
+  } | null>(null);
+  const onUpdateRef = React.useRef(onUpdate);
   const editingDeviceSignature = editingDevice
     ? stableStringify({
         name: editingDevice.name,
         device: editingDevice.device,
       })
     : null;
+
+  React.useEffect(() => {
+    onUpdateRef.current = onUpdate;
+  }, [onUpdate]);
 
   // Ensure path stays at "/" for root disk - but only if we're actually creating/editing a root disk
   React.useEffect(() => {
@@ -1616,9 +1653,48 @@ function AddDeviceForm({
       return;
     }
 
-    lastAutoAppliedSignature.current = nextSignature;
-    onUpdate(editingDevice.name, nextPayload.name, nextPayload.device);
+    if (autoApplyTimeoutRef.current) {
+      clearTimeout(autoApplyTimeoutRef.current);
+    }
+
+    pendingAutoApplyRef.current = {
+      oldName: editingDevice.name,
+      newName: nextPayload.name,
+      device: nextPayload.device,
+      signature: nextSignature,
+    };
+
+    autoApplyTimeoutRef.current = setTimeout(() => {
+      const pendingUpdate = pendingAutoApplyRef.current;
+      if (!pendingUpdate || !onUpdateRef.current) {
+        autoApplyTimeoutRef.current = null;
+        return;
+      }
+
+      lastAutoAppliedSignature.current = pendingUpdate.signature;
+      onUpdateRef.current(pendingUpdate.oldName, pendingUpdate.newName, pendingUpdate.device);
+      pendingAutoApplyRef.current = null;
+      autoApplyTimeoutRef.current = null;
+    }, 250);
   }, [buildDevicePayload, editingDevice, editingDevice?.name, onUpdate, validationResult.isValid]);
+
+  React.useEffect(() => {
+    return () => {
+      if (autoApplyTimeoutRef.current) {
+        clearTimeout(autoApplyTimeoutRef.current);
+        autoApplyTimeoutRef.current = null;
+      }
+
+      const pendingUpdate = pendingAutoApplyRef.current;
+      if (!pendingUpdate || !onUpdateRef.current) {
+        return;
+      }
+
+      lastAutoAppliedSignature.current = pendingUpdate.signature;
+      onUpdateRef.current(pendingUpdate.oldName, pendingUpdate.newName, pendingUpdate.device);
+      pendingAutoApplyRef.current = null;
+    };
+  }, [editingDevice?.name]);
 
   const handleSubmit = () => {
     // Use centralized validation
@@ -1843,12 +1919,7 @@ function AddDeviceForm({
             <Switch
               id={fieldId}
               checked={properties[fieldKey] === 'true'}
-              onCheckedChange={(checked) =>
-                setProperties((prev) => ({
-                  ...prev,
-                  [fieldKey]: checked ? 'true' : 'false',
-                }))
-              }
+              onCheckedChange={(checked) => setPropertyValue(fieldKey, checked ? 'true' : 'false')}
             />
           </div>
         ) : isInitialKeyValueField ? (
@@ -1860,12 +1931,7 @@ function AddDeviceForm({
           <Combobox
             key={`pool-${resetCounter}`}
             value={properties[fieldKey] || undefined}
-            onValueChange={(value) =>
-              setProperties((prev) => ({
-                ...prev,
-                [fieldKey]: value,
-              }))
-            }
+            onValueChange={(value) => setPropertyValue(fieldKey, value)}
             allowDeselect
           >
             <ComboboxTrigger
@@ -1899,10 +1965,7 @@ function AddDeviceForm({
               const currentSource = properties[fieldKey] || '';
               const currentPath = currentSource.split('/').slice(1).join('/');
               const newSource = currentPath ? `${value}/${currentPath}` : value;
-              setProperties((prev) => ({
-                ...prev,
-                [fieldKey]: newSource,
-              }));
+              setPropertyValue(fieldKey, newSource);
             }}
           >
             <ComboboxTrigger
@@ -1952,13 +2015,21 @@ function AddDeviceForm({
               const card = resources.gpu?.cards?.find(
                 (c) => c.pci_address === value,
               );
-              setProperties((prev) => ({
-                ...prev,
-                pci: value,
-                // Auto-fill vendor/product IDs if not already set
-                vendorid: prev.vendorid || card?.vendor_id || prev.vendorid,
-                productid: prev.productid || card?.product_id || prev.productid,
-              }));
+              setProperties((prev) => {
+                const next = { ...prev };
+                if (value) {
+                  next.pci = value;
+                } else {
+                  delete next.pci;
+                }
+                if (!next.vendorid && card?.vendor_id) {
+                  next.vendorid = card.vendor_id;
+                }
+                if (!next.productid && card?.product_id) {
+                  next.productid = card.product_id;
+                }
+                return next;
+              });
             }}
             allowDeselect
           >
@@ -1981,12 +2052,7 @@ function AddDeviceForm({
         ) : isGPUDevice && fieldKey === 'vendorid' && resources?.gpu?.cards ? (
           <Combobox
             value={properties[fieldKey] || undefined}
-            onValueChange={(value) =>
-              setProperties((prev) => ({
-                ...prev,
-                vendorid: value,
-              }))
-            }
+            onValueChange={(value) => setPropertyValue('vendorid', value)}
             allowDeselect
           >
             <ComboboxTrigger placeholder="Select vendor" />
@@ -2015,12 +2081,7 @@ function AddDeviceForm({
         ) : isGPUDevice && fieldKey === 'productid' && resources?.gpu?.cards ? (
           <Combobox
             value={properties[fieldKey] || undefined}
-            onValueChange={(value) =>
-              setProperties((prev) => ({
-                ...prev,
-                productid: value,
-              }))
-            }
+            onValueChange={(value) => setPropertyValue('productid', value)}
             allowDeselect
           >
             <ComboboxTrigger placeholder="Select product" />
@@ -2050,12 +2111,7 @@ function AddDeviceForm({
             value={properties[fieldKey]}
             unitOptions={effectiveConfig.unit_options!}
             defaultUnit={effectiveConfig.default_unit!}
-            onValueChange={(value) =>
-              setProperties((prev) => ({
-                ...prev,
-                [fieldKey]: value,
-              }))
-            }
+            onValueChange={(value) => setPropertyValue(fieldKey, value)}
             placeholder={effectiveConfig.default || fieldKey}
             inputClassName={isTopLevel ? 'h-9' : 'h-8 text-xs'}
             selectClassName={
@@ -2067,12 +2123,7 @@ function AddDeviceForm({
         ) : enumOptions.length ? (
           <Select
             value={properties[fieldKey] || ''}
-            onValueChange={(value) =>
-              setProperties((prev) => ({
-                ...prev,
-                [fieldKey]: value,
-              }))
-            }
+            onValueChange={(value) => setPropertyValue(fieldKey, value)}
           >
             <SelectTrigger className={isTopLevel ? 'h-9 w-full' : 'h-8 w-full text-xs'}>
               <SelectValue placeholder={effectiveConfig.default || fieldKey} />
@@ -2089,23 +2140,13 @@ function AddDeviceForm({
           <DeviceCsvListInput
             id={fieldId}
             value={properties[fieldKey]}
-            onChange={(value) =>
-              setProperties((prev) => ({
-                ...prev,
-                [fieldKey]: value,
-              }))
-            }
+            onChange={(value) => setPropertyValue(fieldKey, value)}
             placeholder={effectiveConfig.default || fieldKey}
           />
         ) : hasCondition ? (
           <Select
             value={properties[fieldKey] || ''}
-            onValueChange={(value) =>
-              setProperties((prev) => ({
-                ...prev,
-                [fieldKey]: value,
-              }))
-            }
+            onValueChange={(value) => setPropertyValue(fieldKey, value)}
           >
             <SelectTrigger className={isTopLevel ? 'h-9' : 'h-8 text-xs'}>
               <SelectValue placeholder={effectiveConfig.default || fieldKey} />
@@ -2128,12 +2169,7 @@ function AddDeviceForm({
             type={effectiveConfig.type === 'integer' ? 'number' : 'text'}
             placeholder={effectiveConfig.default || fieldKey}
             value={properties[fieldKey] || ''}
-            onChange={(e) =>
-              setProperties((prev) => ({
-                ...prev,
-                [fieldKey]: e.target.value,
-              }))
-            }
+            onChange={(e) => setPropertyValue(fieldKey, e.target.value)}
             className={isTopLevel ? 'h-9' : 'h-8 text-xs'}
           />
         )}

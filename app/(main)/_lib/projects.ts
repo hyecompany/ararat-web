@@ -18,6 +18,7 @@ interface OperationStatusResponse {
 }
 
 const OPERATION_TIMEOUT_MS = 30000;
+const OPERATION_RETRY_DELAY_MS = 500;
 
 export async function getProjects() {
   return jsonFetcher<ProjectsMetadata>('/1.0/projects?recursion=1').then((data) => data.metadata);
@@ -77,6 +78,8 @@ async function waitForOperation(operation: string) {
     if (status === 'Success') {
       return;
     }
+
+    await new Promise((resolve) => window.setTimeout(resolve, OPERATION_RETRY_DELAY_MS));
   }
 }
 

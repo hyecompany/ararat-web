@@ -94,6 +94,11 @@ type ResourceOption = {
   description?: string;
 };
 
+type ConfigNode = {
+  keys: ConfigKeyItem[];
+  children: Record<string, ConfigNode>;
+};
+
 let nextSyntheticRowId = 0;
 
 function createSyntheticRowId(prefix: string) {
@@ -190,6 +195,70 @@ function normalizeDefaultValue(value?: string) {
   if (!value) return value;
   const normalized = value.startsWith('`') && value.endsWith('`') ? value.slice(1, -1) : value;
   return normalized.toLowerCase() === 'empty' ? undefined : normalized;
+}
+
+function buildConfigTree(categoryName: string, items: { key: string; metadata: ConfigOption }[]) {
+  const root: ConfigNode = { keys: [], children: {} };
+
+  items.forEach(({ key: fullKey, metadata }) => {
+    const categoryPrefix = `${categoryName}.`;
+    const relativeKey = fullKey.startsWith(categoryPrefix)
+      ? fullKey.slice(categoryPrefix.length)
+      : fullKey;
+
+    const parts = relativeKey.split('.');
+    const placeholderIndex = parts.findIndex(isTemplateSegment);
+    const staticParts = placeholderIndex === -1 ? parts.slice(0, -1) : parts.slice(0, placeholderIndex);
+    const templateParts = placeholderIndex === -1 ? undefined : parts.slice(placeholderIndex);
+    const leafName =
+      placeholderIndex === -1 ? parts[parts.length - 1]! : templateParts![templateParts!.length - 1]!;
+
+    let currentNode = root;
+    staticParts.forEach((part) => {
+      if (!currentNode.children[part]) {
+        currentNode.children[part] = { keys: [], children: {} };
+      }
+      currentNode = currentNode.children[part];
+    });
+
+    currentNode.keys.push({ fullKey, leafName, metadata, templateParts });
+  });
+
+  return root;
+}
+
+function renderConfigTree(
+  node: ConfigNode,
+  renderInput: (
+    fullKey: string,
+    metadata: ConfigOption,
+    label?: string,
+    templateParts?: string[],
+  ) => React.ReactNode,
+  formatCategoryName: (name: string) => string,
+): React.ReactNode {
+  const leafNames = new Set(node.keys.map((entry) => entry.leafName));
+
+  return (
+    <div className="space-y-6">
+      {node.keys.map(({ fullKey, leafName, metadata, templateParts }) =>
+        renderInput(fullKey, metadata, leafName, templateParts),
+      )}
+
+      {Object.entries(node.children).map(([name, childNode]) => {
+        const duplicatedHeading = leafNames.has(name);
+
+        return (
+          <div key={name} className={duplicatedHeading ? '' : 'pt-2'}>
+            {!duplicatedHeading ? (
+              <h4 className="mb-4 text-base font-semibold">{formatCategoryName(name)}</h4>
+            ) : null}
+            <div className="space-y-6">{renderConfigTree(childNode, renderInput, formatCategoryName)}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 function isProjectFeatureOption(metadata: ConfigOption) {
@@ -1138,6 +1207,7 @@ export default function GeneralConfiguration({
   const handleValueChange = (key: string, value: string | undefined, metadata?: ConfigOption) => {
     if (readOnly) return;
     const nextConfig = { ...config };
+    const normalizedValue = value === '' ? undefined : value;
     const inheritedValue = expandedConfig[key];
     const isProjectResetValue =
       configTarget === 'project' &&
@@ -1150,15 +1220,15 @@ export default function GeneralConfiguration({
         : undefined;
 
     if (
-      value === undefined ||
+      normalizedValue === undefined ||
       (!isProjectResetValue &&
         resetValue !== undefined &&
-        value === resetValue &&
+        normalizedValue === resetValue &&
         inheritedValue === undefined)
     ) {
       delete nextConfig[key];
     } else {
-      nextConfig[key] = value;
+      nextConfig[key] = normalizedValue;
     }
     onConfigChange(nextConfig);
   };
@@ -1191,8 +1261,10 @@ export default function GeneralConfiguration({
       delete nextConfig[previousResolvedKey];
     }
 
-    if (nextResolvedKey) {
+    if (nextResolvedKey && nextRow.value !== '') {
       nextConfig[nextResolvedKey] = nextRow.value;
+    } else if (nextResolvedKey) {
+      delete nextConfig[nextResolvedKey];
     }
 
     onConfigChange(nextConfig);
@@ -1871,6 +1943,11 @@ export default function GeneralConfiguration({
     [filteredCategories, searchQuery],
   );
 
+  const activeConfigTree = React.useMemo(() => {
+    if (!activeCategoryData) return null;
+    return buildConfigTree(activeCategoryData.name, activeCategoryData.keys);
+  }, [activeCategoryData]);
+
   return (
     <VerticalTabsLayout
       tabs={tabs}
@@ -1910,79 +1987,8 @@ export default function GeneralConfiguration({
           className="min-h-0 flex-1"
         >
           <div className="space-y-6 p-6">
-            {activeCategoryData ? (
-              (() => {
-                type ConfigNode = {
-                  keys: ConfigKeyItem[];
-                  children: Record<string, ConfigNode>;
-                };
-
-                const buildTree = (items: { key: string; metadata: ConfigOption }[]) => {
-                  const root: ConfigNode = { keys: [], children: {} };
-
-                  items.forEach(({ key: fullKey, metadata }) => {
-                    const categoryPrefix = activeCategoryData.name + '.';
-                    const relativeKey = fullKey.startsWith(categoryPrefix)
-                      ? fullKey.slice(categoryPrefix.length)
-                      : fullKey;
-
-                    const parts = relativeKey.split('.');
-                    const placeholderIndex = parts.findIndex(isTemplateSegment);
-                    const staticParts =
-                      placeholderIndex === -1
-                        ? parts.slice(0, -1)
-                        : parts.slice(0, placeholderIndex);
-                    const templateParts =
-                      placeholderIndex === -1 ? undefined : parts.slice(placeholderIndex);
-                    const leafName =
-                      placeholderIndex === -1
-                        ? parts[parts.length - 1]!
-                        : templateParts![templateParts!.length - 1]!;
-
-                    let currentNode = root;
-                    staticParts.forEach((part) => {
-                      if (!currentNode.children[part]) {
-                        currentNode.children[part] = { keys: [], children: {} };
-                      }
-                      currentNode = currentNode.children[part];
-                    });
-
-                    currentNode.keys.push({ fullKey, leafName, metadata, templateParts });
-                  });
-
-                  return root;
-                };
-
-                const renderNode = (node: ConfigNode): React.ReactNode => {
-                  const leafNames = new Set(node.keys.map((entry) => entry.leafName));
-
-                  return (
-                    <div className="space-y-6">
-                      {node.keys.map(({ fullKey, leafName, metadata, templateParts }) =>
-                        renderInput(fullKey, metadata, leafName, templateParts),
-                      )}
-
-                      {Object.entries(node.children).map(([name, childNode]) => {
-                        const duplicatedHeading = leafNames.has(name);
-
-                        return (
-                          <div key={name} className={duplicatedHeading ? '' : 'pt-2'}>
-                            {!duplicatedHeading ? (
-                              <h4 className="mb-4 text-base font-semibold">
-                                {formatCategoryName(name)}
-                              </h4>
-                            ) : null}
-                            <div className="space-y-6">{renderNode(childNode)}</div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                };
-
-                const tree = buildTree(activeCategoryData.keys);
-                return renderNode(tree);
-              })()
+            {activeConfigTree ? (
+              renderConfigTree(activeConfigTree, renderInput, formatCategoryName)
             ) : (
               <div className="text-muted-foreground py-12 text-center text-sm">
                 Select a category to view settings
