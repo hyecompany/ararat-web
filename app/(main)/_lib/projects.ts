@@ -252,7 +252,20 @@ export async function updateProject(
       renameResponse,
     )) as BackgroundOperationResponse;
     if (renameData.operation) {
-      await waitForOperation(renameData.operation, signal);
+      try {
+        await waitForOperation(renameData.operation, signal);
+      } catch (error) {
+        if (isAbortError(error)) {
+          throw error;
+        }
+
+        const renameError =
+          error instanceof Error ? error.message : `Unable to rename project ${currentName}`;
+        throw new ProjectRenamePartialFailureError(
+          `Project settings were updated, but rename failed: ${renameError}`,
+          updatedProject,
+        );
+      }
     }
   }
 

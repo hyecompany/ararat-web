@@ -271,7 +271,11 @@ function processConfigurableOptions(config: ConfigurableOptions) {
     return `Set \`${key}\` to \`${value}\` to configure this setting.`;
   };
 
-  const sanitizeDescription = (text?: string, startIndex = 0) => {
+  const sanitizeDescription = (
+    text: string | undefined,
+    configSection: keyof ConfigsShape,
+    startIndex = 0,
+  ) => {
     if (!text) {
       return {
         text: undefined,
@@ -282,11 +286,12 @@ function processConfigurableOptions(config: ConfigurableOptions) {
     const referenceTokens: NonNullable<ConfigOption['reference_tokens']> = [];
     let currentText = text.replace(CONFIG_REFERENCE_REGEX, (raw, namespace, key) => {
       const placeholder = `@@ref:${startIndex + referenceTokens.length}@@`;
+      const fullReferenceKey = normalizeOptionKey(configSection, namespace, key);
       referenceTokens.push({
         raw,
         kind: 'config_option',
         namespace,
-        key,
+        key: fullReferenceKey,
         label: key,
         placeholder,
       });
@@ -431,9 +436,10 @@ function processConfigurableOptions(config: ConfigurableOptions) {
       .join(' ')
       .toLowerCase();
 
-    const shortdescSanitized = sanitizeDescription(option.shortdesc);
+    const shortdescSanitized = sanitizeDescription(option.shortdesc, configSection);
     const longdescSanitized = sanitizeDescription(
       option.longdesc,
+      configSection,
       shortdescSanitized.referenceTokens.length,
     );
 
