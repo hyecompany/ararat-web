@@ -50,6 +50,7 @@ import {
 import { Field, FieldContent, FieldDescription, FieldLabel } from 'ui-web/components/field';
 import { cn } from 'ui-web/lib/utils';
 import { AutocompleteInput } from '@/components/ui/autocomplete-input';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface GeneralConfigurationProps {
   config: Record<string, string>;
@@ -996,38 +997,42 @@ export default function GeneralConfiguration({
     });
   }, [categories, config]);
 
+  const navigateToField = React.useCallback((targetKey: string) => {
+    const node = fieldRefs.current.get(targetKey);
+    if (!node) return false;
+
+    node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setHighlightedKey(targetKey);
+    setPendingNavigationKey(null);
+
+    if (highlightTimeoutRef.current) {
+      window.clearTimeout(highlightTimeoutRef.current);
+    }
+
+    highlightTimeoutRef.current = window.setTimeout(() => {
+      setHighlightedKey((current) => (current === targetKey ? null : current));
+      highlightTimeoutRef.current = null;
+    }, 900);
+
+    return true;
+  }, []);
+
+  const setFieldRef = React.useCallback(
+    (key: string, node: HTMLDivElement | null) => {
+      fieldRefs.current.set(key, node);
+
+      if (node && pendingNavigationKey === key) {
+        navigateToField(key);
+      }
+    },
+    [navigateToField, pendingNavigationKey],
+  );
+
   React.useEffect(() => {
     if (!pendingNavigationKey) return;
 
-    const targetKey = pendingNavigationKey;
-    let animationFrame = 0;
-
-    const attemptScroll = () => {
-      const node = fieldRefs.current.get(targetKey);
-      if (!node) return;
-
-      node.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      setHighlightedKey(targetKey);
-      setPendingNavigationKey(null);
-
-      if (highlightTimeoutRef.current) {
-        window.clearTimeout(highlightTimeoutRef.current);
-      }
-
-      highlightTimeoutRef.current = window.setTimeout(() => {
-        setHighlightedKey((current) => (current === targetKey ? null : current));
-        highlightTimeoutRef.current = null;
-      }, 900);
-    };
-
-    animationFrame = window.requestAnimationFrame(() => {
-      animationFrame = window.requestAnimationFrame(attemptScroll);
-    });
-
-    return () => {
-      window.cancelAnimationFrame(animationFrame);
-    };
-  }, [pendingNavigationKey, selectedCategory]);
+    navigateToField(pendingNavigationKey);
+  }, [navigateToField, pendingNavigationKey, selectedCategory]);
 
   React.useEffect(
     () => () => {
@@ -1381,9 +1386,9 @@ export default function GeneralConfiguration({
     return (
       <div
         key={fullKey}
-        ref={(node) => {
-          fieldRefs.current.set(fullKey, node);
-        }}
+          ref={(node) => {
+            setFieldRef(fullKey, node);
+          }}
         className={cn(
           'rounded-md transition-[background-color,box-shadow]',
           highlightedKey === fullKey && 'bg-primary/5',
@@ -1669,9 +1674,9 @@ export default function GeneralConfiguration({
     return (
       <div
         key={fullKey}
-        ref={(node) => {
-          fieldRefs.current.set(fullKey, node);
-        }}
+          ref={(node) => {
+            setFieldRef(fullKey, node);
+          }}
         className={cn(
           'rounded-md transition-[background-color,box-shadow]',
           highlightedKey === fullKey && 'bg-primary/5',
@@ -1863,9 +1868,9 @@ export default function GeneralConfiguration({
     return (
       <div
         key={fullKey}
-        ref={(node) => {
-          fieldRefs.current.set(fullKey, node);
-        }}
+          ref={(node) => {
+            setFieldRef(fullKey, node);
+          }}
         className={cn(
           'rounded-md transition-[background-color,box-shadow]',
           highlightedKey === fullKey && 'bg-primary/5',
@@ -1874,12 +1879,20 @@ export default function GeneralConfiguration({
       <Field className="border-b pb-6 last:border-0 last:pb-0">
         <div className="flex items-start justify-between gap-4">
           <FieldContent>
-            <FieldLabel htmlFor={fullKey} className="flex items-center gap-2 text-sm font-medium">
-              {displayLabel}
-              {isOverridden ? (
-                <div className="h-2 w-2 rounded-full bg-orange-500" title="Overridden" />
-              ) : null}
-            </FieldLabel>
+              <FieldLabel htmlFor={fullKey} className="flex items-center gap-2 text-sm font-medium">
+                {displayLabel}
+                {isOverridden ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div
+                        aria-label="Overridden"
+                        className="h-2 w-2 rounded-full bg-orange-500"
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent>Overridden</TooltipContent>
+                  </Tooltip>
+                ) : null}
+              </FieldLabel>
             {renderDescription(metadata.display_shortdesc || metadata.shortdesc, metadata, fullKey)}
           </FieldContent>
           {canReset ? (

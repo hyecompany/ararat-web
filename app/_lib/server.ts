@@ -521,17 +521,19 @@ function processConfigurableOptions(config: ConfigurableOptions) {
       option.disabled_reason = buildDisabledReason('restricted', 'truthy');
     }
 
-    const exactValueDependency = option.longdesc?.match(IF_CONFIG_VALUE_REGEX);
-    if (exactValueDependency) {
-      const [, , dependencyKey, dependencyValue] = exactValueDependency;
-      option.depends_on.push({
+    const exactValueDependencies = Array.from(
+      option.longdesc?.matchAll(new RegExp(IF_CONFIG_VALUE_REGEX.source, 'gi')) ?? [],
+    );
+    exactValueDependencies.forEach((match) => {
+      const [, , dependencyKey, dependencyValue] = match;
+      option.depends_on?.push({
         key: dependencyKey,
         operator: 'equals',
         value: dependencyValue,
       });
       option.disabled_reason =
         option.disabled_reason || buildDisabledReason(dependencyKey, 'equals', dependencyValue);
-    }
+    });
 
     if (!option.depends_on.length) {
       option.depends_on = undefined;
