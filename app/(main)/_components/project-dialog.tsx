@@ -10,7 +10,11 @@ import Editor from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
 import { Code2Icon } from 'lucide-react';
 
-import { createProject, updateProject } from '@/app/(main)/_lib/projects';
+import {
+  createProject,
+  ProjectRenamePartialFailureError,
+  updateProject,
+} from '@/app/(main)/_lib/projects';
 import type { CreateProjectBody, Project, UpdateProjectBody } from '@/app/(main)/_lib/projects.d';
 import { fromYaml, toYaml } from '@/app/(main)/_lib/yaml';
 import ProjectsContext from '@/app/(main)/_context/projects';
@@ -285,6 +289,13 @@ export default function ProjectDialog({ open, onOpenChange, mode, project }: Pro
 
       onOpenChange(false);
     } catch (error) {
+      if (error instanceof ProjectRenamePartialFailureError && project) {
+        mutate(`/1.0/projects/${project.name}`, error.project, {
+          revalidate: false,
+        });
+        await mutate('/1.0/projects?recursion=1');
+        setProject(project.name);
+      }
       if (!isAbortError(error)) {
         setSubmitError(error instanceof Error ? error.message : 'Failed to save project');
       }

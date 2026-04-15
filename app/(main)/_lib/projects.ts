@@ -20,6 +20,16 @@ interface OperationStatusResponse {
 const OPERATION_TIMEOUT_MS = 30000;
 const OPERATION_RETRY_DELAY_MS = 500;
 
+export class ProjectRenamePartialFailureError extends Error {
+  project: Project;
+
+  constructor(message: string, project: Project) {
+    super(message);
+    this.name = 'ProjectRenamePartialFailureError';
+    this.project = project;
+  }
+}
+
 function isAbortError(error: unknown) {
   return error instanceof DOMException && error.name === 'AbortError';
 }
@@ -208,6 +218,13 @@ export async function updateProject(
     await waitForOperation(updateData.operation, signal);
   }
 
+  const updatedProject: Project = {
+    ...currentProject,
+    name: currentName,
+    description: nextDescription || undefined,
+    config: nextConfig,
+  };
+
   if (nextName !== currentName) {
     const renameResponse = await fetch(`/1.0/projects/${encodeURIComponent(currentName)}`, {
       method: 'POST',
@@ -225,8 +242,9 @@ export async function updateProject(
         renameResponse,
         `Unable to rename project ${currentName}`,
       );
-      throw new Error(
+      throw new ProjectRenamePartialFailureError(
         `Project settings were updated, but rename failed: ${renameError}`,
+        updatedProject,
       );
     }
 
@@ -240,10 +258,8 @@ export async function updateProject(
 
   return {
     project: {
-      ...currentProject,
+      ...updatedProject,
       name: nextName,
-      description: nextDescription || undefined,
-      config: nextConfig,
     },
     renamedFrom: nextName !== currentName ? currentName : undefined,
   };

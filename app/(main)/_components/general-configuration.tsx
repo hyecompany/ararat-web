@@ -482,6 +482,12 @@ function NewlineListInput({
       value: item,
     })),
   );
+  const syntheticRowIdRef = React.useRef(0);
+
+  const createRowId = React.useCallback(() => {
+    syntheticRowIdRef.current += 1;
+    return `${id}-${syntheticRowIdRef.current}`;
+  }, [id]);
 
   React.useEffect(() => {
     const items = splitNewlineValue(value);
@@ -513,12 +519,12 @@ function NewlineListInput({
     const nextRows = [
       ...rows,
       {
-        id: createSyntheticRowId(id),
+        id: createRowId(),
         value: '',
       },
     ];
     setRows(nextRows);
-  }, [id, rows]);
+  }, [createRowId, rows]);
 
   const removeRow = React.useCallback(
     (rowId: string) => {
@@ -692,7 +698,7 @@ export default function GeneralConfiguration({
   const scrollAreaRef = React.useRef<HTMLDivElement | null>(null);
   const scrollViewportRef = React.useRef<HTMLDivElement | null>(null);
   const lastScrollTopRef = React.useRef(0);
-  const highlightTimeoutRef = React.useRef<ReturnType<typeof window.setTimeout> | null>(null);
+  const highlightTimeoutRef = React.useRef<number | null>(null);
   const syntheticRowIdRef = React.useRef(0);
   const hasExplicitProjectFeatureOverrides = React.useMemo(
     () => Object.keys(config).some((key) => /^features?\./.test(key)),
@@ -1685,7 +1691,7 @@ export default function GeneralConfiguration({
         <div className="flex items-start justify-between gap-4">
           <FieldContent>
             <FieldLabel className="flex items-center gap-2 text-sm font-medium">{label}</FieldLabel>
-            {renderDescription(metadata.display_shortdesc || metadata.shortdesc, metadata, fullKey)}
+            {renderDescription(metadata.display_shortdesc || metadata.shortdesc, metadata)}
           </FieldContent>
           {!readOnly ? (
             <Button
@@ -1804,7 +1810,7 @@ export default function GeneralConfiguration({
             </div>
           )}
         </div>
-        {renderDescription(metadata.display_longdesc || metadata.longdesc, metadata, fullKey)}
+        {renderDescription(metadata.display_longdesc || metadata.longdesc, metadata)}
       </Field>
       </div>
     );
@@ -1892,7 +1898,7 @@ export default function GeneralConfiguration({
                   </Tooltip>
                 ) : null}
               </FieldLabel>
-            {renderDescription(metadata.display_shortdesc || metadata.shortdesc, metadata, fullKey)}
+            {renderDescription(metadata.display_shortdesc || metadata.shortdesc, metadata)}
           </FieldContent>
           {canReset ? (
             <Button
@@ -1929,7 +1935,7 @@ export default function GeneralConfiguration({
         {reason && disabled ? (
           <FieldDescription className="text-xs">{reason}</FieldDescription>
         ) : null}
-        {renderDescription(metadata.display_longdesc || metadata.longdesc, metadata, fullKey)}
+        {renderDescription(metadata.display_longdesc || metadata.longdesc, metadata)}
       </Field>
       </div>
     );

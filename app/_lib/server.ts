@@ -525,14 +525,20 @@ function processConfigurableOptions(config: ConfigurableOptions) {
       option.longdesc?.matchAll(new RegExp(IF_CONFIG_VALUE_REGEX.source, 'gi')) ?? [],
     );
     exactValueDependencies.forEach((match) => {
-      const [, , dependencyKey, dependencyValue] = match;
+      const [, namespace, dependencyKey, dependencyValue] = match;
+      const fullDependencyKey = normalizeOptionKey(
+        configSection,
+        namespace,
+        dependencyKey,
+      );
       option.depends_on?.push({
-        key: dependencyKey,
+        key: fullDependencyKey,
         operator: 'equals',
         value: dependencyValue,
       });
       option.disabled_reason =
-        option.disabled_reason || buildDisabledReason(dependencyKey, 'equals', dependencyValue);
+        option.disabled_reason ||
+        buildDisabledReason(fullDependencyKey, 'equals', dependencyValue);
     });
 
     if (!option.depends_on.length) {
