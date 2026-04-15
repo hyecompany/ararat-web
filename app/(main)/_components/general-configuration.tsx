@@ -1002,7 +1002,7 @@ export default function GeneralConfiguration({
     const node = fieldRefs.current.get(targetKey);
     if (!node) return false;
 
-    node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    node.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     setHighlightedKey(targetKey);
     setPendingNavigationKey(null);
 
