@@ -1698,7 +1698,7 @@ function AddDeviceForm({
       pendingAutoApplyRef.current = null;
       autoApplyTimeoutRef.current = null;
     }, 500);
-  }, [buildDevicePayload, editingDevice, editingDevice?.name, onUpdate, validationResult.isValid]);
+  }, [buildDevicePayload, editingDevice, editingDevice?.name, validationResult.isValid]);
 
   React.useEffect(() => {
     return () => {
