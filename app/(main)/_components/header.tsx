@@ -60,7 +60,7 @@ export function SiteHeader({ children }: { children?: React.ReactNode }) {
               <DropdownMenuLabel>Projects</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
-                <DropdownMenuItem onClick={() => setProject('all')}>
+                <DropdownMenuItem className="select-none" onClick={() => setProject('all')}>
                   <GlobeIcon className="size-4" />
                   <span>All Projects</span>
                   {currentProject === 'all' ? <CheckIcon className="ml-auto size-4" /> : null}
