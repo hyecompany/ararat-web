@@ -60,6 +60,7 @@ import Editor, { OnMount } from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
 import { mutate } from 'swr';
 import type * as Monaco from 'monaco-editor';
+import { cn } from 'ui-web/lib/utils';
 
 const sourceSchema = z
   .object({
@@ -292,6 +293,17 @@ export default function CreateInstance({ className }: { className?: string }) {
     setShowYamlEditor(!showYamlEditor);
   }, [showYamlEditor, generateYamlContent]);
 
+  const getDialogContentClassName = useCallback(() => {
+    return cn(
+      'flex max-h-[90vh] w-full flex-col transition-all duration-200',
+      selectingImage
+        ? 'sm:max-w-5xl'
+        : currentTab === 'devices' || currentTab === 'general' || showYamlEditor
+          ? 'h-[90vh] sm:max-w-6xl'
+          : 'sm:max-w-xl',
+    );
+  }, [currentTab, selectingImage, showYamlEditor]);
+
   // Handle Monaco editor mount
   const handleEditorMount: OnMount = useCallback((editor) => {
     editorRef.current = editor;
@@ -432,15 +444,7 @@ export default function CreateInstance({ className }: { className?: string }) {
                 Create Instance
               </Button>
             </DialogTrigger>
-            <DialogContent
-              className={`flex max-h-[90vh] w-full flex-col transition-all duration-200 ${
-                selectingImage
-                  ? 'sm:max-w-5xl'
-                  : currentTab === 'devices' || currentTab === 'general' || showYamlEditor
-                    ? 'h-[90vh] sm:max-w-6xl'
-                    : 'sm:max-w-xl'
-              }`}
-            >
+            <DialogContent className={getDialogContentClassName()}>
               <DialogHeader className="shrink-0">
                 <DialogTitle>Create Instance</DialogTitle>
                 <DialogDescription>Create a new instance</DialogDescription>

@@ -100,13 +100,6 @@ type ConfigNode = {
   children: Record<string, ConfigNode>;
 };
 
-let nextSyntheticRowId = 0;
-
-function createSyntheticRowId(prefix: string) {
-  nextSyntheticRowId += 1;
-  return `${prefix}-${nextSyntheticRowId}`;
-}
-
 function isTemplateSegment(segment: string) {
   return (
     segment === '*' ||
@@ -700,10 +693,16 @@ export default function GeneralConfiguration({
   const scrollViewportRef = React.useRef<HTMLDivElement | null>(null);
   const lastScrollTopRef = React.useRef(0);
   const highlightTimeoutRef = React.useRef<ReturnType<typeof window.setTimeout> | null>(null);
+  const syntheticRowIdRef = React.useRef(0);
   const hasExplicitProjectFeatureOverrides = React.useMemo(
     () => Object.keys(config).some((key) => /^features?\./.test(key)),
     [config],
   );
+
+  const createSyntheticRowId = React.useCallback((prefix: string) => {
+    syntheticRowIdRef.current += 1;
+    return `${prefix}-${syntheticRowIdRef.current}`;
+  }, []);
 
   const categories = React.useMemo(() => {
     const configCollection = configurableOptions?.configs?.[configTarget] as

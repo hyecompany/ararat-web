@@ -20,6 +20,36 @@ interface OperationStatusResponse {
 const OPERATION_TIMEOUT_MS = 30000;
 const OPERATION_RETRY_DELAY_MS = 500;
 
+function isAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === 'AbortError';
+}
+
+function throwIfAborted(signal?: AbortSignal) {
+  if (signal?.aborted) {
+    throw signal.reason instanceof Error
+      ? signal.reason
+      : new DOMException('The operation was aborted.', 'AbortError');
+  }
+}
+
+async function abortableDelay(ms: number, signal?: AbortSignal) {
+  throwIfAborted(signal);
+
+  await new Promise<void>((resolve, reject) => {
+    const handleAbort = () => {
+      window.clearTimeout(timeoutId);
+      reject(new DOMException('The operation was aborted.', 'AbortError'));
+    };
+
+    const timeoutId = window.setTimeout(() => {
+      signal?.removeEventListener('abort', handleAbort);
+      resolve();
+    }, ms);
+
+    signal?.addEventListener('abort', handleAbort, { once: true });
+  });
+}
+
 export async function getProjects() {
   return jsonFetcher<ProjectsMetadata>('/1.0/projects?recursion=1').then((data) => data.metadata);
 }
@@ -36,8 +66,11 @@ async function getErrorMessage(response: Response, fallback: string) {
   return ('error' in payload && typeof payload.error === 'string' && payload.error) || fallback;
 }
 
-export async function getProject(name: string): Promise<{ project: Project; etag: string | null }> {
-  const response = await fetch(`/1.0/projects/${encodeURIComponent(name)}`);
+export async function getProject(
+  name: string,
+  signal?: AbortSignal,
+): Promise<{ project: Project; etag: string | null }> {
+  const response = await fetch(`/1.0/projects/${encodeURIComponent(name)}`, { signal });
   if (!response.ok) {
     throw new Error(await getErrorMessage(response, `Unable to load project ${name}`));
   }
@@ -49,17 +82,19 @@ export async function getProject(name: string): Promise<{ project: Project; etag
   };
 }
 
-async function waitForOperation(operation: string) {
+async function waitForOperation(operation: string, signal?: AbortSignal) {
   const waitUrl = new URL(`${operation}/wait`, window.location.origin);
   waitUrl.searchParams.set('timeout', String(Math.ceil(OPERATION_TIMEOUT_MS / 1000)));
   const deadline = Date.now() + OPERATION_TIMEOUT_MS;
 
-  while (true) {
+  for (;;) {
+    throwIfAborted(signal);
+
     if (Date.now() > deadline) {
       throw new Error('Timed out while waiting for project operation to complete.');
     }
 
-    const response = await fetch(waitUrl.toString());
+    const response = await fetch(waitUrl.toString(), { signal });
     if (!response.ok) {
       throw new Error(await getErrorMessage(response, 'Unable to wait for project rename.'));
     }
@@ -84,20 +119,18 @@ async function waitForOperation(operation: string) {
       return;
     }
 
-    if (Date.now() > deadline) {
-      throw new Error('Timed out while waiting for project operation to complete.');
-    }
-
-    await new Promise((resolve) => window.setTimeout(resolve, OPERATION_RETRY_DELAY_MS));
+    await abortableDelay(OPERATION_RETRY_DELAY_MS, signal);
   }
 }
 
 export async function createProject(
   payload: CreateProjectBody,
+  signal?: AbortSignal,
 ): Promise<{ operation?: string; error?: string }> {
   try {
     const response = await fetch('/1.0/projects', {
       method: 'POST',
+      signal,
       headers: {
         'Content-Type': 'application/json',
       },
@@ -123,6 +156,9 @@ export async function createProject(
 
     return { operation: data.operation as string | undefined };
   } catch (err: unknown) {
+    if (isAbortError(err)) {
+      return { error: 'Request was cancelled.' };
+    }
     const message = err instanceof Error ? err.message : 'Network error';
     return { error: message };
   }
@@ -130,16 +166,20 @@ export async function createProject(
 
 export async function updateProject(
   payload: UpdateProjectBody,
+  signal?: AbortSignal,
 ): Promise<{ project: Project; renamedFrom?: string }> {
+  throwIfAborted(signal);
   const currentName = payload.currentName.trim();
   const nextName = payload.name.trim();
   const nextDescription = payload.description?.trim() || '';
   const nextConfig = payload.config ?? {};
 
-  const { project: currentProject, etag } = await getProject(currentName);
+  const { project: currentProject, etag } = await getProject(currentName, signal);
+  throwIfAborted(signal);
 
   const updateResponse = await fetch(`/1.0/projects/${encodeURIComponent(currentName)}`, {
     method: 'PUT',
+    signal,
     headers: {
       'Content-Type': 'application/json',
       ...(etag ? { 'If-Match': etag } : {}),
@@ -160,12 +200,13 @@ export async function updateProject(
     updateResponse,
   )) as BackgroundOperationResponse;
   if (updateData.operation) {
-    await waitForOperation(updateData.operation);
+    await waitForOperation(updateData.operation, signal);
   }
 
   if (nextName !== currentName) {
     const renameResponse = await fetch(`/1.0/projects/${encodeURIComponent(currentName)}`, {
       method: 'POST',
+      signal,
       headers: {
         'Content-Type': 'application/json',
       },
@@ -184,7 +225,7 @@ export async function updateProject(
       renameResponse,
     )) as BackgroundOperationResponse;
     if (renameData.operation) {
-      await waitForOperation(renameData.operation);
+      await waitForOperation(renameData.operation, signal);
     }
   }
 

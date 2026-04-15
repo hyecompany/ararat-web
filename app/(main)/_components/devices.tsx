@@ -56,6 +56,7 @@ import { UnitInput } from '@/app/(main)/_components/unit-input';
 import { useResources } from '@/app/(main)/_hooks/resources';
 import { VerticalTabsLayout } from '@/app/_components/layout/vertical-tabs-layout';
 import { ConfigDescription, collectReferenceOptions } from '@/app/(main)/_components/config-description';
+import stableStringify from 'fast-json-stable-stringify';
 
 // Utility function to validate port specifications (Issue 3)
 function validatePort(portSpec: string): boolean {
@@ -159,23 +160,6 @@ function serializeProxyConnection(
   }
 
   return port ? `${type}:${address}:${port}` : `${type}:${address}`;
-}
-
-function stableStringify(value: unknown): string {
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => stableStringify(item)).join(',')}]`;
-  }
-
-  if (value && typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) =>
-      a.localeCompare(b),
-    );
-    return `{${entries
-      .map(([key, entryValue]) => `${JSON.stringify(key)}:${stableStringify(entryValue)}`)
-      .join(',')}}`;
-  }
-
-  return JSON.stringify(value) ?? '';
 }
 
 function singularizeDeviceTypeLabel(label: string): string {

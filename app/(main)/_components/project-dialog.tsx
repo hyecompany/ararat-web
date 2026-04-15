@@ -71,6 +71,10 @@ const COPY = {
   },
 } as const;
 
+function isAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === 'AbortError';
+}
+
 export default function ProjectDialog({ open, onOpenChange, mode, project }: ProjectDialogProps) {
   const { setProject } = use(ProjectsContext);
   const { resolvedTheme } = useTheme();
@@ -82,6 +86,7 @@ export default function ProjectDialog({ open, onOpenChange, mode, project }: Pro
   const [yamlContent, setYamlContent] = useState('');
   const [yamlError, setYamlError] = useState<string | null>(null);
   const nameInputRef = React.useRef<HTMLInputElement | null>(null);
+  const submitAbortControllerRef = React.useRef<AbortController | null>(null);
 
   const form = useForm<ProjectFormValues>({
     resolver: zodResolver(formSchema),
@@ -126,6 +131,14 @@ export default function ProjectDialog({ open, onOpenChange, mode, project }: Pro
       resetForm();
     }
   }, [open, resetForm]);
+
+  useEffect(
+    () => () => {
+      submitAbortControllerRef.current?.abort();
+      submitAbortControllerRef.current = null;
+    },
+    [],
+  );
 
   const buildPayload = useCallback(() => {
     const values = form.getValues();
@@ -189,7 +202,7 @@ export default function ProjectDialog({ open, onOpenChange, mode, project }: Pro
     [form],
   );
 
-  const handleCreate = async (values: ProjectFormValues) => {
+  const handleCreate = async (values: ProjectFormValues, signal?: AbortSignal) => {
     const payload: CreateProjectBody = {
       name: values.name.trim(),
     };
@@ -203,8 +216,11 @@ export default function ProjectDialog({ open, onOpenChange, mode, project }: Pro
       payload.config = config;
     }
 
-    const result = await createProject(payload);
+    const result = await createProject(payload, signal);
     if (result.error) {
+      if (result.error === 'Request was cancelled.') {
+        throw new DOMException('The operation was aborted.', 'AbortError');
+      }
       throw new Error(result.error);
     }
 
@@ -221,7 +237,7 @@ export default function ProjectDialog({ open, onOpenChange, mode, project }: Pro
     setProject(payload.name);
   };
 
-  const handleEdit = async (values: ProjectFormValues) => {
+  const handleEdit = async (values: ProjectFormValues, signal?: AbortSignal) => {
     if (!project) {
       throw new Error('No project selected for editing.');
     }
@@ -233,7 +249,7 @@ export default function ProjectDialog({ open, onOpenChange, mode, project }: Pro
       config,
     };
 
-    const result = await updateProject(payload);
+    const result = await updateProject(payload, signal);
     const nextName = result.project.name;
 
     if (result.renamedFrom) {
@@ -255,19 +271,27 @@ export default function ProjectDialog({ open, onOpenChange, mode, project }: Pro
     if (!valid) return;
 
     const values = form.getValues();
+    submitAbortControllerRef.current?.abort();
+    const controller = new AbortController();
+    submitAbortControllerRef.current = controller;
 
     setIsSubmitting(true);
     try {
       if (mode === 'create') {
-        await handleCreate(values);
+        await handleCreate(values, controller.signal);
       } else {
-        await handleEdit(values);
+        await handleEdit(values, controller.signal);
       }
 
       onOpenChange(false);
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Failed to save project');
+      if (!isAbortError(error)) {
+        setSubmitError(error instanceof Error ? error.message : 'Failed to save project');
+      }
     } finally {
+      if (submitAbortControllerRef.current === controller) {
+        submitAbortControllerRef.current = null;
+      }
       setIsSubmitting(false);
     }
   };
@@ -276,6 +300,12 @@ export default function ProjectDialog({ open, onOpenChange, mode, project }: Pro
     <Dialog
       open={open}
       onOpenChange={(nextOpen) => {
+        if (!nextOpen) {
+          submitAbortControllerRef.current?.abort();
+          submitAbortControllerRef.current = null;
+          onOpenChange(false);
+          return;
+        }
         if (!isSubmitting) {
           onOpenChange(nextOpen);
         }
