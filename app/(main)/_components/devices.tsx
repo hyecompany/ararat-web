@@ -1569,9 +1569,6 @@ function AddDeviceForm({
   const lastAutoAppliedSignature = React.useRef<string | null>(null);
   const isInitializingEditState = React.useRef(false);
   const lastHydratedSignature = React.useRef<string | null>(null);
-  const initializationFallbackTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
   const autoApplyTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingAutoApplyRef = React.useRef<{
     oldName: string;
@@ -1585,6 +1582,28 @@ function AddDeviceForm({
         name: editingDevice.name,
         device: editingDevice.device,
       })
+    : null;
+  const hydratedEditState = React.useMemo(() => {
+    if (!editingDevice) return null;
+
+    const { type, ...deviceProps } = editingDevice.device;
+    const nextProperties = { ...deviceProps } as Record<string, string>;
+
+    if (isRoot && deviceType === 'disk') {
+      nextProperties.path = '/';
+    }
+
+    if (type.startsWith('gpu_')) {
+      nextProperties.gputype = type.substring(4);
+    }
+
+    return {
+      name: editingDevice.name,
+      properties: nextProperties,
+    };
+  }, [deviceType, editingDevice, isRoot]);
+  const hydratedEditStateSignature = hydratedEditState
+    ? stableStringify(hydratedEditState)
     : null;
 
   React.useEffect(() => {
@@ -1604,10 +1623,6 @@ function AddDeviceForm({
       lastAutoAppliedSignature.current = null;
       lastHydratedSignature.current = null;
       isInitializingEditState.current = false;
-      if (initializationFallbackTimeoutRef.current) {
-        clearTimeout(initializationFallbackTimeoutRef.current);
-        initializationFallbackTimeoutRef.current = null;
-      }
       return;
     }
 
@@ -1626,13 +1641,6 @@ function AddDeviceForm({
     lastHydratedSignature.current = editingDeviceSignature;
     lastAutoAppliedSignature.current = editingDeviceSignature;
     isInitializingEditState.current = true;
-    if (initializationFallbackTimeoutRef.current) {
-      clearTimeout(initializationFallbackTimeoutRef.current);
-    }
-    initializationFallbackTimeoutRef.current = setTimeout(() => {
-      isInitializingEditState.current = false;
-      initializationFallbackTimeoutRef.current = null;
-    }, 1000);
     setName(editingDevice.name);
     const { type, ...deviceProps } = editingDevice.device;
     if (type.startsWith('gpu_')) {
@@ -1645,18 +1653,17 @@ function AddDeviceForm({
   }, [editingDevice, editingDeviceSignature]);
 
   React.useEffect(() => {
-    if (!editingDevice || !editingDeviceSignature || !isInitializingEditState.current) return;
+    if (!editingDevice || !hydratedEditStateSignature || !isInitializingEditState.current) return;
 
-    const currentSignature = stableStringify(buildDevicePayload());
+    const currentSignature = stableStringify({
+      name,
+      properties,
+    });
 
-    if (currentSignature === editingDeviceSignature) {
+    if (currentSignature === hydratedEditStateSignature) {
       isInitializingEditState.current = false;
-      if (initializationFallbackTimeoutRef.current) {
-        clearTimeout(initializationFallbackTimeoutRef.current);
-        initializationFallbackTimeoutRef.current = null;
-      }
     }
-  }, [buildDevicePayload, editingDevice, editingDeviceSignature, name, properties]);
+  }, [editingDevice, hydratedEditStateSignature, name, properties]);
 
   React.useEffect(() => {
     if (!editingDevice || !onUpdate || !validationResult.isValid) return;
@@ -1695,11 +1702,6 @@ function AddDeviceForm({
 
   React.useEffect(() => {
     return () => {
-      if (initializationFallbackTimeoutRef.current) {
-        clearTimeout(initializationFallbackTimeoutRef.current);
-        initializationFallbackTimeoutRef.current = null;
-      }
-
       if (autoApplyTimeoutRef.current) {
         clearTimeout(autoApplyTimeoutRef.current);
         autoApplyTimeoutRef.current = null;
