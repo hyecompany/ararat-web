@@ -2525,6 +2525,7 @@ export default function Devices({
     skipSyncFromProps.current = true;
     setLocalDevices(updated);
     onDevicesChange?.(updated);
+    if (!(oldName in localDevices) && !(oldName in inheritedDevices)) return;
     if (oldName !== newName) {
       setSelectedDeviceName(newName);
     }
