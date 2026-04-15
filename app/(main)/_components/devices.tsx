@@ -51,10 +51,11 @@ import {
 } from '@/app/(main)/_hooks/storagePools';
 import { useNetworks } from '@/app/(main)/_hooks/networks';
 import type { Device } from '@/app/(main)/instances/_lib/instances.d';
-import type { ConfigOption } from '@/app/_lib/server.d';
+import type { ConfigOption, DeviceTypeConfig } from '@/app/_lib/server.d';
 import { UnitInput } from '@/app/(main)/_components/unit-input';
 import { useResources } from '@/app/(main)/_hooks/resources';
 import { VerticalTabsLayout } from '@/app/_components/layout/vertical-tabs-layout';
+import { ConfigDescription, collectReferenceOptions } from '@/app/(main)/_components/config-description';
 
 // Utility function to validate port specifications (Issue 3)
 function validatePort(portSpec: string): boolean {
@@ -158,6 +159,240 @@ function serializeProxyConnection(
   }
 
   return port ? `${type}:${address}:${port}` : `${type}:${address}`;
+}
+
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(',')}]`;
+  }
+
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) =>
+      a.localeCompare(b),
+    );
+    return `{${entries
+      .map(([key, entryValue]) => `${JSON.stringify(key)}:${stableStringify(entryValue)}`)
+      .join(',')}}`;
+  }
+
+  return JSON.stringify(value);
+}
+
+function splitCsvValue(value?: string) {
+  if (!value) return [];
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+type DeviceCollectionRow = {
+  id: string;
+  keyName: string;
+  value: string;
+};
+
+let nextDeviceCollectionRowId = 0;
+
+function createDeviceCollectionRowId(prefix: string) {
+  nextDeviceCollectionRowId += 1;
+  return `${prefix}-${nextDeviceCollectionRowId}`;
+}
+
+function DeviceCsvListInput({
+  id,
+  value,
+  onChange,
+  placeholder,
+}: {
+  id: string;
+  value?: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}) {
+  const [draft, setDraft] = React.useState('');
+  const items = React.useMemo(() => splitCsvValue(value), [value]);
+
+  const commitDraft = React.useCallback(() => {
+    const trimmed = draft.trim();
+    if (!trimmed || items.includes(trimmed)) {
+      setDraft('');
+      return;
+    }
+
+    onChange([...items, trimmed].join(','));
+    setDraft('');
+  }, [draft, items, onChange]);
+
+  return (
+    <div className="flex flex-col gap-3">
+      {items.length ? (
+        <div className="flex flex-wrap gap-2">
+          {items.map((item) => (
+            <div
+              key={item}
+              className="bg-muted inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs"
+            >
+              <code>{item}</code>
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={() => onChange(items.filter((current) => current !== item).join(','))}
+                aria-label={`Remove ${item}`}
+              >
+                <IconX className="size-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      <div className="flex items-center gap-2">
+        <Input
+          id={id}
+          value={draft}
+          placeholder={placeholder || 'Add value and press Enter'}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ',') {
+              event.preventDefault();
+              commitDraft();
+            }
+          }}
+          onBlur={commitDraft}
+          className="h-9"
+        />
+        <Button type="button" variant="outline" size="sm" onClick={commitDraft}>
+          Add
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function DeviceInitialKeyValueInput({
+  properties,
+  onPropertiesChange,
+}: {
+  properties: Record<string, string>;
+  onPropertiesChange: (properties: Record<string, string>) => void;
+}) {
+  const [rows, setRows] = React.useState<DeviceCollectionRow[]>(() =>
+    Object.entries(properties)
+      .filter(([key]) => key.startsWith('initial.'))
+      .map(([key, value]) => ({
+        id: key,
+        keyName: key.slice('initial.'.length),
+        value,
+      })),
+  );
+
+  React.useEffect(() => {
+    const currentRows = Object.entries(properties)
+      .filter(([key]) => key.startsWith('initial.'))
+      .map(([key, value]) => ({
+        id: key,
+        keyName: key.slice('initial.'.length),
+        value,
+      }));
+
+    const existingDrafts = rows.filter((row) => !row.keyName.trim() && !row.value.trim());
+    const nextRows = [...currentRows, ...existingDrafts];
+    const currentSignature = stableStringify(rows);
+    const nextSignature = stableStringify(nextRows);
+    if (currentSignature !== nextSignature) {
+      setRows(nextRows);
+    }
+  }, [properties, rows]);
+
+  const commitRows = React.useCallback(
+    (nextRows: DeviceCollectionRow[]) => {
+      const preservedEntries = Object.fromEntries(
+        Object.entries(properties).filter(([key]) => !key.startsWith('initial.')),
+      );
+      const initialEntries = Object.fromEntries(
+        nextRows
+          .map((row) => [row.keyName.trim(), row.value] as const)
+          .filter(([keyName]) => keyName.length > 0)
+          .map(([keyName, value]) => [`initial.${keyName}`, value] as const),
+      );
+
+      onPropertiesChange({
+        ...preservedEntries,
+        ...initialEntries,
+      });
+    },
+    [onPropertiesChange, properties],
+  );
+
+  return (
+    <div className="space-y-3">
+      {rows.length ? (
+        rows.map((row, index) => (
+          <div key={row.id} className="flex items-center gap-2">
+            <Input
+              value={row.keyName}
+              placeholder="Key"
+              onChange={(event) => {
+                const nextRows = rows.map((current) =>
+                  current.id === row.id ? { ...current, keyName: event.target.value } : current,
+                );
+                setRows(nextRows);
+                commitRows(nextRows);
+              }}
+              className="h-9"
+            />
+            <Input
+              value={row.value}
+              placeholder="Value"
+              onChange={(event) => {
+                const nextRows = rows.map((current) =>
+                  current.id === row.id ? { ...current, value: event.target.value } : current,
+                );
+                setRows(nextRows);
+                commitRows(nextRows);
+              }}
+              className="h-9"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                const nextRows = rows.filter((current) => current.id !== row.id);
+                setRows(nextRows);
+                commitRows(nextRows);
+              }}
+              aria-label={`Remove initial entry ${index + 1}`}
+            >
+              <IconTrash className="size-4" />
+            </Button>
+          </div>
+        ))
+      ) : (
+        <div className="border-border/60 text-muted-foreground rounded-md border border-dashed px-4 py-4 text-sm">
+          Add one key/value pair per row.
+        </div>
+      )}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() =>
+          setRows((current) => [
+            ...current,
+            {
+              id: createDeviceCollectionRowId('initial'),
+              keyName: '',
+              value: '',
+            },
+          ])
+        }
+      >
+        <IconPlus className="mr-2 size-4" />
+        Add entry
+      </Button>
+    </div>
+  );
 }
 
 export interface DevicesProps {
@@ -265,7 +500,7 @@ const DeviceValidator = {
   validateRequiredFields(
     deviceType: string,
     properties: Record<string, string>,
-    deviceConfig: any,
+    deviceConfig: DeviceTypeConfig | undefined,
     isRoot: boolean,
     isNetworkDevice: boolean,
     isGPUDevice: boolean,
@@ -275,8 +510,8 @@ const DeviceValidator = {
 
     // Check configurable required fields
     if (deviceConfig?.keys) {
-      deviceConfig.keys.forEach((keyObj: any) => {
-        Object.entries(keyObj).forEach(([key, config]: [string, any]) => {
+      deviceConfig.keys.forEach((keyObj) => {
+        Object.entries(keyObj).forEach(([key, config]) => {
           // Use required_for if present, otherwise fall back to required === "yes"
           let isRequired = false;
           if (Array.isArray(config.required_for)) {
@@ -340,7 +575,7 @@ const DeviceValidator = {
     name: string,
     deviceType: string,
     properties: Record<string, string>,
-    deviceConfig: any,
+    deviceConfig: DeviceTypeConfig | undefined,
     existingDevices: Record<string, Device>,
     inheritedDevices: Record<string, Device>,
     editingDeviceName?: string,
@@ -583,7 +818,6 @@ interface AddDeviceFormProps {
   editingDevice?: { name: string; device: Device };
   isInherited?: boolean;
   onUpdate?: (oldName: string, newName: string, device: Device) => void;
-  onCancelEdit?: () => void;
   isCreatingRootDisk?: boolean;
   existingDevices?: Record<string, Device>;
   inheritedDevices?: Record<string, Device>;
@@ -599,7 +833,6 @@ function AddDeviceForm({
   editingDevice,
   isInherited = false,
   onUpdate,
-  onCancelEdit,
   isCreatingRootDisk = false,
   existingDevices = {},
   inheritedDevices = {},
@@ -695,6 +928,10 @@ function AddDeviceForm({
 
   // Get configurable options for dynamic network/GPU device config
   const { data: configurableOptions } = useConfigurableOptions();
+  const referenceOptions = React.useMemo(
+    () => collectReferenceOptions(configurableOptions?.configs),
+    [configurableOptions],
+  );
 
   // Use the dynamic config for network/GPU devices, otherwise use the passed deviceConfig
   const effectiveDeviceConfig = React.useMemo(() => {
@@ -781,17 +1018,10 @@ function AddDeviceForm({
   // Populate form when editing or creating root disk
   React.useEffect(() => {
     if (editingDevice) {
-      setName(editingDevice.name);
-      const { type, ...deviceProps } = editingDevice.device;
+      return;
+    }
 
-      // For GPU devices, extract gputype from the type field
-      if (type.startsWith('gpu_')) {
-        const gputype = type.substring(4); // Remove "gpu_" prefix
-        setProperties({ ...deviceProps, gputype });
-      } else {
-        setProperties(deviceProps);
-      }
-    } else if (isCreatingRootDisk && deviceType === 'disk') {
+    if (isCreatingRootDisk && deviceType === 'disk') {
       // Use the memoized hasRootDiskAlready check to avoid duplication
       if (!hasRootDiskAlready) {
         // Only set path:"/" when actually creating a NEW root disk
@@ -807,7 +1037,7 @@ function AddDeviceForm({
       if (isNetworkDevice) {
         const allDevices = { ...inheritedDevices, ...existingDevices };
         const networkDevices = Object.entries(allDevices).filter(
-          ([_, device]) =>
+          ([, device]) =>
             device.type === 'nic' || device.type.startsWith('nic_'),
         );
         const ethIndex = networkDevices.length;
@@ -816,7 +1046,7 @@ function AddDeviceForm({
         // For new GPU devices, default name to gpu{#} and gputype to physical
         const allDevices = { ...inheritedDevices, ...existingDevices };
         const gpuDevices = Object.entries(allDevices).filter(
-          ([_, device]) =>
+          ([, device]) =>
             device.type === 'gpu' || device.type.startsWith('gpu_'),
         );
         const gpuIndex = gpuDevices.length;
@@ -1295,6 +1525,35 @@ function AddDeviceForm({
     isGPUDevice,
   ]);
 
+  const buildDevicePayload = React.useCallback(() => {
+    const finalProps = { ...properties };
+    if (isRoot) {
+      finalProps.path = '/';
+    }
+
+    let finalType = deviceType;
+    if (isGPUDevice) {
+      const gputype = properties.gputype || 'physical';
+      finalType = `gpu_${gputype}`;
+      delete finalProps.gputype;
+    }
+
+    return {
+      name,
+      device: { type: finalType, ...finalProps } as Device,
+    };
+  }, [deviceType, isGPUDevice, isRoot, name, properties]);
+
+  const lastAutoAppliedSignature = React.useRef<string | null>(null);
+  const isInitializingEditState = React.useRef(false);
+  const lastHydratedSignature = React.useRef<string | null>(null);
+  const editingDeviceSignature = editingDevice
+    ? stableStringify({
+        name: editingDevice.name,
+        device: editingDevice.device,
+      })
+    : null;
+
   // Ensure path stays at "/" for root disk - but only if we're actually creating/editing a root disk
   React.useEffect(() => {
     // Only set path to "/" if this is explicitly a root disk creation or editing root disk
@@ -1303,29 +1562,75 @@ function AddDeviceForm({
     }
   }, [isRoot, deviceType, properties.path]);
 
+  React.useEffect(() => {
+    if (!editingDevice || !editingDeviceSignature) {
+      lastAutoAppliedSignature.current = null;
+      lastHydratedSignature.current = null;
+      isInitializingEditState.current = false;
+      return;
+    }
+
+    if (editingDeviceSignature === lastHydratedSignature.current) {
+      return;
+    }
+
+    if (
+      lastHydratedSignature.current !== null &&
+      editingDeviceSignature === lastAutoAppliedSignature.current
+    ) {
+      lastHydratedSignature.current = editingDeviceSignature;
+      return;
+    }
+
+    lastHydratedSignature.current = editingDeviceSignature;
+    lastAutoAppliedSignature.current = editingDeviceSignature;
+    isInitializingEditState.current = true;
+    setName(editingDevice.name);
+    const { type, ...deviceProps } = editingDevice.device;
+    if (type.startsWith('gpu_')) {
+      const gputype = type.substring(4);
+      setProperties({ ...deviceProps, gputype });
+      return;
+    }
+
+    setProperties(deviceProps);
+  }, [editingDevice, editingDeviceSignature]);
+
+  React.useEffect(() => {
+    if (!editingDevice || !editingDeviceSignature || !isInitializingEditState.current) return;
+
+    const currentSignature = stableStringify(buildDevicePayload());
+
+    if (currentSignature === editingDeviceSignature) {
+      isInitializingEditState.current = false;
+    }
+  }, [buildDevicePayload, editingDevice, editingDeviceSignature, name, properties]);
+
+  React.useEffect(() => {
+    if (!editingDevice || !onUpdate || !validationResult.isValid) return;
+    if (isInitializingEditState.current) return;
+
+    const nextPayload = buildDevicePayload();
+    const nextSignature = stableStringify(nextPayload);
+    if (nextSignature === lastAutoAppliedSignature.current) {
+      return;
+    }
+
+    lastAutoAppliedSignature.current = nextSignature;
+    onUpdate(editingDevice.name, nextPayload.name, nextPayload.device);
+  }, [buildDevicePayload, editingDevice, editingDevice?.name, onUpdate, validationResult.isValid]);
+
   const handleSubmit = () => {
     // Use centralized validation
     if (!validationResult.isValid) {
       return;
     }
-    const finalProps = { ...properties };
-    if (isRoot) {
-      finalProps.path = '/'; // enforce
-    }
-
-    // For GPU devices, construct the full type including gputype
-    let finalType = deviceType;
-    if (isGPUDevice) {
-      const gputype = properties.gputype || 'physical';
-      finalType = `gpu_${gputype}`;
-      // Remove gputype from properties as it's encoded in the type
-      delete finalProps.gputype;
-    }
+    const nextPayload = buildDevicePayload();
 
     if (editingDevice && onUpdate) {
-      onUpdate(editingDevice.name, name, { type: finalType, ...finalProps });
+      onUpdate(editingDevice.name, nextPayload.name, nextPayload.device);
     } else {
-      onAdd(name, { type: finalType, ...finalProps });
+      onAdd(nextPayload.name, nextPayload.device);
     }
     setName('');
     setProperties(isRoot ? { path: '/' } : {});
@@ -1505,6 +1810,10 @@ function AddDeviceForm({
       effectiveConfig.unit_options &&
       effectiveConfig.unit_options.length > 0 &&
       effectiveConfig.default_unit;
+    const enumOptions = effectiveConfig.enum_options?.filter(Boolean) ?? [];
+    const isInitialKeyValueField = fieldKey === 'initial.*';
+    const isCsvListField =
+      effectiveConfig.list_kind === 'csv' || fieldKey === 'vlan.tagged';
 
     return (
       <div key={fieldKey} className="space-y-2">
@@ -1519,11 +1828,11 @@ function AddDeviceForm({
             <span className="text-destructive ml-1">*</span>
           )}
         </Label>
-        {effectiveConfig.shortdesc && (
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            {effectiveConfig.shortdesc}
-          </p>
-        )}
+        <ConfigDescription
+          text={effectiveConfig.display_shortdesc || effectiveConfig.shortdesc}
+          metadata={effectiveConfig}
+          referenceOptions={referenceOptions}
+        />
         {isBool ? (
           <div className="flex items-center justify-between">
             <label htmlFor={fieldId} className="text-xs text-muted-foreground">
@@ -1542,6 +1851,11 @@ function AddDeviceForm({
               }
             />
           </div>
+        ) : isInitialKeyValueField ? (
+          <DeviceInitialKeyValueInput
+            properties={properties}
+            onPropertiesChange={setProperties}
+          />
         ) : fieldKey === 'pool' && storagePools ? (
           <Combobox
             key={`pool-${resetCounter}`}
@@ -1750,6 +2064,39 @@ function AddDeviceForm({
                 : 'h-8 w-24 shrink-0 text-xs'
             }
           />
+        ) : enumOptions.length ? (
+          <Select
+            value={properties[fieldKey] || ''}
+            onValueChange={(value) =>
+              setProperties((prev) => ({
+                ...prev,
+                [fieldKey]: value,
+              }))
+            }
+          >
+            <SelectTrigger className={isTopLevel ? 'h-9 w-full' : 'h-8 w-full text-xs'}>
+              <SelectValue placeholder={effectiveConfig.default || fieldKey} />
+            </SelectTrigger>
+            <SelectContent>
+              {enumOptions.map((option) => (
+                <SelectItem key={option} value={option} className="text-xs">
+                  {option}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : isCsvListField ? (
+          <DeviceCsvListInput
+            id={fieldId}
+            value={properties[fieldKey]}
+            onChange={(value) =>
+              setProperties((prev) => ({
+                ...prev,
+                [fieldKey]: value,
+              }))
+            }
+            placeholder={effectiveConfig.default || fieldKey}
+          />
         ) : hasCondition ? (
           <Select
             value={properties[fieldKey] || ''}
@@ -1790,6 +2137,11 @@ function AddDeviceForm({
             className={isTopLevel ? 'h-9' : 'h-8 text-xs'}
           />
         )}
+        <ConfigDescription
+          text={effectiveConfig.display_longdesc || effectiveConfig.longdesc}
+          metadata={effectiveConfig}
+          referenceOptions={referenceOptions}
+        />
       </div>
     );
   };
@@ -1993,60 +2345,43 @@ function AddDeviceForm({
         </div>
       </ScrollArea>
 
-      <div className="border-t bg-background p-4 space-y-2">
-        {validationResult.errors.length > 0 && (
-          <div className="rounded-md bg-destructive/10 border border-destructive/20 p-3">
-            <p className="text-xs font-medium text-destructive mb-2">
-              Please fix the following issues:
-            </p>
-            <ul className="text-xs text-destructive/90 space-y-1 list-disc list-inside">
-              {validationResult.errors.map((error, index) => (
-                <li key={`${error.field}-${index}`}>{error.message}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-        {editingDevice && (
-          <Button
-            onClick={() => {
-              // Clear local state before delegating cancel
-              setName('');
-              setProperties(isCreatingRootDisk ? { path: '/' } : {});
-              setResetCounter((c) => c + 1);
-              onCancelEdit?.();
-            }}
-            variant="outline"
-            className="w-full"
-          >
-            Stop Editing
-          </Button>
-        )}
-        <Button
-          onClick={handleSubmit}
-          disabled={!validationResult.isValid}
-          className="w-full"
-        >
-          {!editingDevice && <IconPlus className="h-4 w-4 mr-2" />}
-          {editingDevice
-            ? `Save ${editingDevice.name}`
-            : `Add ${(() => {
-                const deviceType_ = DEVICE_TYPES.find(
-                  (t) => t.value === deviceType,
-                );
+      {validationResult.errors.length > 0 || !editingDevice ? (
+        <div className="border-t bg-background p-4 space-y-2">
+          {validationResult.errors.length > 0 && (
+            <div className="rounded-md bg-destructive/10 border border-destructive/20 p-3">
+              <p className="text-xs font-medium text-destructive mb-2">
+                Please fix the following issues:
+              </p>
+              <ul className="text-xs text-destructive/90 space-y-1 list-disc list-inside">
+                {validationResult.errors.map((error, index) => (
+                  <li key={`${error.field}-${index}`}>{error.message}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {editingDevice ? null : (
+            <Button
+              onClick={handleSubmit}
+              disabled={!validationResult.isValid}
+              className="w-full"
+            >
+              <IconPlus className="mr-2 h-4 w-4" />
+              {`Add ${(() => {
+                const deviceType_ = DEVICE_TYPES.find((t) => t.value === deviceType);
                 if (!deviceType_) return 'Device';
                 const label = deviceType_.label;
-                // Handle "Proxies" -> "Proxy"
                 if (label.endsWith('ies')) {
                   return label.slice(0, -3) + 'y';
                 }
-                // Handle "Networks", "Disks", "GPUs" -> singular
                 if (label.endsWith('s') && !label.endsWith('ss')) {
                   return label.slice(0, -1);
                 }
                 return label;
               })()}`}
-        </Button>
-      </div>
+            </Button>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -2061,10 +2396,7 @@ export default function Devices({
   const [selectedType, setSelectedType] = React.useState('disk');
   const [localDevices, setLocalDevices] =
     React.useState<Record<string, Device>>(devices);
-  const [selectedDevice, setSelectedDevice] = React.useState<{
-    name: string;
-    device: Device;
-  } | null>(null);
+  const [selectedDeviceName, setSelectedDeviceName] = React.useState<string | null>(null);
   const [isCreatingRootDisk, setIsCreatingRootDisk] = React.useState(false);
 
   const { data: configurableOptions } = useConfigurableOptions();
@@ -2078,10 +2410,23 @@ export default function Devices({
     skipSyncFromProps.current = false;
   }, [devices]);
 
+  const selectedDevice = React.useMemo(() => {
+    if (!selectedDeviceName) return null;
+
+    const allDevices = { ...inheritedDevices, ...localDevices };
+    const device = allDevices[selectedDeviceName];
+    if (!device) return null;
+
+    return {
+      name: selectedDeviceName,
+      device,
+    };
+  }, [inheritedDevices, localDevices, selectedDeviceName]);
+
   // Clear selected device when changing tabs or when device is removed
   React.useEffect(() => {
     if (selectedDevice && selectedDevice.device.type !== selectedType) {
-      setSelectedDevice(null);
+      setSelectedDeviceName(null);
     }
   }, [selectedType, selectedDevice]);
 
@@ -2143,7 +2488,7 @@ export default function Devices({
     skipSyncFromProps.current = true;
     setLocalDevices(updated);
     onDevicesChange?.(updated);
-    setSelectedDevice(null);
+    setSelectedDeviceName(null);
     setIsCreatingRootDisk(false);
   };
 
@@ -2159,7 +2504,10 @@ export default function Devices({
     skipSyncFromProps.current = true;
     setLocalDevices(updated);
     onDevicesChange?.(updated);
-    setSelectedDevice(null);
+    if (oldName !== newName) {
+      setSelectedDeviceName(newName);
+    }
+    setShowDetailPanel(true);
   };
 
   const handleRemove = (name: string) => {
@@ -2170,26 +2518,28 @@ export default function Devices({
     if (isRootDisk || (name in inheritedDevices && !(name in localDevices))) {
       return;
     }
-    const { [name]: _, ...rest } = localDevices;
+    const rest = { ...localDevices };
+    delete rest[name];
     skipSyncFromProps.current = true;
     setLocalDevices(rest);
     onDevicesChange?.(rest);
 
     if (selectedDevice?.name === name) {
-      setSelectedDevice(null);
+      setSelectedDeviceName(null);
     }
   };
 
   const handleReset = (name: string) => {
     // Remove override to revert to inherited version
     if (name in inheritedDevices && name in localDevices) {
-      const { [name]: _, ...rest } = localDevices;
+      const rest = { ...localDevices };
+      delete rest[name];
       skipSyncFromProps.current = true;
       setLocalDevices(rest);
       onDevicesChange?.(rest);
 
       if (selectedDevice?.name === name) {
-        setSelectedDevice(null);
+        setSelectedDeviceName(null);
       }
     }
   };
@@ -2198,21 +2548,20 @@ export default function Devices({
 
   const handleAddClick = () => {
     setIsCreatingRootDisk(true);
-    setSelectedDevice(null);
+    setSelectedDeviceName(null);
     setShowDetailPanel(true);
   };
 
-  const handleDeviceClick = (name: string, device: Device) => {
+  const handleDeviceClick = (name: string) => {
     if (readonly) {
       return;
     }
-    // Allow clicking inherited devices to override them
-    setSelectedDevice({ name, device });
+    setSelectedDeviceName(name);
     setShowDetailPanel(true);
   };
 
   const closeDetailPanel = () => {
-    setSelectedDevice(null);
+    setSelectedDeviceName(null);
     setIsCreatingRootDisk(false);
     setShowDetailPanel(false);
   };
@@ -2305,9 +2654,7 @@ export default function Devices({
           }
           onUpdate={(oldName, newName, device) => {
             handleUpdate(oldName, newName, device);
-            setShowDetailPanel(false);
           }}
-          onCancelEdit={closeDetailPanel}
           isCreatingRootDisk={isCreatingRootDisk}
           existingDevices={localDevices}
           inheritedDevices={inheritedDevices}
@@ -2401,7 +2748,7 @@ export default function Devices({
                   hasIssues={hasIssues(name, device)}
                   onRemove={handleRemove}
                   onReset={handleReset}
-                  onClick={() => handleDeviceClick(name, device)}
+                  onClick={() => handleDeviceClick(name)}
                 />
               ))
             )}
