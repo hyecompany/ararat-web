@@ -38,6 +38,10 @@ export interface ConfigOption {
   disable_unit_input?: boolean;
   reset_value?: string;
   enum_options?: string[];
+  choices?: string[];
+  values?: string[];
+  valid_values?: string[];
+  possible_values?: string[];
   list_kind?: 'csv';
   editor_kind?:
     | 'monaco'

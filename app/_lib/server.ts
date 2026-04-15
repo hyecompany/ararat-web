@@ -360,9 +360,39 @@ function processConfigurableOptions(config: ConfigurableOptions) {
     return values.length >= 2 ? Array.from(new Set(values)) : undefined;
   };
 
+  const getStructuredEnumValues = (option: ConfigOption) => {
+    const candidates = [
+      option.enum_options,
+      option.choices,
+      option.values,
+      option.valid_values,
+      option.possible_values,
+    ];
+
+    for (const values of candidates) {
+      if (!Array.isArray(values)) continue;
+
+      const normalizedValues = values
+        .map((value) => value?.trim())
+        .filter((value): value is string => Boolean(value));
+
+      if (normalizedValues.length >= 2) {
+        return Array.from(new Set(normalizedValues));
+      }
+    }
+
+    return undefined;
+  };
+
   const parseEnumOptions = (option: ConfigOption) => {
     const sourceText = [option.shortdesc, option.longdesc].filter(Boolean).join('\n');
-    if (option.type !== 'string' || !sourceText) return undefined;
+    if (option.type !== 'string') return undefined;
+
+    // Prefer structured enum metadata when the backend provides it.
+    // Description parsing is only a compatibility fallback for the current Incus metadata.
+    const structuredValues = getStructuredEnumValues(option);
+    if (structuredValues) return structuredValues;
+    if (!sourceText) return undefined;
 
     return (
       parseEnumValues(sourceText, POSSIBLE_VALUES_REGEX) ??
