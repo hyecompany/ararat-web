@@ -288,31 +288,32 @@ function DeviceInitialKeyValueInput({
   );
 
   React.useEffect(() => {
-    const previousRowsByKey = new Map(
-      rows
-        .map((row) => [getInitialPropertyKey(row.keyName), row] as const)
-        .filter(([key]) => key !== null),
-    );
+    setRows((currentRows) => {
+      const previousRowsByKey = new Map(
+        currentRows
+          .map((row) => [getInitialPropertyKey(row.keyName), row] as const)
+          .filter(([key]) => key !== null),
+      );
 
-    const currentRows = Object.entries(properties)
-      .filter(([key]) => key.startsWith('initial.'))
-      .map(([key, value]) => ({
-        id: previousRowsByKey.get(key)?.id ?? key,
-        keyName: key.slice('initial.'.length),
-        value,
-      }));
+      const syncedRows = Object.entries(properties)
+        .filter(([key]) => key.startsWith('initial.'))
+        .map(([key, value]) => ({
+          id: previousRowsByKey.get(key)?.id ?? key,
+          keyName: key.slice('initial.'.length),
+          value,
+        }));
 
-    const existingDrafts = rows.filter((row) => {
-      const propertyKey = getInitialPropertyKey(row.keyName);
-      return !propertyKey || !Object.prototype.hasOwnProperty.call(properties, propertyKey);
+      const existingDrafts = currentRows.filter((row) => {
+        const propertyKey = getInitialPropertyKey(row.keyName);
+        return !propertyKey || !Object.prototype.hasOwnProperty.call(properties, propertyKey);
+      });
+      const nextRows = [...syncedRows, ...existingDrafts];
+      const currentSignature = stableStringify(currentRows);
+      const nextSignature = stableStringify(nextRows);
+
+      return currentSignature === nextSignature ? currentRows : nextRows;
     });
-    const nextRows = [...currentRows, ...existingDrafts];
-    const currentSignature = stableStringify(rows);
-    const nextSignature = stableStringify(nextRows);
-    if (currentSignature !== nextSignature) {
-      setRows(nextRows);
-    }
-  }, [properties, rows]);
+  }, [properties]);
 
   const commitRows = React.useCallback(
     (nextRows: DeviceCollectionRow[]) => {
@@ -1698,12 +1699,7 @@ function AddDeviceForm({
       return;
     }
     const nextPayload = buildDevicePayload();
-
-    if (editingDevice && onUpdate) {
-      onUpdate(editingDevice.name, nextPayload.name, nextPayload.device);
-    } else {
-      onAdd(nextPayload.name, nextPayload.device);
-    }
+    onAdd(nextPayload.name, nextPayload.device);
     setName('');
     setProperties(isRoot ? { path: '/' } : {});
     setResetCounter((c) => c + 1);

@@ -221,8 +221,12 @@ export async function updateProject(
     });
 
     if (!renameResponse.ok) {
+      const renameError = await getErrorMessage(
+        renameResponse,
+        `Unable to rename project ${currentName}`,
+      );
       throw new Error(
-        await getErrorMessage(renameResponse, `Unable to rename project ${currentName}`),
+        `Project settings were updated, but rename failed: ${renameError}`,
       );
     }
 
