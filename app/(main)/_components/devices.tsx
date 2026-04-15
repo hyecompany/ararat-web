@@ -1577,6 +1577,7 @@ function AddDeviceForm({
     signature: string;
   } | null>(null);
   const onUpdateRef = React.useRef(onUpdate);
+  const previousEditingDeviceNameRef = React.useRef<string | undefined>(editingDevice?.name);
   const editingDeviceSignature = editingDevice
     ? stableStringify({
         name: editingDevice.name,
@@ -1609,6 +1610,17 @@ function AddDeviceForm({
   React.useEffect(() => {
     onUpdateRef.current = onUpdate;
   }, [onUpdate]);
+
+  const flushPendingAutoApply = React.useCallback(() => {
+    const pendingUpdate = pendingAutoApplyRef.current;
+    if (!pendingUpdate || !onUpdateRef.current) {
+      return;
+    }
+
+    lastAutoAppliedSignature.current = pendingUpdate.signature;
+    onUpdateRef.current(pendingUpdate.oldName, pendingUpdate.newName, pendingUpdate.device);
+    pendingAutoApplyRef.current = null;
+  }, []);
 
   // Ensure path stays at "/" for root disk - but only if we're actually creating/editing a root disk
   React.useEffect(() => {
@@ -1687,36 +1699,53 @@ function AddDeviceForm({
     };
 
     autoApplyTimeoutRef.current = setTimeout(() => {
-      const pendingUpdate = pendingAutoApplyRef.current;
-      if (!pendingUpdate || !onUpdateRef.current) {
+      if (!pendingAutoApplyRef.current || !onUpdateRef.current) {
         autoApplyTimeoutRef.current = null;
         return;
       }
 
-      lastAutoAppliedSignature.current = pendingUpdate.signature;
-      onUpdateRef.current(pendingUpdate.oldName, pendingUpdate.newName, pendingUpdate.device);
-      pendingAutoApplyRef.current = null;
+      flushPendingAutoApply();
       autoApplyTimeoutRef.current = null;
     }, 500);
-  }, [buildDevicePayload, editingDevice, editingDevice?.name, validationResult.isValid]);
+  }, [
+    buildDevicePayload,
+    editingDevice,
+    editingDevice?.name,
+    flushPendingAutoApply,
+    onUpdate,
+    validationResult.isValid,
+  ]);
 
   React.useEffect(() => {
-    return () => {
+    const previousEditingDeviceName = previousEditingDeviceNameRef.current;
+    const nextEditingDeviceName = editingDevice?.name;
+
+    if (
+      previousEditingDeviceName !== undefined &&
+      previousEditingDeviceName !== nextEditingDeviceName &&
+      pendingAutoApplyRef.current
+    ) {
       if (autoApplyTimeoutRef.current) {
         clearTimeout(autoApplyTimeoutRef.current);
         autoApplyTimeoutRef.current = null;
       }
 
-      const pendingUpdate = pendingAutoApplyRef.current;
-      if (!pendingUpdate || !onUpdateRef.current) {
-        return;
-      }
+      flushPendingAutoApply();
+    }
 
-      lastAutoAppliedSignature.current = pendingUpdate.signature;
-      onUpdateRef.current(pendingUpdate.oldName, pendingUpdate.newName, pendingUpdate.device);
+    previousEditingDeviceNameRef.current = nextEditingDeviceName;
+  }, [editingDevice?.name, flushPendingAutoApply]);
+
+  React.useEffect(
+    () => () => {
+      if (autoApplyTimeoutRef.current) {
+        clearTimeout(autoApplyTimeoutRef.current);
+        autoApplyTimeoutRef.current = null;
+      }
       pendingAutoApplyRef.current = null;
-    };
-  }, [editingDevice?.name]);
+    },
+    [],
+  );
 
   const handleSubmit = () => {
     // Use centralized validation
