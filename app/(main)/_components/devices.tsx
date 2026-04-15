@@ -175,7 +175,7 @@ function stableStringify(value: unknown): string {
       .join(',')}}`;
   }
 
-  return JSON.stringify(value);
+  return JSON.stringify(value) ?? '';
 }
 
 function splitCsvValue(value?: string) {
