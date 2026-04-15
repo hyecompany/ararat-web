@@ -188,6 +188,24 @@ type DeviceCollectionRow = {
   value: string;
 };
 
+function areDeviceCollectionRowsEqual(
+  currentRows: DeviceCollectionRow[],
+  nextRows: DeviceCollectionRow[],
+) {
+  if (currentRows.length !== nextRows.length) {
+    return false;
+  }
+
+  return currentRows.every((row, index) => {
+    const nextRow = nextRows[index];
+    return (
+      row.id === nextRow?.id &&
+      row.keyName === nextRow?.keyName &&
+      row.value === nextRow?.value
+    );
+  });
+}
+
 let nextDeviceCollectionRowId = 0;
 
 function createDeviceCollectionRowId(prefix: string) {
@@ -308,10 +326,8 @@ function DeviceInitialKeyValueInput({
         return !propertyKey || !Object.prototype.hasOwnProperty.call(properties, propertyKey);
       });
       const nextRows = [...syncedRows, ...existingDrafts];
-      const currentSignature = stableStringify(currentRows);
-      const nextSignature = stableStringify(nextRows);
 
-      return currentSignature === nextSignature ? currentRows : nextRows;
+      return areDeviceCollectionRowsEqual(currentRows, nextRows) ? currentRows : nextRows;
     });
   }, [properties]);
 
