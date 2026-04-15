@@ -293,7 +293,7 @@ export default function ProjectDialog({ open, onOpenChange, mode, project }: Pro
         }}
       >
         <DialogHeader className="shrink-0">
-          <DialogTitle>{copy.title}</DialogTitle>
+          <DialogTitle className="select-none">{copy.title}</DialogTitle>
           <DialogDescription>{copy.description}</DialogDescription>
         </DialogHeader>
         <Form {...form}>
