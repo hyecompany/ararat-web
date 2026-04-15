@@ -391,7 +391,7 @@ export default function ProjectDialog({ open, onOpenChange, mode, project }: Pro
                 aria-hidden={showYamlEditor}
               >
                 <TabsList className="mb-4 w-full shrink-0">
-                  <TabsTrigger type="button" value="properties">
+                  <TabsTrigger className="select-none" type="button" value="properties">
                     Properties
                   </TabsTrigger>
                   <TabsTrigger type="button" value="configuration">
