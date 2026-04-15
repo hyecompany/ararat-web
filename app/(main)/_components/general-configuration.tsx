@@ -1977,7 +1977,7 @@ export default function GeneralConfiguration({
     >
       <div className="flex h-full min-h-0 overflow-hidden flex-col">
         <div className="flex h-[57px] items-center border-b p-4">
-          <h3 className="text-sm font-semibold">
+          <h3 className="text-sm font-semibold select-none">
             {selectedCategory ? formatCategoryName(selectedCategory) : ''}
           </h3>
         </div>
