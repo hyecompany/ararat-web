@@ -20,8 +20,8 @@ import { ALL_PROJECTS_VALUE } from '@/app/(main)/_context/projects';
 
 export function SiteHeader({ children }: { children?: React.ReactNode }) {
   const { projects, currentProject, setProject, isLoading } = use(ProjectsContext);
-  const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
-  const [isEditProjectOpen, setIsEditProjectOpen] = useState(false);
+  const [isProjectDialogOpen, setIsProjectDialogOpen] = useState(false);
+  const [projectDialogMode, setProjectDialogMode] = useState<'create' | 'edit'>('create');
   const currentProjectLabel = useMemo(
     () => (currentProject === 'all' ? 'All Projects' : currentProject),
     [currentProject],
@@ -48,6 +48,7 @@ export function SiteHeader({ children }: { children?: React.ReactNode }) {
                 size="sm"
                 className="min-w-48 justify-between gap-2"
                 disabled={isLoading}
+                disablePressAnimation
               >
                 <span className="flex min-w-0 items-center gap-2">
                   {currentProjectIcon}
@@ -76,27 +77,32 @@ export function SiteHeader({ children }: { children?: React.ReactNode }) {
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
               {currentProject !== ALL_PROJECTS_VALUE ? (
-                <DropdownMenuItem onSelect={() => setIsEditProjectOpen(true)}>
+                <DropdownMenuItem
+                  onSelect={() => {
+                    setProjectDialogMode('edit');
+                    setIsProjectDialogOpen(true);
+                  }}
+                >
                   <PencilIcon className="size-4" />
                   <span>Edit Project</span>
                 </DropdownMenuItem>
               ) : null}
-              <DropdownMenuItem onSelect={() => setIsCreateProjectOpen(true)}>
+              <DropdownMenuItem
+                onSelect={() => {
+                  setProjectDialogMode('create');
+                  setIsProjectDialogOpen(true);
+                }}
+              >
                 <PlusIcon className="size-4" />
                 <span>Create Project</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <ProjectDialog
-            open={isCreateProjectOpen}
-            onOpenChange={setIsCreateProjectOpen}
-            mode="create"
-          />
-          <ProjectDialog
-            open={isEditProjectOpen}
-            onOpenChange={setIsEditProjectOpen}
-            mode="edit"
-            project={selectedProject}
+            open={isProjectDialogOpen}
+            onOpenChange={setIsProjectDialogOpen}
+            mode={projectDialogMode}
+            project={projectDialogMode === 'edit' ? selectedProject : null}
           />
         </div>
       </div>
