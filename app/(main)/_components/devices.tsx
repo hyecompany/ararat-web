@@ -1569,6 +1569,9 @@ function AddDeviceForm({
   const lastAutoAppliedSignature = React.useRef<string | null>(null);
   const isInitializingEditState = React.useRef(false);
   const lastHydratedSignature = React.useRef<string | null>(null);
+  const initializationFallbackTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const autoApplyTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingAutoApplyRef = React.useRef<{
     oldName: string;
@@ -1601,6 +1604,10 @@ function AddDeviceForm({
       lastAutoAppliedSignature.current = null;
       lastHydratedSignature.current = null;
       isInitializingEditState.current = false;
+      if (initializationFallbackTimeoutRef.current) {
+        clearTimeout(initializationFallbackTimeoutRef.current);
+        initializationFallbackTimeoutRef.current = null;
+      }
       return;
     }
 
@@ -1619,6 +1626,13 @@ function AddDeviceForm({
     lastHydratedSignature.current = editingDeviceSignature;
     lastAutoAppliedSignature.current = editingDeviceSignature;
     isInitializingEditState.current = true;
+    if (initializationFallbackTimeoutRef.current) {
+      clearTimeout(initializationFallbackTimeoutRef.current);
+    }
+    initializationFallbackTimeoutRef.current = setTimeout(() => {
+      isInitializingEditState.current = false;
+      initializationFallbackTimeoutRef.current = null;
+    }, 1000);
     setName(editingDevice.name);
     const { type, ...deviceProps } = editingDevice.device;
     if (type.startsWith('gpu_')) {
@@ -1637,6 +1651,10 @@ function AddDeviceForm({
 
     if (currentSignature === editingDeviceSignature) {
       isInitializingEditState.current = false;
+      if (initializationFallbackTimeoutRef.current) {
+        clearTimeout(initializationFallbackTimeoutRef.current);
+        initializationFallbackTimeoutRef.current = null;
+      }
     }
   }, [buildDevicePayload, editingDevice, editingDeviceSignature, name, properties]);
 
@@ -1677,6 +1695,11 @@ function AddDeviceForm({
 
   React.useEffect(() => {
     return () => {
+      if (initializationFallbackTimeoutRef.current) {
+        clearTimeout(initializationFallbackTimeoutRef.current);
+        initializationFallbackTimeoutRef.current = null;
+      }
+
       if (autoApplyTimeoutRef.current) {
         clearTimeout(autoApplyTimeoutRef.current);
         autoApplyTimeoutRef.current = null;

@@ -349,6 +349,17 @@ function processConfigurableOptions(config: ConfigurableOptions) {
     return candidates.length ? Array.from(new Set(candidates)) : undefined;
   };
 
+  const parseBulletedEnumValues = (text: string) => {
+    const values = text
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith('- '))
+      .map((line) => line.match(/`([^`]+)`/))
+      .flatMap((match) => (match?.[1] ? [match[1]] : []));
+
+    return values.length >= 2 ? Array.from(new Set(values)) : undefined;
+  };
+
   const parseEnumOptions = (option: ConfigOption) => {
     const sourceText = [option.shortdesc, option.longdesc].filter(Boolean).join('\n');
     if (option.type !== 'string' || !sourceText) return undefined;
@@ -357,7 +368,8 @@ function processConfigurableOptions(config: ConfigurableOptions) {
       parseEnumValues(sourceText, POSSIBLE_VALUES_REGEX) ??
       parseEnumValues(sourceText, VALID_VALUES_REGEX) ??
       parseEnumValues(sourceText, CAN_BE_ONE_OF_REGEX) ??
-      parsePlainEnumValues(sourceText, CAN_BE_ONE_OF_REGEX)
+      parsePlainEnumValues(sourceText, CAN_BE_ONE_OF_REGEX) ??
+      parseBulletedEnumValues(sourceText)
     );
   };
 

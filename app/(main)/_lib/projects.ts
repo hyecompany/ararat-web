@@ -226,6 +226,10 @@ export async function updateProject(
   };
 
   if (nextName !== currentName) {
+    // Incus applies config/description updates and renames through separate operations.
+    // If the rename fails after the PUT succeeds, callers surface a partial-failure state
+    // so the UI can reflect the already-persisted settings without pretending the rename
+    // succeeded.
     const renameResponse = await fetch(`/1.0/projects/${encodeURIComponent(currentName)}`, {
       method: 'POST',
       signal,

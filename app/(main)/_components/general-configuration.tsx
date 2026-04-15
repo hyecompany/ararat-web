@@ -25,18 +25,14 @@ import {
 
 import { useConfigurableOptions } from '@/app/_hooks/server';
 import { useStoragePools } from '@/app/(main)/_hooks/storagePools';
-import {
-  useAllNetworks,
-  useClusterGroups,
-  useNetworkIntegrations,
-  useNetworkZones,
-} from '@/app/(main)/_hooks/configResources';
+import { useClusterGroups } from '@/app/(main)/_hooks/clusters';
+import { useAllNetworks } from '@/app/(main)/_hooks/networks';
+import { useNetworkIntegrations } from '@/app/(main)/_hooks/networkIntegrations';
+import { useNetworkZones } from '@/app/(main)/_hooks/networkZones';
 import { ConfigOption, ConfigOptionCollection } from '@/app/_lib/server.d';
-import type {
-  ClusterGroup,
-  NetworkIntegration,
-  NetworkZone,
-} from '@/app/(main)/_lib/configResources.d';
+import type { ClusterGroup } from '@/app/(main)/_lib/clusters.d';
+import type { NetworkIntegration } from '@/app/(main)/_lib/networkIntegrations.d';
+import type { NetworkZone } from '@/app/(main)/_lib/networkZones.d';
 import type { Network } from '@/app/(main)/_hooks/networks';
 import { UnitInput } from '@/app/(main)/_components/unit-input';
 import { VerticalTabsLayout } from '@/app/_components/layout/vertical-tabs-layout';
