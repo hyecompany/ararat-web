@@ -154,7 +154,12 @@ export async function createProject(
       return { error: (data.error as string) || 'Failed to create project' };
     }
 
-    return { operation: data.operation as string | undefined };
+    const operation = data.operation as string | undefined;
+    if (operation) {
+      await waitForOperation(operation, signal);
+    }
+
+    return { operation };
   } catch (err: unknown) {
     if (isAbortError(err)) {
       return { error: 'Request was cancelled.' };
