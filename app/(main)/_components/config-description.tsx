@@ -181,7 +181,7 @@ function ReferenceTokenBadge({
           </button>
         )}
       </HoverCardTrigger>
-      <HoverCardContent align="start" className="w-96" portalled={false}>
+      <HoverCardContent align="start" className="w-96">
         <div className="flex flex-col gap-2 text-sm">
           <div className="flex flex-col gap-1">
             <span className="font-medium">{token.kind === 'doc_ref' ? docTitle : token.label}</span>
