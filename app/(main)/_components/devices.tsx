@@ -2599,7 +2599,6 @@ export default function Devices({
     if (oldName !== newName) {
       setSelectedDeviceName(newName);
     }
-    setShowDetailPanel(true);
   };
 
   const handleRemove = (name: string) => {
