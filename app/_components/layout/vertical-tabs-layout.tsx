@@ -91,7 +91,7 @@ export function VerticalTabsLayout({
             key={tab.value}
             onClick={() => handleTabClick(tab.value)}
             className={cn(
-              'flex items-center gap-3 rounded-md text-left transition-colors',
+              'flex select-none items-center gap-3 rounded-md text-left transition-colors',
               'w-full p-3',
               isSelected && !isMobile ? 'bg-primary text-primary-foreground' : 'hover:bg-muted',
             )}
