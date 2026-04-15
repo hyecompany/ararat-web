@@ -61,13 +61,13 @@ export function SiteHeader({ children }: { children?: React.ReactNode }) {
               <DropdownMenuLabel>Projects</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
-                <DropdownMenuItem className="select-none" onClick={() => setProject('all')}>
+                <DropdownMenuItem className="select-none" onSelect={() => setProject('all')}>
                   <GlobeIcon className="size-4" />
                   <span>All Projects</span>
                   {currentProject === 'all' ? <CheckIcon className="ml-auto size-4" /> : null}
                 </DropdownMenuItem>
                 {projects.map((project) => (
-                  <DropdownMenuItem key={project.name} onClick={() => setProject(project.name)}>
+                  <DropdownMenuItem key={project.name} className="select-none" onSelect={() => setProject(project.name)}>
                     <span>{project.name}</span>
                     {currentProject === project.name ? (
                       <CheckIcon className="ml-auto size-4" />
