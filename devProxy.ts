@@ -1,3 +1,4 @@
+/// <reference types="bun-types" />
 /**
  * @file Development server that somewhat simulates how Ararat is served in production by the Incus web server (does not simulate SPA serving behavior)
  * @author Joseph Maldjian <joseph.maldjian@hyecompany.com>
@@ -85,9 +86,17 @@ if (UPSTREAM_CLIENT_PFX_ENABLED) {
 type ProxySocketData = {
   targetUrl: string;
   upstreamHeaders: Record<string, string>;
-  pendingMessages: Array<string | ArrayBuffer | Uint8Array | Blob>;
+  pendingMessages: Array<string | Blob | BufferSource>;
   upstream?: WebSocket;
 };
+
+function toWebSocketSendPayload(message: string | ArrayBuffer | Uint8Array | Blob): string | Blob | BufferSource {
+  if (message instanceof Uint8Array) {
+    return new Uint8Array(message);
+  }
+
+  return message;
+}
 
 function isApiPath(pathname: string): boolean {
   return !pathname.startsWith('/ui');
@@ -328,7 +337,7 @@ const server = Bun.serve<ProxySocketData>({
       }
 
       if (upstream.readyState === WebSocket.CONNECTING) {
-        client.data.pendingMessages.push(message);
+        client.data.pendingMessages.push(toWebSocketSendPayload(message));
         return;
       }
 
@@ -336,7 +345,7 @@ const server = Bun.serve<ProxySocketData>({
         return;
       }
 
-      upstream.send(message);
+      upstream.send(toWebSocketSendPayload(message));
     },
     close(client, code, reason) {
       const upstream = client.data.upstream;
