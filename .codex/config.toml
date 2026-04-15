@@ -12,6 +12,9 @@ approval_mode = "approve"
 [mcp_servers.next-devtools.tools.nextjs_docs]
 approval_mode = "approve"
 
+[mcp_servers.next-devtools.tools.nextjs_index]
+approval_mode = "approve"
+
 [mcp_servers.shadcn]
 command = "npx"
 args = ["shadcn@latest", "mcp"]
