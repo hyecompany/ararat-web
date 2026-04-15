@@ -178,6 +178,18 @@ function stableStringify(value: unknown): string {
   return JSON.stringify(value) ?? '';
 }
 
+function singularizeDeviceTypeLabel(label: string): string {
+  if (label.endsWith('ies')) {
+    return label.slice(0, -3) + 'y';
+  }
+
+  if (label.endsWith('s') && !label.endsWith('ss')) {
+    return label.slice(0, -1);
+  }
+
+  return label;
+}
+
 function splitCsvValue(value?: string) {
   if (!value) return [];
   return value
@@ -2399,20 +2411,13 @@ function AddDeviceForm({
             <Button
               onClick={handleSubmit}
               disabled={!validationResult.isValid}
-              className="w-full"
+              className="w-full select-none"
             >
               <IconPlus className="mr-2 h-4 w-4" />
               {`Add ${(() => {
                 const deviceType_ = DEVICE_TYPES.find((t) => t.value === deviceType);
                 if (!deviceType_) return 'Device';
-                const label = deviceType_.label;
-                if (label.endsWith('ies')) {
-                  return label.slice(0, -3) + 'y';
-                }
-                if (label.endsWith('s') && !label.endsWith('ss')) {
-                  return label.slice(0, -1);
-                }
-                return label;
+                return singularizeDeviceTypeLabel(deviceType_.label);
               })()}`}
             </Button>
           )}
@@ -2635,7 +2640,7 @@ export default function Devices({
         >
           <IconArrowLeft className="h-4 w-4" />
         </Button>
-        <h3 className="font-semibold text-sm">
+        <h3 className="font-semibold text-sm select-none">
           {selectedDevice
             ? `Edit ${selectedDevice.name}`
             : isCreatingRootDisk && !hasRootDisk && selectedType === 'disk'
@@ -2645,14 +2650,7 @@ export default function Devices({
                     (t) => t.value === selectedType,
                   );
                   if (!deviceType) return 'Device';
-                  const label = deviceType.label;
-                  if (label.endsWith('ies')) {
-                    return label.slice(0, -3) + 'y';
-                  }
-                  if (label.endsWith('s') && !label.endsWith('ss')) {
-                    return label.slice(0, -1);
-                  }
-                  return label;
+                  return singularizeDeviceTypeLabel(deviceType.label);
                 })()}`}
         </h3>
         <div className="ml-auto md:hidden">

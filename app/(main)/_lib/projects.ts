@@ -52,8 +52,13 @@ export async function getProject(name: string): Promise<{ project: Project; etag
 async function waitForOperation(operation: string) {
   const waitUrl = new URL(`${operation}/wait`, window.location.origin);
   waitUrl.searchParams.set('timeout', String(Math.ceil(OPERATION_TIMEOUT_MS / 1000)));
+  const deadline = Date.now() + OPERATION_TIMEOUT_MS;
 
   while (true) {
+    if (Date.now() > deadline) {
+      throw new Error('Timed out while waiting for project operation to complete.');
+    }
+
     const response = await fetch(waitUrl.toString());
     if (!response.ok) {
       throw new Error(await getErrorMessage(response, 'Unable to wait for project rename.'));
@@ -77,6 +82,10 @@ async function waitForOperation(operation: string) {
 
     if (status === 'Success') {
       return;
+    }
+
+    if (Date.now() > deadline) {
+      throw new Error('Timed out while waiting for project operation to complete.');
     }
 
     await new Promise((resolve) => window.setTimeout(resolve, OPERATION_RETRY_DELAY_MS));
