@@ -549,8 +549,9 @@ function processConfigurableOptions(config: ConfigurableOptions) {
       option.initialvaluedesc ?? option.defaultdesc ?? option.default,
     );
     option.enum_options = parseEnumOptions(option) ?? parseAvailableModes(option);
+    const fullDescription = [option.shortdesc, option.longdesc].filter(Boolean).join(' ');
     option.list_kind =
-      CSV_LIST_REGEX.test(option.longdesc || '') || COMMA_LIST_TEXT_REGEX.test(option.longdesc || '')
+      CSV_LIST_REGEX.test(fullDescription) || COMMA_LIST_TEXT_REGEX.test(fullDescription)
         ? 'csv'
         : undefined;
     option.depends_on = [];
