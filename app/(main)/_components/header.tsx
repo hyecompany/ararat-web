@@ -78,6 +78,7 @@ export function SiteHeader({ children }: { children?: React.ReactNode }) {
               <DropdownMenuSeparator />
               {currentProject !== ALL_PROJECTS_VALUE ? (
                 <DropdownMenuItem
+                  className="select-none"
                   onSelect={() => {
                     setProjectDialogMode('edit');
                     setIsProjectDialogOpen(true);
@@ -88,6 +89,7 @@ export function SiteHeader({ children }: { children?: React.ReactNode }) {
                 </DropdownMenuItem>
               ) : null}
               <DropdownMenuItem
+                className="select-none"
                 onSelect={() => {
                   setProjectDialogMode('create');
                   setIsProjectDialogOpen(true);

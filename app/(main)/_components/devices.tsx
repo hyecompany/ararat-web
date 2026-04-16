@@ -405,6 +405,7 @@ function DeviceInitialKeyValueInput({
         type="button"
         variant="outline"
         size="sm"
+        className="select-none"
         onClick={() =>
           setRows((current) => [
             ...current,
