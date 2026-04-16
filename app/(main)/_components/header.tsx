@@ -46,7 +46,7 @@ export function SiteHeader({ children }: { children?: React.ReactNode }) {
               <Button
                 variant="outline"
                 size="sm"
-                className="min-w-48 justify-between gap-2"
+                className="min-w-48 justify-between gap-2 select-none"
                 disabled={isLoading}
                 disablePressAnimation
               >
