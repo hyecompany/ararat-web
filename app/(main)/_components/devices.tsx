@@ -1596,7 +1596,6 @@ function AddDeviceForm({
     signature: string;
   } | null>(null);
   const onUpdateRef = React.useRef(onUpdate);
-  const isUnmountingRef = React.useRef(false);
   const editingDeviceSignature = editingDevice
     ? stableStringify({
         name: editingDevice.name,
@@ -1745,7 +1744,7 @@ function AddDeviceForm({
 
   React.useEffect(() => {
     return () => {
-      if (isUnmountingRef.current || !pendingAutoApplyRef.current) {
+      if (!pendingAutoApplyRef.current) {
         return;
       }
 
@@ -1760,12 +1759,10 @@ function AddDeviceForm({
 
   React.useEffect(
     () => () => {
-      isUnmountingRef.current = true;
       if (autoApplyTimeoutRef.current) {
         clearTimeout(autoApplyTimeoutRef.current);
         autoApplyTimeoutRef.current = null;
       }
-      pendingAutoApplyRef.current = null;
     },
     [],
   );
