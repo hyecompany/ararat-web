@@ -233,13 +233,14 @@ function DeviceCsvListInput({
   const items = React.useMemo(() => splitCsvValue(value), [value]);
 
   const commitDraft = React.useCallback(() => {
-    const trimmed = draft.trim();
-    if (!trimmed || items.includes(trimmed)) {
-      setDraft('');
-      return;
-    }
+    const newItems = draft
+      .split(',')
+      .map((item) => item.trim())
+      .filter((item) => item && !items.includes(item));
 
-    onChange([...items, trimmed].join(','));
+    if (newItems.length > 0) {
+      onChange([...items, ...newItems].join(','));
+    }
     setDraft('');
   }, [draft, items, onChange]);
 
