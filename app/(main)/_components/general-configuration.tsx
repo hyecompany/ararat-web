@@ -395,13 +395,14 @@ function CsvListInput({
   const items = React.useMemo(() => splitCsvValue(value), [value]);
 
   const commitDraft = React.useCallback(() => {
-    const trimmed = draft.trim();
-    if (!trimmed) return;
-    if (items.includes(trimmed)) {
-      setDraft('');
-      return;
+    const newItems = draft
+      .split(',')
+      .map((item) => item.trim())
+      .filter((item) => item && !items.includes(item));
+
+    if (newItems.length > 0) {
+      onChange([...items, ...newItems].join(','));
     }
-    onChange([...items, trimmed].join(','));
     setDraft('');
   }, [draft, items, onChange]);
 
