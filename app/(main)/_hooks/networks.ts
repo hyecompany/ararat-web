@@ -21,6 +21,11 @@ export interface Network {
   used_by?: string[];
 }
 
+async function fetchNetworks(url: string): Promise<Network[]> {
+  const res = await jsonFetcher<Network[]>(url);
+  return res.metadata;
+}
+
 export function useNetworks(project?: string | null) {
   // Default to globally selected project when not explicitly provided
   const { effectiveProject } = useContext(ProjectsContext);
@@ -38,14 +43,9 @@ export function useNetworks(project?: string | null) {
     [scopedProject],
   );
 
-  const fetcher = async (u: string): Promise<Network[]> => {
-    const res = await jsonFetcher<Network[]>(u);
-    return res.metadata;
-  };
-
   const { data, error, isLoading, isValidating, mutate } = useSWR<Network[]>(
     url,
-    fetcher,
+    fetchNetworks,
   );
 
   return {
@@ -55,4 +55,8 @@ export function useNetworks(project?: string | null) {
     isValidating,
     mutate,
   };
+}
+
+export function useAllNetworks() {
+  return useSWR<Network[]>('/1.0/networks?recursion=1', fetchNetworks);
 }

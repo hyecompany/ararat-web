@@ -1,11 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import {
-  ResizablePanelGroup,
-  ResizablePanel,
-  ResizableHandle,
-} from 'ui-web/components/resizable';
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from 'ui-web/components/resizable';
 import { ScrollArea } from 'ui-web/components/scroll-area';
 import { Badge } from 'ui-web/components/badge';
 import { useMobile } from 'ui-web/hooks/use-mobile';
@@ -84,33 +80,32 @@ export function VerticalTabsLayout({
   };
 
   const renderTabs = (orientation: 'vertical' | 'horizontal') => (
-    <div className={cn('flex', 'flex-col p-2 space-y-1')}>
+    <div className={cn('flex', 'flex-col space-y-1 p-2')}>
       {tabs.map((tab) => {
         const Icon = tab.icon;
         const isSelected = selectedTab === tab.value;
 
         return (
           <button
+            type="button"
             key={tab.value}
             onClick={() => handleTabClick(tab.value)}
             className={cn(
-              'flex items-center gap-3 rounded-md transition-colors text-left',
+              'flex select-none items-center gap-3 rounded-md text-left transition-colors',
               'w-full p-3',
-              isSelected && !isMobile
-                ? 'bg-primary text-primary-foreground'
-                : 'hover:bg-muted',
+              isSelected && !isMobile ? 'bg-primary text-primary-foreground' : 'hover:bg-muted',
             )}
           >
-            {Icon && <Icon className={cn('shrink-0 h-5 w-5')} />}
+            {Icon && <Icon className={cn('h-5 w-5 shrink-0')} />}
 
-            <div className="flex-1 min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <span className="font-medium text-sm">{tab.label}</span>
+                <span className="text-sm font-medium">{tab.label}</span>
               </div>
               {tab.description && (
                 <p
                   className={cn(
-                    'text-xs mt-0.5 truncate',
+                    'mt-0.5 truncate text-xs',
                     isSelected && !isMobile
                       ? 'text-primary-foreground/80'
                       : 'text-muted-foreground',
@@ -124,10 +119,8 @@ export function VerticalTabsLayout({
               <Badge
                 variant={isSelected && !isMobile ? 'secondary' : 'outline'}
                 className={cn(
-                  'px-1.5 justify-center',
-                  orientation === 'vertical'
-                    ? 'h-5 text-xs'
-                    : 'h-4 text-[10px]',
+                  'justify-center px-1.5',
+                  orientation === 'vertical' ? 'h-5 text-xs' : 'h-4 text-[10px]',
                 )}
               >
                 {tab.count}
@@ -163,15 +156,13 @@ export function VerticalTabsLayout({
       return (
         <div
           ref={containerRef}
-          className={cn(
-            'flex flex-col h-full overflow-hidden relative',
-            className,
-          )}
+          className={cn('relative flex h-full min-h-0 flex-col overflow-hidden', className)}
         >
-          <div className="p-3 border-b flex items-center gap-2 bg-muted/30 shrink-0">
+          <div className="bg-muted/30 flex shrink-0 items-center gap-2 border-b p-3">
             <button
+              type="button"
               onClick={() => setIsMobileDetailOpen(false)}
-              className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-8 w-8 -ml-1"
+              className="focus-visible:ring-ring hover:bg-accent hover:text-accent-foreground -ml-1 inline-flex h-8 w-8 items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:ring-1 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
             >
               <svg
                 width="15"
@@ -190,16 +181,14 @@ export function VerticalTabsLayout({
               </svg>
               <span className="sr-only">Back</span>
             </button>
-            <h3 className="font-semibold text-sm">
+            <h3 className="text-sm font-semibold">
               {tabs.find((t) => t.value === selectedTab)?.label}
             </h3>
           </div>
-          <div className="flex-1 overflow-hidden">{children}</div>
+          <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
           {/* Mobile Detail Panel Overlay - if detailPanel is active (e.g. adding a device) */}
           {detailPanel && (
-            <div className="absolute inset-0 bg-background z-10 flex flex-col">
-              {detailPanel}
-            </div>
+            <div className="bg-background absolute inset-0 z-10 flex flex-col">{detailPanel}</div>
           )}
         </div>
       );
@@ -208,21 +197,18 @@ export function VerticalTabsLayout({
     return (
       <div
         ref={containerRef}
-        className={cn(
-          'flex flex-col h-full overflow-hidden relative',
-          className,
-        )}
+        className={cn('relative flex h-full min-h-0 flex-col overflow-hidden', className)}
       >
         <div className="w-full shrink-0">
           {(title || header) && (
-            <div className="p-3 border-b">
-              {title && <h3 className="font-semibold text-sm">{title}</h3>}
+            <div className="border-b p-3">
+              {title && <h3 className="text-sm font-semibold">{title}</h3>}
               {header}
             </div>
           )}
-          {controls && <div className="p-2 border-b">{controls}</div>}
+          {controls && <div className="border-b p-2">{controls}</div>}
         </div>
-        <ScrollArea className="flex-1">{renderTabs('vertical')}</ScrollArea>
+        <ScrollArea className="min-h-0 flex-1">{renderTabs('vertical')}</ScrollArea>
       </div>
     );
   }
@@ -230,29 +216,20 @@ export function VerticalTabsLayout({
   return (
     <div
       ref={containerRef}
-      className={cn(
-        'h-full w-full border rounded-lg overflow-hidden',
-        className,
-      )}
+      className={cn('h-full min-h-0 w-full overflow-hidden rounded-lg border', className)}
     >
-      <ResizablePanelGroup direction="horizontal" className="flex h-full">
+      <ResizablePanelGroup direction="horizontal" className="flex h-full min-h-0">
         {/* Sidebar Panel */}
-        <ResizablePanel
-          defaultSize={sidebarSize}
-          minSize={sidebarMinSize}
-          maxSize={sidebarMaxSize}
-        >
-          <div className="h-full bg-muted/30 flex flex-col">
+        <ResizablePanel defaultSize={sidebarSize} minSize={sidebarMinSize} maxSize={sidebarMaxSize}>
+          <div className="bg-muted/30 flex h-full min-h-0 flex-col">
             {(title || header) && (
-              <div className="p-3 border-b shrink-0">
-                {title && <h3 className="font-semibold text-sm">{title}</h3>}
+              <div className="shrink-0 border-b p-3">
+                {title && <h3 className="text-sm font-semibold">{title}</h3>}
                 {header}
               </div>
             )}
-            {controls && (
-              <div className="p-2 border-b shrink-0">{controls}</div>
-            )}
-            <ScrollArea className="flex-1">{renderTabs('vertical')}</ScrollArea>
+            {controls && <div className="shrink-0 border-b p-2">{controls}</div>}
+            <ScrollArea className="min-h-0 flex-1">{renderTabs('vertical')}</ScrollArea>
           </div>
         </ResizablePanel>
 
@@ -260,7 +237,7 @@ export function VerticalTabsLayout({
 
         {/* Content Panel */}
         <ResizablePanel defaultSize={contentSize} minSize={contentMinSize}>
-          {children}
+          <div className="h-full min-h-0">{children}</div>
         </ResizablePanel>
 
         {/* Detail Panel (Optional) */}
@@ -272,7 +249,7 @@ export function VerticalTabsLayout({
               minSize={detailMinSize}
               maxSize={detailMaxSize}
             >
-              {detailPanel}
+              <div className="h-full min-h-0">{detailPanel}</div>
             </ResizablePanel>
           </>
         )}

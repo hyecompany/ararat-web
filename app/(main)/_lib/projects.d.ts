@@ -10,6 +10,20 @@ export interface Project {
   locations?: string[];
 }
 
+export interface CreateProjectBody {
+  name: string;
+  description?: string;
+  config?: Record<string, string>;
+}
+
+export interface UpdateProjectBody {
+  currentName: string;
+  name: string;
+  description?: string;
+  config?: Record<string, string>;
+}
+
 export type ProjectsMetadata = Project[];
 
 export type ProjectsResponse = StandardResponse<ProjectsMetadata>;
+export type ProjectResponse = StandardResponse<Project>;

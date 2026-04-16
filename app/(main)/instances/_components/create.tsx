@@ -25,12 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from 'ui-web/components/select';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from 'ui-web/components/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from 'ui-web/components/tabs';
 import { useState, useMemo, use, useCallback, useRef } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -56,7 +51,7 @@ function hasValidRootDisk(
   return rootDisk !== undefined && !!rootDisk.pool;
 }
 
-import GeneralConfiguration from './general-configuration';
+import GeneralConfiguration from '@/app/(main)/_components/general-configuration';
 import { useProfiles } from '@/app/(main)/_hooks/profiles';
 import ProjectsContext from '@/app/(main)/_context/projects';
 import { Spinner } from 'ui-web/components/spinner';
@@ -65,6 +60,7 @@ import Editor, { OnMount } from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
 import { mutate } from 'swr';
 import type * as Monaco from 'monaco-editor';
+import { cn } from 'ui-web/lib/utils';
 
 const sourceSchema = z
   .object({
@@ -108,12 +104,8 @@ const formSchema = z.object({
 export default function CreateInstance({ className }: { className?: string }) {
   const { effectiveProject } = use(ProjectsContext);
   const { resolvedTheme } = useTheme();
-  const [profilesSelected, setProfilesSelected] = useState<string[]>([
-    'default',
-  ]);
-  const [instanceType, setInstanceType] = useState<
-    'virtual-machine' | 'container'
-  >('container');
+  const [profilesSelected, setProfilesSelected] = useState<string[]>(['default']);
+  const [instanceType, setInstanceType] = useState<'virtual-machine' | 'container'>('container');
   const [devices, setDevices] = useState<Record<string, Device>>({});
   const [config, setConfig] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -183,9 +175,7 @@ export default function CreateInstance({ className }: { className?: string }) {
     name: 'source.type',
   });
   const selectingImage = sourceType === 'image' && currentTab === 'source';
-  const [selectedImage, setSelectedImage] = useState<SelectableImage | null>(
-    null,
-  );
+  const [selectedImage, setSelectedImage] = useState<SelectableImage | null>(null);
 
   const resetSourceFields = () => {
     form.setValue('source.fingerprint', undefined, { shouldDirty: true });
@@ -303,6 +293,17 @@ export default function CreateInstance({ className }: { className?: string }) {
     setShowYamlEditor(!showYamlEditor);
   }, [showYamlEditor, generateYamlContent]);
 
+  const getDialogContentClassName = useCallback(() => {
+    return cn(
+      'flex max-h-[90vh] w-full flex-col transition-all duration-200',
+      selectingImage
+        ? 'sm:max-w-5xl'
+        : currentTab === 'devices' || currentTab === 'general' || showYamlEditor
+          ? 'h-[90vh] sm:max-w-6xl'
+          : 'sm:max-w-xl',
+    );
+  }, [currentTab, selectingImage, showYamlEditor]);
+
   // Handle Monaco editor mount
   const handleEditorMount: OnMount = useCallback((editor) => {
     editorRef.current = editor;
@@ -361,18 +362,14 @@ export default function CreateInstance({ className }: { className?: string }) {
               if (source.mode === 'pull') {
                 form.setValue('source.mode', source.mode);
               }
-              if (
-                source.protocol === 'simplestreams' ||
-                source.protocol === 'oci'
-              ) {
+              if (source.protocol === 'simplestreams' || source.protocol === 'oci') {
                 form.setValue('source.protocol', source.protocol);
               }
             }
           }
         }
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : 'Invalid YAML syntax';
+        const message = error instanceof Error ? error.message : 'Invalid YAML syntax';
         setYamlError(message);
         console.error('YAML parsing error:', error);
       }
@@ -404,9 +401,7 @@ export default function CreateInstance({ className }: { className?: string }) {
       } else {
         toast.success(`Instance "${form.getValues().name}" creation started`);
         // Invalidate the instances list
-        mutate(
-          (key) => typeof key === 'string' && key.startsWith('/1.0/instances'),
-        );
+        mutate((key) => typeof key === 'string' && key.startsWith('/1.0/instances'));
         setDialogOpen(false);
         // Reset form
         form.reset();
@@ -421,9 +416,7 @@ export default function CreateInstance({ className }: { className?: string }) {
         setShowYamlEditor(false);
       }
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : 'Failed to create instance',
-      );
+      toast.error(error instanceof Error ? error.message : 'Failed to create instance');
     } finally {
       setIsSubmitting(false);
     }
@@ -451,150 +444,147 @@ export default function CreateInstance({ className }: { className?: string }) {
                 Create Instance
               </Button>
             </DialogTrigger>
-            <DialogContent
-              className={`max-h-[90vh] w-full flex flex-col transition-all duration-200 ${
-                selectingImage
-                  ? 'sm:max-w-5xl'
-                  : currentTab === 'devices' ||
-                      currentTab === 'general' ||
-                      showYamlEditor
-                    ? 'sm:max-w-6xl h-[90vh]'
-                    : 'sm:max-w-xl'
-              }`}
-            >
+            <DialogContent className={getDialogContentClassName()}>
               <DialogHeader className="shrink-0">
                 <DialogTitle>Create Instance</DialogTitle>
                 <DialogDescription>Create a new instance</DialogDescription>
               </DialogHeader>
-              <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-                {showYamlEditor ? (
-                  <div className="flex flex-col flex-1 min-h-0">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm text-muted-foreground">
-                        Edit the raw YAML configuration. Changes will be synced
-                        with the wizard.
-                      </p>
-                    </div>
-                    {yamlError && (
-                      <p className="text-sm text-destructive mb-2">
-                        {yamlError}
-                      </p>
-                    )}
-                    <div className="flex-1 min-h-0 border rounded-md overflow-hidden">
-                      <Editor
-                        height="100%"
-                        defaultLanguage="yaml"
-                        value={yamlContent}
-                        onChange={handleYamlChange}
-                        onMount={handleEditorMount}
-                        theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
-                        options={{
-                          minimap: { enabled: false },
-                          fontSize: 14,
-                          lineNumbers: 'on',
-                          scrollBeyondLastLine: false,
-                          automaticLayout: true,
-                          tabSize: 2,
-                        }}
-                      />
-                    </div>
+              <div className="relative flex min-h-0 flex-1 overflow-hidden">
+                <div
+                  className={`flex min-h-0 flex-1 flex-col ${
+                    showYamlEditor ? '' : 'absolute inset-0 pointer-events-none invisible'
+                  }`}
+                  aria-hidden={!showYamlEditor}
+                >
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-muted-foreground text-sm">
+                      Edit the raw YAML configuration. Changes will be synced with the wizard.
+                    </p>
                   </div>
-                ) : (
-                  <Tabs
-                    className="w-full flex flex-col flex-1 min-h-0"
-                    value={currentTab}
-                    onValueChange={handleTabChange}
+                  {yamlError && <p className="text-destructive mb-2 text-sm">{yamlError}</p>}
+                  <div className="min-h-0 flex-1 overflow-hidden rounded-md border">
+                    <Editor
+                      height="100%"
+                      defaultLanguage="yaml"
+                      value={yamlContent}
+                      onChange={handleYamlChange}
+                      onMount={handleEditorMount}
+                      theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
+                      options={{
+                        minimap: { enabled: false },
+                        fontSize: 14,
+                        lineNumbers: 'on',
+                        scrollBeyondLastLine: false,
+                        automaticLayout: true,
+                        tabSize: 2,
+                      }}
+                    />
+                  </div>
+                </div>
+                <Tabs
+                  className={`flex min-h-0 w-full flex-1 flex-col ${
+                    showYamlEditor ? 'absolute inset-0 pointer-events-none invisible' : ''
+                  }`}
+                  value={currentTab}
+                  onValueChange={handleTabChange}
+                  aria-hidden={showYamlEditor}
+                >
+                  <TabsList className="w-full shrink-0" defaultValue="properties">
+                    <TabsTrigger type="button" value="properties">
+                      Properties
+                    </TabsTrigger>
+                    <TabsTrigger type="button" value="source">
+                      Source
+                    </TabsTrigger>
+                    <TabsTrigger type="button" value="devices">
+                      Devices
+                    </TabsTrigger>
+                    <TabsTrigger type="button" value="general">
+                      Configuration
+                    </TabsTrigger>
+                  </TabsList>
+                  <TabsContent
+                    value="properties"
+                    className="mt-0 min-h-0 flex-1 overflow-auto px-1 data-[state=active]:flex data-[state=active]:flex-col"
                   >
-                    <TabsList
-                      className="w-full shrink-0"
-                      defaultValue="properties"
-                    >
-                      <TabsTrigger value="properties">Properties</TabsTrigger>
-                      <TabsTrigger value="source">Source</TabsTrigger>
-                      <TabsTrigger value="devices">Devices</TabsTrigger>
-                      <TabsTrigger value="general">Configuration</TabsTrigger>
-                    </TabsList>
-                    <TabsContent
-                      value="properties"
-                      className="overflow-auto flex-1 min-h-0 px-1"
-                    >
-                      <InstanceProperties
-                        form={form}
-                        profilesSelected={profilesSelected}
-                        setProfilesSelected={setProfilesSelected}
-                        instanceType={instanceType}
-                        setInstanceType={setInstanceType}
-                      />
-                    </TabsContent>
-                    <TabsContent
-                      value="source"
-                      className="overflow-auto flex-1 min-h-0"
-                    >
-                      <FormField
-                        control={form.control}
-                        name="source.type"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Source Type</FormLabel>
-                            <FormControl>
-                              <Select
-                                onValueChange={(value) => {
-                                  field.onChange(value);
-                                  if (value === 'none') {
-                                    setSelectedImage(null);
-                                    resetSourceFields();
-                                  }
-                                }}
-                                value={field.value}
-                              >
-                                <SelectTrigger className="w-full">
-                                  <SelectValue placeholder="Select source type" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="image">Image</SelectItem>
-                                  <SelectItem value="none">None</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      {selectingImage ? (
-                        <ImageSelector
-                          selectedImage={selectedImage}
-                          onSelect={handleImageSelect}
-                          instanceType={instanceType}
-                        />
-                      ) : null}
-                    </TabsContent>
-                    <TabsContent
-                      value="devices"
-                      className="flex-1 min-h-0 overflow-hidden"
-                    >
-                      <InstanceDevices
-                        profiles={profilesSelected}
-                        devices={devices}
-                        onDevicesChange={setDevices}
+                    <InstanceProperties
+                      form={form}
+                      profilesSelected={profilesSelected}
+                      setProfilesSelected={setProfilesSelected}
+                      instanceType={instanceType}
+                      setInstanceType={setInstanceType}
+                    />
+                  </TabsContent>
+                  <TabsContent
+                    value="source"
+                    className="mt-0 min-h-0 flex-1 overflow-auto data-[state=active]:flex data-[state=active]:flex-col"
+                  >
+                    <FormField
+                      control={form.control}
+                      name="source.type"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Source Type</FormLabel>
+                          <FormControl>
+                            <Select
+                              onValueChange={(value) => {
+                                field.onChange(value);
+                                if (value === 'none') {
+                                  setSelectedImage(null);
+                                  resetSourceFields();
+                                }
+                              }}
+                              value={field.value}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Select source type" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="image">Image</SelectItem>
+                                <SelectItem value="none">None</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    {selectingImage ? (
+                      <ImageSelector
+                        selectedImage={selectedImage}
+                        onSelect={handleImageSelect}
                         instanceType={instanceType}
                       />
-                    </TabsContent>
-                    <TabsContent
-                      value="general"
-                      className="flex-1 min-h-0 overflow-hidden"
-                    >
+                    ) : null}
+                  </TabsContent>
+                  <TabsContent
+                    value="devices"
+                    className="mt-0 min-h-0 flex-1 overflow-hidden data-[state=active]:flex data-[state=active]:flex-col"
+                  >
+                    <InstanceDevices
+                      profiles={profilesSelected}
+                      devices={devices}
+                      onDevicesChange={setDevices}
+                      instanceType={instanceType}
+                    />
+                  </TabsContent>
+                  <TabsContent
+                    value="general"
+                    className="mt-0 min-h-0 flex-1 overflow-hidden data-[state=active]:flex data-[state=active]:flex-col"
+                  >
+                    <div className="min-h-0 min-w-0 flex-1">
                       <GeneralConfiguration
                         config={config}
                         expandedConfig={memoizedExpandedConfig}
                         onConfigChange={setConfig}
                         instanceType={instanceType}
                       />
-                    </TabsContent>
-                  </Tabs>
-                )}
+                    </div>
+                  </TabsContent>
+                </Tabs>
               </div>
               <DialogFooter className="shrink-0">
-                <div className="flex items-center justify-between w-full">
+                <div className="flex w-full items-center justify-between">
                   <Button
                     type="button"
                     variant="ghost"

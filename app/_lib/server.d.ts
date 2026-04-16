@@ -20,17 +20,68 @@ export interface ConfigOption {
   type: string;
   required?: string;
   default?: string;
+  defaultdesc?: string;
+  initialvaluedesc?: string;
   shortdesc?: string;
   longdesc?: string;
+  display_shortdesc?: string;
+  display_longdesc?: string;
   condition?: string;
   name?: string;
   key?: string;
   fullKey?: string;
+  scoped_defaults?: Partial<Record<'container' | 'virtual-machine', string | undefined>>;
   supported_types?: ('container' | 'virtual-machine')[];
   required_for?: ('container' | 'virtual-machine')[];
   unit_options?: string[];
   default_unit?: string;
+  disable_unit_input?: boolean;
+  reset_value?: string;
+  enum_options?: string[];
+  choices?: string[];
+  values?: string[];
+  valid_values?: string[];
+  possible_values?: string[];
+  list_kind?: 'csv';
+  editor_kind?:
+    | 'monaco'
+    | 'newline_list'
+    | 'resource_selector'
+    | 'schedule_autocomplete'
+    | 'hugepages_group';
+  editor_language?: string;
+  selector_source?:
+    | 'cluster_groups'
+    | 'networks'
+    | 'network_integrations'
+    | 'network_zones';
+  suggestions?: string[];
+  group_members?: Array<{
+    key: string;
+    label: string;
+    metadata: ConfigOption;
+  }>;
+  disabled_reason?: string;
+  depends_on?: Array<{
+    key: string;
+    operator: 'truthy' | 'equals';
+    value?: string;
+  }>;
+  reference_tokens?: Array<{
+    raw: string;
+    kind: 'config_option' | 'doc_ref';
+    namespace?: string;
+    key: string;
+    label: string;
+    placeholder: string;
+  }>;
 }
+
+export interface ConfigOptionCategory {
+  keys: Array<Record<string, ConfigOption>>;
+}
+
+export type ConfigOptionCollection = Record<string, ConfigOptionCategory>;
 
 export interface DeviceTypeConfig {
   keys: Array<Record<string, ConfigOption>>;
@@ -44,7 +95,7 @@ export interface ConfigurableOptions {
       [key: string]: DeviceTypeConfig;
     };
     image: object;
-    instance: object;
+    instance: ConfigOptionCollection;
     kernel: object;
     network_address_set: object;
     network_bridge: object;
@@ -56,7 +107,7 @@ export interface ConfigurableOptions {
     network_physical: object;
     network_sriov: object;
     network_zone: object;
-    project: object;
+    project: ConfigOptionCollection;
     server: object;
     storage_btrfs: object;
     storage_bucket_btrfs: object;

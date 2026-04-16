@@ -43,11 +43,13 @@ function Button({
   size,
   asChild = false,
   loading = false,
+  disablePressAnimation = false,
   ...props
 }: React.ComponentProps<'button'> &
   VariantProps<typeof buttonVariants> & {
     asChild?: boolean;
     loading?: boolean;
+    disablePressAnimation?: boolean;
   }) {
   if (loading) {
     if (typeof props.children === 'string') {
@@ -68,7 +70,10 @@ function Button({
   return (
     <Comp
       data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
+      className={cn(
+        buttonVariants({ variant, size, className }),
+        disablePressAnimation && 'active:scale-100',
+      )}
       {...props}
     />
   );
