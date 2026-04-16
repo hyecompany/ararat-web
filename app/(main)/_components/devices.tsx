@@ -849,6 +849,7 @@ interface AddDeviceFormProps {
   isCreatingRootDisk?: boolean;
   existingDevices?: Record<string, Device>;
   inheritedDevices?: Record<string, Device>;
+  registerFlushPendingAutoApply?: (flush: (() => void) | null) => void;
   flags?: {
     type?: 'virtual-machine' | 'container';
   };
@@ -864,6 +865,7 @@ function AddDeviceForm({
   isCreatingRootDisk = false,
   existingDevices = {},
   inheritedDevices = {},
+  registerFlushPendingAutoApply,
   flags,
 }: AddDeviceFormProps) {
   const [name, setName] = React.useState('');
@@ -1638,6 +1640,14 @@ function AddDeviceForm({
     onUpdateRef.current(pendingUpdate.oldName, pendingUpdate.newName, pendingUpdate.device);
     pendingAutoApplyRef.current = null;
   }, []);
+
+  React.useEffect(() => {
+    registerFlushPendingAutoApply?.(flushPendingAutoApply);
+
+    return () => {
+      registerFlushPendingAutoApply?.(null);
+    };
+  }, [flushPendingAutoApply, registerFlushPendingAutoApply]);
 
   // Ensure path stays at "/" for root disk - but only if we're actually creating/editing a root disk
   React.useEffect(() => {
@@ -2633,6 +2643,7 @@ export default function Devices({
   };
 
   const [showDetailPanel, setShowDetailPanel] = React.useState(false);
+  const flushPendingAutoApplyRef = React.useRef<(() => void) | null>(null);
 
   const handleAddClick = () => {
     setIsCreatingRootDisk(true);
@@ -2649,6 +2660,7 @@ export default function Devices({
   };
 
   const closeDetailPanel = () => {
+    flushPendingAutoApplyRef.current?.();
     setSelectedDeviceName(null);
     setIsCreatingRootDisk(false);
     setShowDetailPanel(false);
@@ -2739,6 +2751,9 @@ export default function Devices({
           isCreatingRootDisk={isCreatingRootDisk}
           existingDevices={localDevices}
           inheritedDevices={inheritedDevices}
+          registerFlushPendingAutoApply={(flush) => {
+            flushPendingAutoApplyRef.current = flush;
+          }}
           flags={flags}
         />
       </div>
