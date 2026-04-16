@@ -281,7 +281,7 @@ function DeviceCsvListInput({
           onBlur={commitDraft}
           className="h-9"
         />
-        <Button type="button" variant="outline" size="sm" onClick={commitDraft}>
+        <Button type="button" variant="outline" size="sm" className="select-none" onClick={commitDraft}>
           Add
         </Button>
       </div>

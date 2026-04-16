@@ -160,7 +160,7 @@ function ReferenceTokenBadge({
                 event.preventDefault();
               }
             }}
-            className="hover:bg-muted inline-flex items-center gap-1 rounded px-1 py-0.5 font-mono text-xs"
+            className="hover:bg-muted inline-flex items-center gap-1 rounded px-1 py-0.5 font-mono text-xs select-none"
           >
             <span>{token.label}</span>
             <ExternalLinkIcon className="size-3" />
@@ -168,7 +168,7 @@ function ReferenceTokenBadge({
         ) : (
           <button
             type="button"
-            className="hover:bg-muted focus-visible:ring-0 focus-visible:outline-none rounded px-1 py-0.5 font-mono text-xs outline-none"
+            className="hover:bg-muted focus-visible:ring-0 focus-visible:outline-none rounded px-1 py-0.5 font-mono text-xs outline-none select-none"
             onMouseDown={(event) => {
               event.preventDefault();
             }}
