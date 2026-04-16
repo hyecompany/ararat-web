@@ -453,6 +453,7 @@ export default function ProjectDialog({ open, onOpenChange, mode, project }: Pro
                   <div className="flex h-full min-h-0 min-w-0 flex-1 overflow-hidden">
                     <GeneralConfiguration
                       config={config}
+                      projectBaselineConfig={mode === 'edit' ? project?.config ?? {} : {}}
                       onConfigChange={setConfig}
                       configTarget="project"
                       projectMode={mode}

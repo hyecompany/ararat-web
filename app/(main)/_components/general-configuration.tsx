@@ -51,6 +51,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 interface GeneralConfigurationProps {
   config: Record<string, string>;
   expandedConfig?: Record<string, string>;
+  projectBaselineConfig?: Record<string, string>;
   onConfigChange: (config: Record<string, string>) => void;
   readOnly?: boolean;
   instanceType?: 'virtual-machine' | 'container';
@@ -265,15 +266,23 @@ function getProjectDefaultValue(metadata: ConfigOption) {
   return normalizeDefaultValue(metadata.defaultdesc ?? metadata.default);
 }
 
+function shouldUseProjectDefaultReset(
+  metadata: ConfigOption,
+  projectMode: 'create' | 'edit',
+  hasExplicitProjectFeatureOverrides: boolean,
+) {
+  return (
+    isProjectFeatureOption(metadata) &&
+    (projectMode === 'edit' || hasExplicitProjectFeatureOverrides)
+  );
+}
+
 function getProjectDisplayValue(
   metadata: ConfigOption,
   projectMode: 'create' | 'edit',
   hasExplicitProjectFeatureOverrides: boolean,
 ) {
-  if (
-    isProjectFeatureOption(metadata) &&
-    (projectMode === 'edit' || hasExplicitProjectFeatureOverrides)
-  ) {
+  if (shouldUseProjectDefaultReset(metadata, projectMode, hasExplicitProjectFeatureOverrides)) {
     return getProjectDefaultValue(metadata) ?? 'false';
   }
 
@@ -285,10 +294,7 @@ function getProjectResetValue(
   projectMode: 'create' | 'edit',
   hasExplicitProjectFeatureOverrides: boolean,
 ) {
-  if (
-    isProjectFeatureOption(metadata) &&
-    (projectMode === 'edit' || hasExplicitProjectFeatureOverrides)
-  ) {
+  if (shouldUseProjectDefaultReset(metadata, projectMode, hasExplicitProjectFeatureOverrides)) {
     return getProjectDefaultValue(metadata) ?? 'false';
   }
 
@@ -304,10 +310,7 @@ function shouldPersistProjectResetValue(
   const defaultValue = normalizeDefaultValue(metadata.defaultdesc ?? metadata.default);
   const resetValue = getProjectResetValue(metadata, projectMode, hasExplicitProjectFeatureOverrides);
 
-  if (
-    isProjectFeatureOption(metadata) &&
-    (projectMode === 'edit' || hasExplicitProjectFeatureOverrides)
-  ) {
+  if (shouldUseProjectDefaultReset(metadata, projectMode, hasExplicitProjectFeatureOverrides)) {
     return resetValue !== undefined;
   }
 
@@ -670,6 +673,7 @@ function MonacoValueInput({
 export default function GeneralConfiguration({
   config,
   expandedConfig = {},
+  projectBaselineConfig = {},
   onConfigChange,
   readOnly = false,
   instanceType = 'container',
@@ -1210,34 +1214,64 @@ export default function GeneralConfiguration({
     [navigateToConfigKey, referenceOptions],
   );
 
-  const handleValueChange = (key: string, value: string | undefined, metadata?: ConfigOption) => {
-    if (readOnly) return;
-    const nextConfig = { ...config };
-    const normalizedValue = value === '' ? undefined : value;
-    const inheritedValue = expandedConfig[key];
-    const isProjectResetValue =
-      configTarget === 'project' &&
-      metadata &&
-      !Object.prototype.hasOwnProperty.call(expandedConfig, key) &&
-      shouldPersistProjectResetValue(metadata, projectMode, hasExplicitProjectFeatureOverrides);
-    const resetValue =
-      metadata && !Object.prototype.hasOwnProperty.call(expandedConfig, key)
-        ? getProjectResetValue(metadata, projectMode, hasExplicitProjectFeatureOverrides)
-        : undefined;
+  const handleValueChange = React.useCallback(
+    (key: string, value: string | undefined, metadata?: ConfigOption) => {
+      if (readOnly) return;
+      const nextConfig = { ...config };
+      const normalizedValue = value === '' ? undefined : value;
+      const inheritedValue = expandedConfig[key];
+      const isProjectResetValue =
+        configTarget === 'project' &&
+        metadata &&
+        !Object.prototype.hasOwnProperty.call(expandedConfig, key) &&
+        shouldPersistProjectResetValue(metadata, projectMode, hasExplicitProjectFeatureOverrides);
+      const resetValue =
+        metadata && !Object.prototype.hasOwnProperty.call(expandedConfig, key)
+          ? getProjectResetValue(metadata, projectMode, hasExplicitProjectFeatureOverrides)
+          : undefined;
 
-    if (
-      normalizedValue === undefined ||
-      (!isProjectResetValue &&
-        resetValue !== undefined &&
-        normalizedValue === resetValue &&
-        inheritedValue === undefined)
-    ) {
-      delete nextConfig[key];
-    } else {
-      nextConfig[key] = normalizedValue;
-    }
-    onConfigChange(nextConfig);
-  };
+      if (
+        normalizedValue === undefined ||
+        (!isProjectResetValue &&
+          resetValue !== undefined &&
+          normalizedValue === resetValue &&
+          inheritedValue === undefined)
+      ) {
+        delete nextConfig[key];
+      } else {
+        nextConfig[key] = normalizedValue;
+      }
+      onConfigChange(nextConfig);
+    },
+    [
+      config,
+      configTarget,
+      expandedConfig,
+      hasExplicitProjectFeatureOverrides,
+      onConfigChange,
+      projectMode,
+      readOnly,
+    ],
+  );
+
+  const handleResetValue = React.useCallback(
+    (key: string, metadata?: ConfigOption) => {
+      if (readOnly) return;
+
+      if (
+        configTarget === 'project' &&
+        projectMode === 'edit' &&
+        Object.prototype.hasOwnProperty.call(projectBaselineConfig, key)
+      ) {
+        const nextConfig = { ...config, [key]: projectBaselineConfig[key]! };
+        onConfigChange(nextConfig);
+        return;
+      }
+
+      handleValueChange(key, undefined, metadata);
+    },
+    [config, configTarget, handleValueChange, onConfigChange, projectBaselineConfig, projectMode, readOnly],
+  );
 
   const handleCollectionRowChange = (
     fullKey: string,
@@ -1843,6 +1877,13 @@ export default function GeneralConfiguration({
     const { disabled, reason } = getDisabledState(fullKey, metadata);
 
     const localValue = config[fullKey];
+    const hasProjectBaselineValue =
+      configTarget === 'project' &&
+      projectMode === 'edit' &&
+      Object.prototype.hasOwnProperty.call(projectBaselineConfig, fullKey);
+    const projectBaselineValue = hasProjectBaselineValue
+      ? projectBaselineConfig[fullKey]
+      : undefined;
     const unsetValue = getUnsetValue({
       metadata,
       configTarget,
@@ -1855,13 +1896,25 @@ export default function GeneralConfiguration({
     const defaultValueDisplay = unsetValue;
 
     const canReset =
-      !readOnly && hasLocalValue && (configTarget === 'project' ? localValue !== unsetValue : true);
+      !readOnly &&
+      hasLocalValue &&
+      (configTarget === 'project'
+        ? hasProjectBaselineValue
+          ? localValue !== projectBaselineValue
+          : localValue !== unsetValue
+        : true);
     const displayLabel = label ? formatDisplayName(label) : formatDisplayName(fullKey);
     const resetTitle =
       configTarget === 'project'
-        ? projectMode === 'edit' && isProjectFeatureOption(metadata)
-          ? 'Reset to default value'
-          : 'Reset to initial value'
+        ? hasProjectBaselineValue
+          ? 'Reset to saved value'
+          : shouldUseProjectDefaultReset(
+                metadata,
+                projectMode,
+                hasExplicitProjectFeatureOverrides,
+              )
+            ? 'Reset to default value'
+            : 'Reset to initial value'
         : supportsExpandedConfig
           ? 'Reset to inherited/default'
           : 'Clear value';
@@ -1902,13 +1955,7 @@ export default function GeneralConfiguration({
               variant="ghost"
               size="icon"
               className="h-6 w-6 shrink-0"
-              onClick={() =>
-                handleValueChange(
-                  fullKey,
-                  undefined,
-                  metadata,
-                )
-              }
+              onClick={() => handleResetValue(fullKey, metadata)}
               title={resetTitle}
             >
               <IconRotateClockwise className="h-3 w-3" />
