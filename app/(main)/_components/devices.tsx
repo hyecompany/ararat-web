@@ -1593,7 +1593,7 @@ function AddDeviceForm({
     signature: string;
   } | null>(null);
   const onUpdateRef = React.useRef(onUpdate);
-  const previousEditingDeviceNameRef = React.useRef<string | undefined>(editingDevice?.name);
+  const isUnmountingRef = React.useRef(false);
   const editingDeviceSignature = editingDevice
     ? stableStringify({
         name: editingDevice.name,
@@ -1733,27 +1733,23 @@ function AddDeviceForm({
   ]);
 
   React.useEffect(() => {
-    const previousEditingDeviceName = previousEditingDeviceNameRef.current;
-    const nextEditingDeviceName = editingDevice?.name;
+    return () => {
+      if (isUnmountingRef.current || !pendingAutoApplyRef.current) {
+        return;
+      }
 
-    if (
-      previousEditingDeviceName !== undefined &&
-      previousEditingDeviceName !== nextEditingDeviceName &&
-      pendingAutoApplyRef.current
-    ) {
       if (autoApplyTimeoutRef.current) {
         clearTimeout(autoApplyTimeoutRef.current);
         autoApplyTimeoutRef.current = null;
       }
 
       flushPendingAutoApply();
-    }
-
-    previousEditingDeviceNameRef.current = nextEditingDeviceName;
+    };
   }, [editingDevice?.name, flushPendingAutoApply]);
 
   React.useEffect(
     () => () => {
+      isUnmountingRef.current = true;
       if (autoApplyTimeoutRef.current) {
         clearTimeout(autoApplyTimeoutRef.current);
         autoApplyTimeoutRef.current = null;

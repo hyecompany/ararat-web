@@ -177,6 +177,38 @@ function processConfigurableOptions(config: ConfigurableOptions) {
     return normalized.toLowerCase() === 'empty' ? undefined : normalized;
   };
 
+  const knownRootPrefixes = new Set<string>(['cloud-init']);
+
+  const registerKnownRootPrefixes = (category: unknown) => {
+    if (
+      !category ||
+      typeof category !== 'object' ||
+      !('keys' in category) ||
+      !Array.isArray((category as { keys?: unknown }).keys)
+    ) {
+      return;
+    }
+
+    (category as OptionCategory).keys?.forEach((keyGroup) => {
+      Object.entries(keyGroup).forEach(([key, metadata]) => {
+        const candidateKey = metadata.fullKey || metadata.key || key;
+        const firstSegment = candidateKey.split('.')[0];
+        if (firstSegment) {
+          knownRootPrefixes.add(firstSegment);
+        }
+      });
+    });
+  };
+
+  Object.values(config.configs).forEach((section) => {
+    if (!section || typeof section !== 'object') return;
+
+    registerKnownRootPrefixes(section);
+    Object.values(section as Record<string, unknown>).forEach((category) => {
+      registerKnownRootPrefixes(category);
+    });
+  });
+
   const normalizeOptionKey = (
     configSection: keyof ConfigsShape,
     categoryName: string,
@@ -195,27 +227,6 @@ function processConfigurableOptions(config: ConfigurableOptions) {
     }
 
     const firstSegment = key.split('.')[0];
-    const knownRootPrefixes = new Set([
-      'backups',
-      'boot',
-      'cloud-init',
-      'cluster',
-      'environment',
-      'features',
-      'image',
-      'images',
-      'limits',
-      'linux',
-      'migration',
-      'nvidia',
-      'raw',
-      'restricted',
-      'security',
-      'snapshots',
-      'user',
-      'volatile',
-    ]);
-
     if (key.includes('.') && knownRootPrefixes.has(firstSegment)) {
       return key;
     }
