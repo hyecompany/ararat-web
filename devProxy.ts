@@ -8,11 +8,14 @@ import forge from 'node-forge';
 
 const LISTEN_PORT = 3001;
 
+type ListenerMode = 'auto' | 'http' | 'https';
+
 const TLS_CERT_PATH = './server.crt';
 const TLS_KEY_PATH = './server.key';
 const UPSTREAM_CLIENT_PFX_ENABLED = process.env.DEV_PROXY_UPSTREAM_CLIENT_PFX === '1';
 const UPSTREAM_CLIENT_PFX_PATH = process.env.DEV_PROXY_UPSTREAM_CLIENT_PFX_PATH ?? './ararat.pfx';
 const UPSTREAM_CLIENT_PFX_PASSPHRASE = process.env.DEV_PROXY_UPSTREAM_CLIENT_PFX_PASSPHRASE ?? '';
+const LISTENER_MODE = parseListenerMode(process.env.DEV_PROXY_LISTENER_MODE);
 
 const API_HTTP_TARGET = 'https://localhost:8443';
 const API_WS_TARGET = 'wss://localhost:8443';
@@ -22,6 +25,39 @@ const APP_WS_TARGET = 'ws://localhost:3000';
 
 // Development only: allow proxying to self-signed TLS upstreams (e.g. localhost:8443).
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
+function parseListenerMode(value: string | undefined): ListenerMode {
+  if (!value) {
+    return 'auto';
+  }
+
+  const normalizedValue = value.toLowerCase();
+  if (normalizedValue === 'auto' || normalizedValue === 'http' || normalizedValue === 'https') {
+    return normalizedValue;
+  }
+
+  throw new Error(
+    `Invalid DEV_PROXY_LISTENER_MODE value ${value}. Expected auto, http, or https.`,
+  );
+}
+
+function shouldUseHttpsListener(): boolean {
+  // HTTP-first mode is fine for browser tooling, but OIDC relies on HTTPS-only
+  // browser behavior, so the non-HTTPS path is intentionally not auth-parity.
+  if (LISTENER_MODE === 'https') {
+    return true;
+  }
+
+  if (LISTENER_MODE === 'http') {
+    return false;
+  }
+
+  return !UPSTREAM_CLIENT_PFX_ENABLED;
+}
+
+function getListenerScheme(): 'http' | 'https' {
+  return shouldUseHttpsListener() ? 'https' : 'http';
+}
 
 function isSelfSignedDevApiTarget(url: URL): boolean {
   return (
@@ -200,19 +236,17 @@ async function proxyHttpRequest(req: Request): Promise<Response> {
   }
 }
 
-if (!existsSync(TLS_CERT_PATH) || !existsSync(TLS_KEY_PATH)) {
+const useHttpsListener = shouldUseHttpsListener();
+
+if (useHttpsListener && (!existsSync(TLS_CERT_PATH) || !existsSync(TLS_KEY_PATH))) {
   console.error(
-    `TLS certificate or key not found at ${TLS_CERT_PATH} and ${TLS_KEY_PATH}. Please copy /var/lib/incus/server.crt and /var/lib/server.key from your Incus host to these paths.`,
+    `TLS certificate or key not found at ${TLS_CERT_PATH} and ${TLS_KEY_PATH}. Please copy /var/lib/incus/server.crt and /var/lib/server.key from your Incus host to these paths, or set DEV_PROXY_LISTENER_MODE=http.`,
   );
   process.exit(1);
 }
 
-const server = Bun.serve<ProxySocketData>({
+const serverOptions: Parameters<typeof Bun.serve<ProxySocketData>>[0] = {
   port: LISTEN_PORT,
-  tls: {
-    cert: Bun.file(TLS_CERT_PATH),
-    key: Bun.file(TLS_KEY_PATH),
-  },
   async fetch(req, server) {
     const isWebSocketUpgrade = req.headers.get('upgrade')?.toLowerCase() === 'websocket';
 
@@ -225,7 +259,6 @@ const server = Bun.serve<ProxySocketData>({
         for (const name of [
           'cookie',
           'authorization',
-          'origin',
           'user-agent',
           'sec-websocket-protocol',
         ]) {
@@ -359,11 +392,27 @@ const server = Bun.serve<ProxySocketData>({
       }
     },
   },
-});
+};
 
-console.log(`Hye Ararat listening on https://localhost:${server.port}`);
+if (useHttpsListener) {
+  serverOptions.tls = {
+    cert: Bun.file(TLS_CERT_PATH),
+    key: Bun.file(TLS_KEY_PATH),
+  };
+}
+
+const server = Bun.serve<ProxySocketData>(serverOptions);
+
+console.log(
+  `Hye Ararat listening on ${getListenerScheme()}://localhost:${server.port} (listener mode: ${LISTENER_MODE}${UPSTREAM_CLIENT_PFX_ENABLED ? ', upstream TLS client auth enabled' : ''})`,
+);
 if (UPSTREAM_CLIENT_PFX_ENABLED) {
   console.log(
     `Development server PFX auto-authentication (TLS) enabled for API target using ${UPSTREAM_CLIENT_PFX_PATH}`,
+  );
+}
+if (!useHttpsListener && UPSTREAM_CLIENT_PFX_ENABLED) {
+  console.log(
+    'HTTP-first browser mode is active because upstream TLS client-auth is enabled. Use DEV_PROXY_LISTENER_MODE=https only when the browser can trust the local certificate and you want auth-parity testing.',
   );
 }
