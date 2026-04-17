@@ -6,19 +6,20 @@ import {
   ResizablePanel,
   ResizableHandle,
 } from 'ui-web/components/resizable';
+import { toPanelSize, type PanelSize } from '@/app/_components/layout/resizable-size';
 
 interface ResizableLayoutProps {
   sidebar: React.ReactNode;
   content: React.ReactNode;
   detail?: React.ReactNode;
-  sidebarSize?: number;
-  sidebarMinSize?: number;
-  sidebarMaxSize?: number;
-  contentSize?: number;
-  contentMinSize?: number;
-  detailSize?: number;
-  detailMinSize?: number;
-  detailMaxSize?: number;
+  sidebarSize?: PanelSize;
+  sidebarMinSize?: PanelSize;
+  sidebarMaxSize?: PanelSize;
+  contentSize?: PanelSize;
+  contentMinSize?: PanelSize;
+  detailSize?: PanelSize;
+  detailMinSize?: PanelSize;
+  detailMaxSize?: PanelSize;
   className?: string;
 }
 
@@ -38,14 +39,14 @@ export function ResizableLayout({
 }: ResizableLayoutProps) {
   return (
     <ResizablePanelGroup
-      direction="horizontal"
+      orientation="horizontal"
       className={`flex h-full ${className}`}
     >
       {/* Sidebar Panel */}
       <ResizablePanel
-        defaultSize={sidebarSize}
-        minSize={sidebarMinSize}
-        maxSize={sidebarMaxSize}
+        defaultSize={toPanelSize(sidebarSize)}
+        minSize={toPanelSize(sidebarMinSize)}
+        maxSize={toPanelSize(sidebarMaxSize)}
       >
         {sidebar}
       </ResizablePanel>
@@ -53,7 +54,10 @@ export function ResizableLayout({
       <ResizableHandle />
 
       {/* Content Panel */}
-      <ResizablePanel defaultSize={contentSize} minSize={contentMinSize}>
+      <ResizablePanel
+        defaultSize={toPanelSize(contentSize)}
+        minSize={toPanelSize(contentMinSize)}
+      >
         {content}
       </ResizablePanel>
 
@@ -62,9 +66,9 @@ export function ResizableLayout({
         <>
           <ResizableHandle />
           <ResizablePanel
-            defaultSize={detailSize}
-            minSize={detailMinSize}
-            maxSize={detailMaxSize}
+            defaultSize={toPanelSize(detailSize)}
+            minSize={toPanelSize(detailMinSize)}
+            maxSize={toPanelSize(detailMaxSize)}
           >
             {detail}
           </ResizablePanel>

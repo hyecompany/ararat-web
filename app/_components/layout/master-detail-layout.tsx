@@ -7,6 +7,7 @@ import {
   ResizableHandle,
 } from 'ui-web/components/resizable';
 import { useMobile } from 'ui-web/hooks/use-mobile';
+import { toPanelSize, type PanelSize } from '@/app/_components/layout/resizable-size';
 
 interface MasterDetailLayoutProps {
   // Desktop Props
@@ -20,14 +21,14 @@ interface MasterDetailLayoutProps {
   showMobileDetail: boolean;
 
   // Sizing Props
-  sidebarSize?: number;
-  sidebarMinSize?: number;
-  sidebarMaxSize?: number;
-  contentSize?: number;
-  contentMinSize?: number;
-  detailSize?: number;
-  detailMinSize?: number;
-  detailMaxSize?: number;
+  sidebarSize?: PanelSize;
+  sidebarMinSize?: PanelSize;
+  sidebarMaxSize?: PanelSize;
+  contentSize?: PanelSize;
+  contentMinSize?: PanelSize;
+  detailSize?: PanelSize;
+  detailMinSize?: PanelSize;
+  detailMaxSize?: PanelSize;
 
   className?: string;
 }
@@ -61,12 +62,12 @@ export function MasterDetailLayout({
           {showMobileDetail ? mobileDetail : mobileMaster}
         </div>
       ) : (
-        <ResizablePanelGroup direction="horizontal" className="flex h-full">
+        <ResizablePanelGroup orientation="horizontal" className="flex h-full">
           {/* Sidebar Panel */}
           <ResizablePanel
-            defaultSize={sidebarSize}
-            minSize={sidebarMinSize}
-            maxSize={sidebarMaxSize}
+            defaultSize={toPanelSize(sidebarSize)}
+            minSize={toPanelSize(sidebarMinSize)}
+            maxSize={toPanelSize(sidebarMaxSize)}
           >
             {sidebar}
           </ResizablePanel>
@@ -74,7 +75,10 @@ export function MasterDetailLayout({
           <ResizableHandle />
 
           {/* Content Panel */}
-          <ResizablePanel defaultSize={contentSize} minSize={contentMinSize}>
+          <ResizablePanel
+            defaultSize={toPanelSize(contentSize)}
+            minSize={toPanelSize(contentMinSize)}
+          >
             {content}
           </ResizablePanel>
 
@@ -83,9 +87,9 @@ export function MasterDetailLayout({
             <>
               <ResizableHandle />
               <ResizablePanel
-                defaultSize={detailSize}
-                minSize={detailMinSize}
-                maxSize={detailMaxSize}
+                defaultSize={toPanelSize(detailSize)}
+                minSize={toPanelSize(detailMinSize)}
+                maxSize={toPanelSize(detailMaxSize)}
               >
                 {detail}
               </ResizablePanel>

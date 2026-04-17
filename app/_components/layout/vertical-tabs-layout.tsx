@@ -6,6 +6,7 @@ import { ScrollArea } from 'ui-web/components/scroll-area';
 import { Badge } from 'ui-web/components/badge';
 import { useMobile } from 'ui-web/hooks/use-mobile';
 import { cn } from 'ui-web/lib/utils';
+import { toPanelSize, type PanelSize } from '@/app/_components/layout/resizable-size';
 
 export interface TabItem {
   value: string;
@@ -30,14 +31,14 @@ interface VerticalTabsLayoutProps {
   detailPanel?: React.ReactNode;
 
   // Sizing
-  sidebarSize?: number;
-  sidebarMinSize?: number;
-  sidebarMaxSize?: number;
-  contentSize?: number;
-  contentMinSize?: number;
-  detailSize?: number;
-  detailMinSize?: number;
-  detailMaxSize?: number;
+  sidebarSize?: PanelSize;
+  sidebarMinSize?: PanelSize;
+  sidebarMaxSize?: PanelSize;
+  contentSize?: PanelSize;
+  contentMinSize?: PanelSize;
+  detailSize?: PanelSize;
+  detailMinSize?: PanelSize;
+  detailMaxSize?: PanelSize;
 
   className?: string;
 }
@@ -218,9 +219,12 @@ export function VerticalTabsLayout({
       ref={containerRef}
       className={cn('h-full min-h-0 w-full overflow-hidden rounded-lg border', className)}
     >
-      <ResizablePanelGroup direction="horizontal" className="flex h-full min-h-0">
-        {/* Sidebar Panel */}
-        <ResizablePanel defaultSize={sidebarSize} minSize={sidebarMinSize} maxSize={sidebarMaxSize}>
+      <ResizablePanelGroup orientation="horizontal" className="flex h-full min-h-0">
+        <ResizablePanel
+          defaultSize={toPanelSize(sidebarSize)}
+          minSize={toPanelSize(sidebarMinSize)}
+          maxSize={toPanelSize(sidebarMaxSize)}
+        >
           <div className="bg-muted/30 flex h-full min-h-0 flex-col">
             {(title || header) && (
               <div className="shrink-0 border-b p-3">
@@ -236,18 +240,20 @@ export function VerticalTabsLayout({
         <ResizableHandle />
 
         {/* Content Panel */}
-        <ResizablePanel defaultSize={contentSize} minSize={contentMinSize}>
+        <ResizablePanel
+          defaultSize={toPanelSize(contentSize)}
+          minSize={toPanelSize(contentMinSize)}
+        >
           <div className="h-full min-h-0">{children}</div>
         </ResizablePanel>
 
-        {/* Detail Panel (Optional) */}
         {detailPanel && (
           <>
             <ResizableHandle />
             <ResizablePanel
-              defaultSize={detailSize}
-              minSize={detailMinSize}
-              maxSize={detailMaxSize}
+              defaultSize={toPanelSize(detailSize)}
+              minSize={toPanelSize(detailMinSize)}
+              maxSize={toPanelSize(detailMaxSize)}
             >
               <div className="h-full min-h-0">{detailPanel}</div>
             </ResizablePanel>
