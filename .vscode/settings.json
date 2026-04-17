@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "npx ctx7@latest library": true,
+        "npx ctx7@latest docs": true,
+        "bun run lint": true,
+        "bun run typecheck": true
+    }
+}
