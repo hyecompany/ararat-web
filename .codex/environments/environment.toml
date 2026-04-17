@@ -3,4 +3,21 @@ version = 1
 name = "ararat-web"
 
 [setup]
-script = "bun install"
+script = '''
+bun install
+cp "$CODEX_SOURCE_TREE_PATH/server.crt" "server.crt"
+cp "$CODEX_SOURCE_TREE_PATH/server.key" "server.key"
+cp "$CODEX_SOURCE_TREE_PATH/ararat.crt" "ararat.crt"
+cp "$CODEX_SOURCE_TREE_PATH/ararat.pfx" "ararat.pfx"
+cp "$CODEX_SOURCE_TREE_PATH/.env" ".env"
+'''
+
+[setup.win32]
+script = '''
+bun install
+cp "$env:CODEX_SOURCE_TREE_PATH/server.crt" "server.crt"
+cp "$env:CODEX_SOURCE_TREE_PATH/server.key" "server.key"
+cp "$env:CODEX_SOURCE_TREE_PATH/ararat.crt" "ararat.crt"
+cp "$env:CODEX_SOURCE_TREE_PATH/ararat.pfx" "ararat.pfx"
+cp "$env:CODEX_SOURCE_TREE_PATH/.env" ".env"
+'''
