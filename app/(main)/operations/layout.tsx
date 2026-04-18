@@ -14,7 +14,7 @@ export default function OperationsLayout({
     return (
         <div className="flex min-h-0 flex-1 flex-col">
             <SiteHeader>
-                <Breadcrumb>
+<Breadcrumb className="select-none">
                     <BreadcrumbList>
                         <BreadcrumbItem>
                             <BreadcrumbPage>Operations</BreadcrumbPage>
