@@ -55,6 +55,9 @@ export function useTerminal() {
     const term = termRef.current;
     if (!sock || !term || socketAttachedRef.current || socketAttachingRef.current) return;
 
+    const readyState = sock.readyState;
+    if (readyState === WebSocket.CLOSING || readyState === WebSocket.CLOSED) return;
+
     socketAttachingRef.current = true;
 
     const setupSocket = () => {
@@ -116,7 +119,7 @@ export function useTerminal() {
       term.focus();
     };
 
-    if (sock.readyState === WebSocket.OPEN) {
+    if (readyState === WebSocket.OPEN) {
       setupSocket();
     } else {
       const onOpen = () => {
