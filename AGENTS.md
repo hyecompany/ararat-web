@@ -17,7 +17,7 @@ proper context and ensures all Next.js queries use official documentation.
 Route files, layouts, contexts, hooks, and feature modules live in `app/`; grouped routes such as `app/(main)/instances` keep feature-specific `_components`, `_hooks`, and `_lib` beside their pages. Shared shadcn UI primitives live in `components/ui`, global hooks in `hooks`, and shared utilities in `lib`. Static assets are in `public`, currently `public/images`; build helpers are in `scripts`.
 
 ## Build, Test, and Development Commands
-
-- `bun run dev`: starts the Next.js dev server and local proxy together.
-- `bun run build`: creates the production Next.js build.
-- `bun run lint`: runs ESLint with Next.js core web vitals and TypeScript rules.
+- `bun run dev` starts the development server on :3001, with the UI accesible on `/ui`.
+- `bun run lint`: runs `eslint .`.
+- `bun run typecheck` runs `tsc --noEmit`.
+- `bun run ci`: runs lint, typecheck, and build in sequence
