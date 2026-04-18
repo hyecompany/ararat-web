@@ -59,6 +59,7 @@ export default function InstanceExec() {
       });
 
       dataSocketRef.current = data;
+      controlSocketRef.current = control;
       // No explicit attachToSocket call is needed here: changing to the running phase
       // causes the terminal element to mount, and useTerminal's effect automatically
       // calls attachToSocket once that terminal DOM node is available.
