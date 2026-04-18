@@ -43,6 +43,40 @@ export default class Instance {
     };
   }
 
+  async openExecSocket(command: string[]) {
+    const response = await fetch(
+      `/1.0/instances/${encodeURIComponent(this.name)}/exec`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          command,
+          interactive: true,
+          'wait-for-websocket': true,
+        }),
+      },
+    );
+    if (!response.ok) {
+      let errorMessage = `Failed to open exec socket: ${response.status} ${response.statusText}`;
+      try {
+        const errorData = await response.json();
+        errorMessage += ` - ${JSON.stringify(errorData)}`;
+      } catch (e) {
+        // Ignore JSON parse errors, use default message
+      }
+      throw new Error(errorMessage);
+    }
+    const data = await response.json();
+    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    return {
+      data: new WebSocket(
+        `${protocol}://${window.location.host}${data.operation}/websocket?secret=${data.metadata.metadata.fds['0']}`,
+      ),
+      control: new WebSocket(
+        `${protocol}://${window.location.host}${data.operation}/websocket?secret=${data.metadata.metadata.fds['control']}`,
+      ),
+    };
+  }
+
   async getConsoleOutput() {
     const response = await fetch(
       `/1.0/instances/${encodeURIComponent(this.name)}/console`,
