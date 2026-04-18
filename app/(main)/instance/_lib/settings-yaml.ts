@@ -11,6 +11,10 @@ function getYamlSection(
 ): Record<string, unknown> {
   const parsed = fromYaml(yamlString);
 
+  if (!isRecord(parsed)) {
+    return {};
+  }
+
   if (sectionKey in parsed) {
     const section = parsed[sectionKey];
     if (!isRecord(section)) {
