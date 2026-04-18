@@ -12,7 +12,7 @@ export default function InstancesLayout({
   children: React.ReactNode;
 }) {
   return (
-    <>
+    <div className="flex min-h-0 flex-1 flex-col">
       <SiteHeader>
         <Breadcrumb>
           <BreadcrumbList>
@@ -22,9 +22,9 @@ export default function InstancesLayout({
           </BreadcrumbList>
         </Breadcrumb>
       </SiteHeader>
-      <div className="p-4 lg:px-6">
+      <div className="min-h-0 flex-1 overflow-auto p-4 lg:px-6">
         {children}
       </div>
-    </>
+    </div>
   );
 }

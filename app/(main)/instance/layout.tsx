@@ -63,7 +63,7 @@ function InstanceLayoutContent({ children }: { children: React.ReactNode }) {
   const renderContent = () => {
     if (!name) {
       return (
-        <div className="p-6">
+        <div className="h-full overflow-auto p-6">
             <Alert variant="destructive">
               <AlertTitle>Missing Parameter</AlertTitle>
               <AlertDescription>
@@ -84,7 +84,7 @@ function InstanceLayoutContent({ children }: { children: React.ReactNode }) {
 
     if (isError || !instance) {
       return (
-        <div className="p-6">
+        <div className="h-full overflow-auto p-6">
           <Alert variant="destructive">
             <AlertTitle>Error</AlertTitle>
             <AlertDescription>
@@ -96,19 +96,19 @@ function InstanceLayoutContent({ children }: { children: React.ReactNode }) {
     }
 
     return (
-      <div className="flex flex-col gap-6 p-6">
+      <div className="flex h-full min-h-0 flex-col gap-6 p-6">
         <InstanceHeader instance={instance} onMutate={mutate} />
 
-        <div className="flex flex-col gap-4">
+        <div className="flex min-h-0 flex-1 flex-col gap-4">
           <InstanceTabs />
-          <div className="mt-4">{children}</div>
+          <div className="mt-4 min-h-0 flex-1">{children}</div>
         </div>
       </div>
     );
   };
 
   return (
-    <>
+    <div className="flex min-h-0 flex-1 flex-col">
       <SiteHeader>
         <Breadcrumb>
           <BreadcrumbList>
@@ -134,8 +134,8 @@ function InstanceLayoutContent({ children }: { children: React.ReactNode }) {
           </BreadcrumbList>
         </Breadcrumb>
       </SiteHeader>
-      {renderContent()}
-    </>
+      <div className="min-h-0 flex-1 overflow-auto">{renderContent()}</div>
+    </div>
   );
 }
 
