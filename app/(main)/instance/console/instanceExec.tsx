@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState } from 'react';
+import { use, useState, type FormEvent } from 'react';
 import { InstanceContext } from '../_context/instance';
 import { useTerminal } from './useTerminal';
 import { Button } from 'ui-web/components/button';
@@ -32,7 +32,7 @@ export default function InstanceExec() {
   const [error, setError] = useState<string | null>(null);
   const [sessionEnded, setSessionEnded] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!instanceClass || !command.trim() || isConnecting) return;
     setIsConnecting(true);
