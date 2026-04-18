@@ -152,7 +152,6 @@ export default function ConfigurationPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <h2 className="text-lg font-semibold">Configuration</h2>
       <div
         className={cn(
           'bg-card text-card-foreground flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border shadow-sm',
