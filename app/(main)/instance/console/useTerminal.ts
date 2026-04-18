@@ -161,9 +161,6 @@ export function useTerminal() {
         logError(err, 'fit terminal');
       }
     };
-    fitIfReady();
-    requestAnimationFrame(() => requestAnimationFrame(fitIfReady));
-
     const handleResize = () => {
       fitIfReady();
       const ctrl = controlSocketRef.current;
@@ -181,6 +178,9 @@ export function useTerminal() {
       }
     };
     window.addEventListener('resize', handleResize);
+
+    fitIfReady();
+    requestAnimationFrame(() => requestAnimationFrame(handleResize));
 
     attachToSocket();
     const retryTimer = window.setTimeout(attachToSocket, 50);
