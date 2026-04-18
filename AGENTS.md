@@ -21,3 +21,8 @@ Route files, layouts, contexts, hooks, and feature modules live in `app/`; group
 - `bun run lint`: runs `eslint .`.
 - `bun run typecheck` runs `tsc --noEmit`.
 - `bun run ci`: runs lint, typecheck, and build in sequence
+
+## Local Verification
+
+- For browser or manual verification, always use the proxied app URL on `http://localhost:3001/ui/...`.
+- Do not use `http://localhost:3000` for normal UI testing. Port `3000` is the underlying Next.js server, while the user-facing local app is `:3001/ui`.
