@@ -188,7 +188,7 @@ export default function DevicesPage() {
             disabled={isSaving}
             onClick={toggleYamlEditor}
           >
-            {showYamlEditor ? 'Back to editor' : 'Edit YAML'}
+{showYamlEditor ? 'Back to form' : 'Edit YAML'}
           </Button>
         }
       />
