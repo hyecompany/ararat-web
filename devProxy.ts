@@ -12,13 +12,14 @@ type ListenerMode = 'auto' | 'http' | 'https';
 
 const TLS_CERT_PATH = './server.crt';
 const TLS_KEY_PATH = './server.key';
+const API_TARGET = process.env.DEV_PROXY_API_TARGET ?? 'https://localhost:8443';
 const UPSTREAM_CLIENT_PFX_ENABLED = process.env.DEV_PROXY_UPSTREAM_CLIENT_PFX === '1';
 const UPSTREAM_CLIENT_PFX_PATH = process.env.DEV_PROXY_UPSTREAM_CLIENT_PFX_PATH ?? './ararat.pfx';
 const UPSTREAM_CLIENT_PFX_PASSPHRASE = process.env.DEV_PROXY_UPSTREAM_CLIENT_PFX_PASSPHRASE ?? '';
 const LISTENER_MODE = parseListenerMode(process.env.DEV_PROXY_LISTENER_MODE);
 
-const API_HTTP_TARGET = 'https://localhost:8443';
-const API_WS_TARGET = 'wss://localhost:8443';
+const API_HTTP_TARGET = getHttpTargetUrl(API_TARGET).toString();
+const API_WS_TARGET = getWsTargetUrl(API_TARGET).toString();
 
 const APP_HTTP_TARGET = 'http://localhost:3000';
 const APP_WS_TARGET = 'ws://localhost:3000';
@@ -65,6 +66,21 @@ function isSelfSignedDevApiTarget(url: URL): boolean {
     url.hostname === 'localhost' &&
     url.port === '8443'
   );
+}
+
+function getHttpTargetUrl(value: string): URL {
+  return parseTargetUrl(value, 'https:');
+}
+
+function getWsTargetUrl(value: string): URL {
+  const httpTarget = getHttpTargetUrl(value);
+  const wsProtocol = httpTarget.protocol === 'https:' ? 'wss:' : 'ws:';
+  return new URL(`${wsProtocol}//${httpTarget.host}`);
+}
+
+function parseTargetUrl(value: string, defaultProtocol: 'http:' | 'https:'): URL {
+  const hasProtocol = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(value);
+  return new URL(hasProtocol ? value : `${defaultProtocol}//${value}`);
 }
 
 function parsePfxToTlsMaterial(
