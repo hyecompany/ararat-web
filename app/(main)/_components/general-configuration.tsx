@@ -57,6 +57,7 @@ interface GeneralConfigurationProps {
   instanceType?: 'virtual-machine' | 'container';
   configTarget?: 'instance' | 'project';
   projectMode?: 'create' | 'edit';
+  className?: string;
 }
 
 type ConfigCategory = {
@@ -680,6 +681,7 @@ export default function GeneralConfiguration({
   instanceType = 'container',
   configTarget = 'instance',
   projectMode = 'create',
+  className,
 }: GeneralConfigurationProps) {
   const { resolvedTheme } = useTheme();
   const { data: configurableOptions } = useConfigurableOptions();
@@ -2035,7 +2037,7 @@ export default function GeneralConfiguration({
       }
       sidebarSize={25}
       contentSize={75}
-      className="h-full min-h-0 overflow-hidden"
+      className={cn('h-full min-h-0 overflow-hidden', className)}
     >
       <div className="flex h-full min-h-0 overflow-hidden flex-col">
         <div className="flex h-[57px] items-center border-b p-4">

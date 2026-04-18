@@ -15,9 +15,15 @@ approval_mode = "approve"
 [mcp_servers.next-devtools.tools.nextjs_index]
 approval_mode = "approve"
 
+[mcp_servers.next-devtools.tools.browser_eval]
+approval_mode = "approve"
+
 [mcp_servers.shadcn]
 command = "npx"
 args = ["shadcn@latest", "mcp"]
+
+[mcp_servers.shadcn.tools.get_audit_checklist]
+approval_mode = "approve"
 
 [sandbox_workspace_write]
 network_access = true

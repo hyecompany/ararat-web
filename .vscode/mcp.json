@@ -1,0 +1,21 @@
+{
+	"servers": {
+		"next-devtools": {
+			"type": "stdio",
+			"command": "npx",
+			"args": [
+				"-y",
+				"next-devtools-mcp@latest"
+			]
+		},
+        "shadcn": {
+            "type": "stdio",
+            "command": "npx",
+            "args": [
+                "shadcn@latest",
+                "mcp"
+            ]
+        }
+	},
+	"inputs": []
+}
