@@ -92,6 +92,8 @@ export function useTerminal() {
       };
 
       sock.onclose = () => {
+        socketAttachedRef.current = false;
+        socketAttachingRef.current = false;
         try {
           term.writeln("[console] Connection closed. Click 'Retry attach' to reconnect.");
         } catch (err) {
