@@ -64,13 +64,14 @@ export function useTerminal() {
 
       sock.onmessage = async (ev: MessageEvent) => {
         try {
-          const text =
-            typeof ev.data === 'string'
-              ? ev.data
-              : ev.data instanceof Blob
-                ? await ev.data.text()
-                : null;
-          if (text !== null) term.write(text);
+          if (typeof ev.data === 'string') {
+            term.write(ev.data);
+          } else if (ev.data instanceof Blob) {
+            const buffer = await ev.data.arrayBuffer();
+            term.write(new Uint8Array(buffer));
+          } else if (ev.data instanceof ArrayBuffer) {
+            term.write(new Uint8Array(ev.data));
+          }
         } catch (err) {
           try {
             term.writeln("\r\n[console] Failed to process incoming console output.");
