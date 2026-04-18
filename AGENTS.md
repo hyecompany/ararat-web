@@ -26,3 +26,9 @@ Route files, layouts, contexts, hooks, and feature modules live in `app/`; group
 
 - For browser or manual verification, always use the proxied app URL on `http://localhost:3001/ui/...`.
 - Do not use `http://localhost:3000` for normal UI testing. Port `3000` is the underlying Next.js server, while the user-facing local app is `:3001/ui`.
+
+## Toast Policy
+
+- Do not call `toast.*` directly from UI code (pages, components, hooks, or libs).
+- The only allowed place to emit toast notifications is the event handler in `app/_context/events.tsx`.
+- UI flows may set local state for inline rendering (e.g., alerts), but must not emit manual toast notifications.

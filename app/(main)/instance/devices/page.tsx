@@ -2,7 +2,6 @@
 
 import * as React from 'react';
 import stableStringify from 'fast-json-stable-stringify';
-import { toast } from 'sonner';
 
 import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
 import { Button } from 'ui-web/components/button';
@@ -129,7 +128,6 @@ export default function DevicesPage() {
       await mutate();
 
       lastSyncedSnapshotRef.current = stableStringify(draftDevices);
-      toast.success('Instance devices updated');
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
         return;
@@ -140,7 +138,6 @@ export default function DevicesPage() {
           ? error.message
           : 'Unable to update instance devices.';
       setSaveError(message);
-      toast.error(message);
     } finally {
       saveAbortControllerRef.current = null;
       setIsSaving(false);

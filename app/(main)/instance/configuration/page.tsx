@@ -2,7 +2,6 @@
 
 import * as React from 'react';
 import stableStringify from 'fast-json-stable-stringify';
-import { toast } from 'sonner';
 
 import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
 import { Button } from 'ui-web/components/button';
@@ -132,7 +131,6 @@ export default function ConfigurationPage() {
       await mutate();
 
       lastSyncedSnapshotRef.current = stableStringify(draftConfig);
-      toast.success('Instance configuration updated');
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
         return;
@@ -143,7 +141,6 @@ export default function ConfigurationPage() {
           ? error.message
           : 'Unable to update instance configuration.';
       setSaveError(message);
-      toast.error(message);
     } finally {
       saveAbortControllerRef.current = null;
       setIsSaving(false);
