@@ -38,7 +38,7 @@ export default function InstanceExec() {
     setIsConnecting(true);
     setError(null);
     try {
-      const args = command.trim().split(/\s+/);
+      const args = command.trim().match(/(".*?"|'.*?'|\S+)/g)?.map(arg => arg.replace(/^[\"']|[\"']$/g, '')) || [];
       const { data, control } = await instanceClass.openExecSocket(args);
 
       // Detect session end. Incus sends a text WebSocket frame (string, not Blob)
