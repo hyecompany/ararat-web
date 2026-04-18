@@ -56,6 +56,7 @@ export interface Device extends Record<string, string> {
 export interface Instance {
   name: string;
   description?: string;
+  ephemeral?: boolean;
   type: 'container' | 'virtual-machine' | string;
   status: string;
   status_code: StatusCode;

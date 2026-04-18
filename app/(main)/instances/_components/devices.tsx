@@ -17,6 +17,8 @@ export interface InstanceDevicesProps {
   onDevicesChange?: (devices: Record<string, Device>) => void;
   /** Instance type for device filtering */
   instanceType?: 'virtual-machine' | 'container';
+  /** Optional class name passed to the shared device manager layout */
+  className?: string;
 }
 
 /**
@@ -28,6 +30,7 @@ export default function InstanceDevices({
   devices = {},
   onDevicesChange,
   instanceType,
+  className,
 }: InstanceDevicesProps) {
   const { data: profilesData, isLoading, error } = useProfiles(profiles);
 
@@ -125,6 +128,7 @@ export default function InstanceDevices({
         devices={effectiveDevices}
         inheritedDevices={inheritedDevices}
         onDevicesChange={onDevicesChange}
+        className={className}
         flags={instanceType ? { type: instanceType } : undefined}
       />
     </div>

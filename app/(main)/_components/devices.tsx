@@ -429,6 +429,7 @@ export interface DevicesProps {
   inheritedDevices?: Record<string, Device>;
   onDevicesChange?: (devices: Record<string, Device>) => void;
   readonly?: boolean;
+  className?: string;
   flags?: {
     type?: 'virtual-machine' | 'container';
   };
@@ -2487,6 +2488,7 @@ export default function Devices({
   inheritedDevices = {},
   onDevicesChange,
   readonly = false,
+  className,
   flags,
 }: DevicesProps) {
   const [selectedType, setSelectedType] = React.useState('disk');
@@ -2766,7 +2768,8 @@ export default function Devices({
         setSelectedType(type);
         setShowDetailPanel(false); // Close detail panel when switching tabs
       }}
-      title="Device Types"
+      title="Devices"
+      className={className}
       detailPanel={
         !readonly && showDetailPanel ? renderDetailForm() : undefined
       }
