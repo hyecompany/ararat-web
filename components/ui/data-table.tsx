@@ -64,9 +64,9 @@ export function DataTableColumnHeader<TData, TValue>({
           <span>{title}</span>
           <ArrowDown
             className={`transition-all duration-100 rotate-0 ${
-              column.getIsSorted() == 'desc'
+              column.getIsSorted() === 'desc'
                 ? ''
-                : column.getIsSorted() == 'asc'
+                : column.getIsSorted() === 'asc'
                   ? 'rotate-180'
                   : 'hidden'
             }`}
