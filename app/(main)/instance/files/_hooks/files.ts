@@ -14,6 +14,7 @@ import {
   deleteFile as apiDeleteFile,
   downloadFile as apiDownloadFile,
   fetchFileContent as apiFetchFileContent,
+  fetchFileBlob as apiFetchFileBlob,
   fetchFileRaw as apiFetchFileRaw,
   saveFileContent as apiSaveFileContent,
   getFileMetadata as apiFetchFileMetadata,
@@ -333,7 +334,7 @@ export function useFiles(instanceName: string, path: string) {
       refresh.add(absPathParent(s.sourcePath));
       refresh.add(dest);
       await moveRemoteFile({
-        fetchFileRaw: (p) => apiFetchFileRaw(instanceName, p),
+        fetchFileBlob: (p) => apiFetchFileBlob(instanceName, p),
         sourcePath: s.sourcePath,
         destParentPath: dest,
         fileName: s.fileName,

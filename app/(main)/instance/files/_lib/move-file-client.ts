@@ -7,13 +7,16 @@ export function supportsBrowserOpfs(): boolean {
   );
 }
 
-export type FetchFileRawFn = (
+export type FetchFileBlobFn = (
   fullPath: string,
-) => Promise<{ buffer: ArrayBuffer; mode?: string }>;
+) => Promise<{ blob: Blob; mode?: string }>;
 
-/** Move remote file: GET bytes → POST upload → DELETE source (in-memory staging only; OPFS was dropped after hangs blocked the upload step). */
+/**
+ * Move remote file: GET body as Blob → POST upload → DELETE source.
+ * Blob staging may reduce peak heap vs ArrayBuffer on some engines; server-side rename is unavailable.
+ */
 export async function moveRemoteFile(opts: {
-  fetchFileRaw: FetchFileRawFn;
+  fetchFileBlob: FetchFileBlobFn;
   sourcePath: string;
   destParentPath: string;
   fileName: string;
@@ -25,10 +28,10 @@ export async function moveRemoteFile(opts: {
   deleteFile: (fullPath: string) => Promise<void>;
   onProgress?: (phase: 'download' | 'upload', percent: number | null) => void;
 }): Promise<void> {
-  const { buffer } = await opts.fetchFileRaw(opts.sourcePath);
+  const { blob } = await opts.fetchFileBlob(opts.sourcePath);
   opts.onProgress?.('download', 100);
 
-  const uploadBody = new File([buffer], opts.fileName, {
+  const uploadBody = new File([blob], opts.fileName, {
     type: 'application/octet-stream',
   });
 

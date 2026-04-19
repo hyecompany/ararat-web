@@ -172,6 +172,28 @@ export async function fetchFileRaw(
   return { buffer, mode };
 }
 
+/** Same GET semantics as fetchFileRaw, but uses Blob (may reduce peak heap vs ArrayBuffer for large files). */
+export async function fetchFileBlob(
+  instanceName: string,
+  filePath: string,
+): Promise<{ blob: Blob; mode?: string }> {
+  const res = await fetch(
+    getApiUrl(
+      `/1.0/instances/${instanceName}/files?path=${encodeURIComponent(filePath)}`,
+    ),
+  );
+  if (!res.ok) {
+    throw new Error(await errorMessageFromResponse(res));
+  }
+  const ct = res.headers.get('Content-Type') || '';
+  if (ct.includes('application/json')) {
+    throw new Error('IS_DIRECTORY');
+  }
+  const blob = await res.blob();
+  const mode = res.headers.get('X-Incus-mode') || undefined;
+  return { blob, mode };
+}
+
 /**
  * For a symlink, GET returns the link target as plain text (same as “file contents” for the path).
  */

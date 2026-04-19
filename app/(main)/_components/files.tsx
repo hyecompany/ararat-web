@@ -1609,9 +1609,13 @@ export function FileBrowser({
                 !(pathJumpOpen || pathJumpZoneHover) && 'opacity-0',
               )}
               onClick={() => {
-                void navigator.clipboard.writeText(
-                  normalizeAbsPath(editingFile ?? currentPath),
-                );
+                const path = normalizeAbsPath(editingFile ?? currentPath);
+                if (
+                  typeof navigator !== 'undefined' &&
+                  navigator.clipboard?.writeText
+                ) {
+                  void navigator.clipboard.writeText(path);
+                }
               }}
             >
               <ClipboardCopy className="size-4" aria-hidden />
