@@ -58,15 +58,15 @@ export function DataTableColumnHeader<TData, TValue>({
           size="sm"
           className="data-[state=open]:bg-accent -ml-3 h-8"
           onClick={() =>
-            column.toggleSorting(column.getIsSorted() === 'asc' ? true : false)
+            column.toggleSorting(column.getIsSorted() === 'asc')
           }
         >
           <span>{title}</span>
           <ArrowDown
             className={`transition-all duration-100 rotate-0 ${
-              column.getIsSorted() == 'desc'
+              column.getIsSorted() === 'desc'
                 ? ''
-                : column.getIsSorted() == 'asc'
+                : column.getIsSorted() === 'asc'
                   ? 'rotate-180'
                   : 'hidden'
             }`}
@@ -314,21 +314,24 @@ export default function DataTable({
             : undefined
         }
       >
-        {row.getVisibleCells().map((cell) => (
-          <TableCell
-            key={cell.id}
-            className="min-w-0"
-            style={{
-              width: cell.column.getSize().toString() + 'px',
-              maxWidth: cell.column.getSize().toString() + 'px',
-            }}
-          >
-            {flexRender(
-              cell.column.columnDef.cell,
-              cell.getContext(),
-            )}
-          </TableCell>
-        ))}
+        {row.getVisibleCells().map((cell) => {
+          const cellSizePx = `${cell.column.getSize()}px`;
+          return (
+            <TableCell
+              key={cell.id}
+              className="min-w-0"
+              style={{
+                width: cellSizePx,
+                maxWidth: cellSizePx,
+              }}
+            >
+              {flexRender(
+                cell.column.columnDef.cell,
+                cell.getContext(),
+              )}
+            </TableCell>
+          );
+        })}
       </TableRow>
     );
     return wrapTableRow ? wrapTableRow(row, rowEl) : rowEl;
@@ -351,12 +354,13 @@ export default function DataTable({
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
+                  const headerSizePx = `${header.getSize()}px`;
                   return (
                     <TableHead
                       className="min-w-0"
                       style={{
-                        width: header.getSize().toString() + 'px',
-                        maxWidth: header.getSize().toString() + 'px',
+                        width: headerSizePx,
+                        maxWidth: headerSizePx,
                       }}
                       key={header.id}
                     >
