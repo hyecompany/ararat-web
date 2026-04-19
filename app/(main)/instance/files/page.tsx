@@ -4,6 +4,7 @@ import React from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useInstanceContext } from '../_context/instance';
 import { useFiles } from './_hooks/files';
+import { getSymlinkResolvedNavTarget } from './_lib/files';
 import { Spinner } from 'ui-web/components/spinner';
 import { FileBrowser } from '../../_components/files';
 import type { Instance } from '../../instances/_lib/instances.d';
@@ -40,6 +41,7 @@ function Files({ instance }: { instance: Instance }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [isRoutePending, startRouteTransition] = React.useTransition();
   const homePath = React.useMemo(() => getInstanceFilesHomePath(instance), [instance]);
   const pathParam = searchParams.get('path');
   const currentPath = React.useMemo(() => {
@@ -48,22 +50,26 @@ function Files({ instance }: { instance: Instance }) {
   }, [pathParam, homePath]);
 
   const handleNavigate = (path: string) => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (path === '/') {
-      params.set('path', '/');
-    } else if (path === homePath && homePath !== '/') {
-      params.delete('path');
-    } else {
-      params.set('path', path);
-    }
+    startRouteTransition(() => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (path === '/') {
+        params.set('path', '/');
+      } else if (path === homePath && homePath !== '/') {
+        params.delete('path');
+      } else {
+        params.set('path', path);
+      }
 
-    const query = params.toString();
-    router.push(query ? `${pathname}?${query}` : pathname);
+      const query = params.toString();
+      router.push(query ? `${pathname}?${query}` : pathname);
+    });
   };
 
   const {
     files,
     isLoading,
+    isListingRevalidating,
+    isMetadataLoading,
     isError,
     uploadFile,
     createEmptyFile,
@@ -78,12 +84,16 @@ function Files({ instance }: { instance: Instance }) {
     listChildDirectories,
     probeInstancePathKind,
     fetchDirectoryEntries,
+    requestMetadataForNames,
   } = useFiles(instance.name, currentPath);
 
   return (
     <FileBrowser
       files={files}
       isLoading={isLoading}
+      isRoutePending={isRoutePending}
+      isListingRevalidating={isListingRevalidating}
+      isMetadataLoading={isMetadataLoading}
       isError={isError}
       homePath={homePath}
       currentPath={currentPath}
@@ -94,6 +104,10 @@ function Files({ instance }: { instance: Instance }) {
       listChildDirectories={listChildDirectories}
       probePathKind={probeInstancePathKind}
       fetchDirectoryEntries={fetchDirectoryEntries}
+      requestMetadataForNames={requestMetadataForNames}
+      resolveSymlinkNavTarget={(path) =>
+        getSymlinkResolvedNavTarget(instance.name, path)
+      }
       onCreateEmptyFile={(name) => createEmptyFile(currentPath, name)}
       onCreateDirectory={(name) => createDirectory(currentPath, name)}
       onDelete={deleteFile}

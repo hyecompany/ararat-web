@@ -1,4 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+  useRef,
+  startTransition,
+} from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 import {
   uploadFile as apiUploadFile,
@@ -72,6 +79,31 @@ function buildFilesCacheKey(instanceName: string, path: string) {
   return `/1.0/instances/${instanceName}/files?path=${encodeURIComponent(path)}`;
 }
 
+/** Bounded parallelism for HEAD/metadata fan-out (large dirs + browser connection limits). */
+const METADATA_FETCH_BATCH = 16;
+
+async function fetchEntryMetadata(
+  instanceName: string,
+  listingParent: string,
+  fileName: string,
+): Promise<FileWithMetadata> {
+  try {
+    const filePath = joinAbsPath(listingParent, fileName);
+    const meta = await apiFetchFileMetadata(instanceName, filePath);
+    const type = meta.type ?? undefined;
+    return {
+      name: fileName,
+      type,
+      size: meta.size ? parseInt(meta.size, 10) : undefined,
+      mode: meta.mode ?? undefined,
+      uid: meta.uid ?? undefined,
+      gid: meta.gid ?? undefined,
+    };
+  } catch {
+    return { name: fileName };
+  }
+}
+
 /** Directory listing + metadata for breadcrumb peek / one-off previews (not SWR-backed). */
 async function fetchDirectoryEntriesForInstance(
   instanceName: string,
@@ -81,24 +113,18 @@ async function fetchDirectoryEntriesForInstance(
   const data = await directoryFetcher(buildFilesCacheKey(instanceName, normalizedPath));
   if (!data?.metadata?.length) return [];
   const names = data.metadata as string[];
-  const entries = await Promise.all(
-    names.map(async (fileName) => {
-      try {
-        const filePath = joinAbsPath(normalizedPath, fileName);
-        const meta = await apiFetchFileMetadata(instanceName, filePath);
-        return {
-          name: fileName,
-          type: meta.type ?? undefined,
-          size: meta.size ? parseInt(meta.size, 10) : undefined,
-          mode: meta.mode ?? undefined,
-          uid: meta.uid ?? undefined,
-          gid: meta.gid ?? undefined,
-        };
-      } catch {
-        return { name: fileName };
-      }
-    }),
-  );
+  const entries: FileWithMetadata[] = names.map((name) => ({ name }));
+  for (let i = 0; i < names.length; i += METADATA_FETCH_BATCH) {
+    const slice = names.slice(i, i + METADATA_FETCH_BATCH);
+    const batch = await Promise.all(
+      slice.map((fileName) =>
+        fetchEntryMetadata(instanceName, normalizedPath, fileName),
+      ),
+    );
+    batch.forEach((row, j) => {
+      entries[i + j] = row;
+    });
+  }
   return entries;
 }
 
@@ -106,55 +132,149 @@ export function useFiles(instanceName: string, path: string) {
   const { mutate } = useSWRConfig();
   // Ensure path starts with /
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  /**
+   * Last path for which a listing GET finished (`!isValidating`). While the next folder
+   * is fetching, SWR can still return the previous listing (`keepPreviousData`); HEAD
+   * requests must use this path, not the in-flight route path.
+   */
+  const settledListingPathRef = useRef(normalizedPath);
 
-  // Fetch file listing
-  const { data, error, isLoading } = useSWR(
+  // Fetch file listing (one GET per folder). HEAD requests for metadata run after, in batches.
+  const {
+    data,
+    error,
+    isLoading: swrIsLoading,
+    isValidating,
+  } = useSWR(
     buildFilesCacheKey(instanceName, normalizedPath),
     directoryFetcher,
+    { keepPreviousData: true },
   );
 
-  const [filesWithMetadata, setFilesWithMetadata] = useState<FileWithMetadata[]>([]);
-  const [isMetadataLoading, setIsMetadataLoading] = useState(false);
+  const hasListingPayload =
+    isDirectoryResponse(data) && Array.isArray(data.metadata);
+
+  /** Full-area spinner only when there is no listing to show yet (cold load / empty cache). */
+  const isListingLoading =
+    !error && !hasListingPayload && (swrIsLoading || isValidating);
+
+  /** Stale listing visible while the next folder's GET is in flight. */
+  const isListingRevalidating = !error && hasListingPayload && isValidating;
+
+  useLayoutEffect(() => {
+    if (!hasListingPayload || error) return;
+    if (!isValidating) {
+      settledListingPathRef.current = normalizedPath;
+    }
+  }, [hasListingPayload, isValidating, normalizedPath, error]);
+
+  const [filesWithMetadata, setFilesWithMetadata] = useState<FileWithMetadata[]>(
+    [],
+  );
+
+  /** Bumped whenever the listing payload / directory changes so stale HEAD batches drop. */
+  const listingGenerationRef = useRef(0);
+  const nameToIndexRef = useRef<Map<string, number>>(new Map());
+  /** Parent path used for HEAD requests (matches skeleton listing). */
+  const metadataParentDirRef = useRef('');
+  const loadedMetadataNamesRef = useRef<Set<string>>(new Set());
+  const inFlightMetadataNamesRef = useRef<Set<string>>(new Set());
+  /** Last merged listing fingerprint; unchanged SWR revalidation must not wipe HEAD metadata. */
+  const listingSignatureRef = useRef<string>('');
+
+  const requestMetadataForNames = useCallback(
+    (rawNames: string[]) => {
+      if (rawNames.length === 0) return;
+      const generation = listingGenerationRef.current;
+      const parent = metadataParentDirRef.current;
+
+      const toFetch: string[] = [];
+      for (let i = 0; i < rawNames.length; i++) {
+        const n = rawNames[i];
+        if (!nameToIndexRef.current.has(n)) continue;
+        if (loadedMetadataNamesRef.current.has(n)) continue;
+        if (inFlightMetadataNamesRef.current.has(n)) continue;
+        inFlightMetadataNamesRef.current.add(n);
+        toFetch.push(n);
+      }
+      if (toFetch.length === 0) return;
+
+      void (async () => {
+        for (let i = 0; i < toFetch.length; i += METADATA_FETCH_BATCH) {
+          const slice = toFetch.slice(i, i + METADATA_FETCH_BATCH);
+          const batch = await Promise.all(
+            slice.map((fileName) =>
+              fetchEntryMetadata(instanceName, parent, fileName),
+            ),
+          );
+          batch.forEach((row) =>
+            inFlightMetadataNamesRef.current.delete(row.name),
+          );
+          if (generation !== listingGenerationRef.current) return;
+          batch.forEach((row) =>
+            loadedMetadataNamesRef.current.add(row.name),
+          );
+          startTransition(() => {
+            if (generation !== listingGenerationRef.current) return;
+            setFilesWithMetadata((prev) => {
+              const next = [...prev];
+              for (const row of batch) {
+                const j = nameToIndexRef.current.get(row.name);
+                if (j !== undefined) next[j] = row;
+              }
+              return next;
+            });
+          });
+        }
+      })();
+    },
+    [instanceName],
+  );
 
   useEffect(() => {
-    if (!data?.metadata || !Array.isArray(data.metadata)) {
+    if (error) {
       setFilesWithMetadata([]);
+      listingSignatureRef.current = '';
       return;
     }
 
-    const fetchMetadata = async () => {
-      setIsMetadataLoading(true);
-      try {
-        const files = data.metadata as string[];
-        const metadataPromises = files.map(async (fileName) => {
-          try {
-            const filePath = joinAbsPath(normalizedPath, fileName);
-            const meta = await apiFetchFileMetadata(instanceName, filePath);
-            return {
-              name: fileName,
-              type: meta.type ?? undefined,
-              size: meta.size ? parseInt(meta.size, 10) : undefined,
-              mode: meta.mode ?? undefined,
-              uid: meta.uid ?? undefined,
-              gid: meta.gid ?? undefined,
-            };
-          } catch (e) {
-            console.error(`Failed to fetch metadata for ${fileName}`, e);
-            return { name: fileName };
-          }
-        });
+    if (!data?.metadata || !Array.isArray(data.metadata)) {
+      setFilesWithMetadata([]);
+      listingSignatureRef.current = '';
+      return;
+    }
 
-        const results = await Promise.all(metadataPromises);
-        setFilesWithMetadata(results);
-      } catch (e) {
-        console.error('Error fetching metadata', e);
-      } finally {
-        setIsMetadataLoading(false);
-      }
-    };
+    const names = data.metadata as string[];
+    const listingSignature = `${normalizedPath}\n${names.join('\n')}`;
+    if (listingSignatureRef.current === listingSignature) {
+      const parentDirForMetadata = !isValidating
+        ? normalizedPath
+        : settledListingPathRef.current;
+      metadataParentDirRef.current = parentDirForMetadata;
+      return;
+    }
 
-    fetchMetadata();
-  }, [data, instanceName, normalizedPath]);
+    listingSignatureRef.current = listingSignature;
+
+    listingGenerationRef.current += 1;
+    loadedMetadataNamesRef.current = new Set();
+    inFlightMetadataNamesRef.current = new Set();
+
+    const parentDirForMetadata = !isValidating
+      ? normalizedPath
+      : settledListingPathRef.current;
+    metadataParentDirRef.current = parentDirForMetadata;
+
+    const idx = new Map<string, number>();
+    names.forEach((n, i) => idx.set(n, i));
+    nameToIndexRef.current = idx;
+
+    setFilesWithMetadata(names.map((n) => ({ name: n })));
+
+    queueMicrotask(() => {
+      requestMetadataForNames(names.slice(0, 128));
+    });
+  }, [data, error, isValidating, normalizedPath, requestMetadataForNames]);
 
   const uploadFile = async (
     currentPath: string,
@@ -260,7 +380,9 @@ export function useFiles(instanceName: string, path: string) {
 
   return {
     files: filesWithMetadata,
-    isLoading: isLoading || (isMetadataLoading && filesWithMetadata.length === 0),
+    isLoading: isListingLoading,
+    isListingRevalidating,
+    isMetadataLoading: false,
     isError: error,
     uploadFile,
     createEmptyFile,
@@ -275,5 +397,6 @@ export function useFiles(instanceName: string, path: string) {
     listChildDirectories,
     probeInstancePathKind,
     fetchDirectoryEntries,
+    requestMetadataForNames,
   };
 }

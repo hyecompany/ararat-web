@@ -67,6 +67,9 @@ import {
   ArrowRightLeft,
   AlertTriangle,
   PenLine,
+  ClipboardCopy,
+  Link2,
+  Loader2,
 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
 import Editor from '@monaco-editor/react';
@@ -98,6 +101,12 @@ import { cn } from 'ui-web/lib/utils';
 interface FileBrowserProps {
   files: (string | FileItem)[];
   isLoading: boolean;
+  /** Next.js router transition (URL not committed yet); show immediate toolbar feedback on navigate. */
+  isRoutePending?: boolean;
+  /** SWR is refetching the folder listing while showing the previous listing (`keepPreviousData`). */
+  isListingRevalidating?: boolean;
+  /** True while per-file HEAD metadata (size/type) is still being merged for the current listing. */
+  isMetadataLoading?: boolean;
   isError: any;
   homePath?: string;
   currentPath: string;
@@ -131,6 +140,12 @@ interface FileBrowserProps {
     absPath: string,
   ) => Promise<'directory' | 'file' | 'missing'>;
   fetchDirectoryEntries: (dirPath: string) => Promise<FileItem[]>;
+  /** HEAD fetch size/type only for names the table viewport needs (large directories). */
+  requestMetadataForNames?: (names: string[]) => void;
+  /** Resolve symlink GET body to a navigation target (instance files API). */
+  resolveSymlinkNavTarget?: (
+    linkFullPath: string,
+  ) => Promise<{ directoryPath: string; fileBasename?: string }>;
 }
 
 export interface FileItem {
@@ -261,6 +276,28 @@ function usePathEntryAutocompleteOptions(
   }, [rawEntries, value, listingParent]);
 
   return { options, loading };
+}
+
+function FileDetailFade({
+  show,
+  children,
+  className,
+}: {
+  show: boolean;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        'inline-block transition-opacity duration-500 ease-out',
+        show ? 'opacity-100' : 'opacity-0',
+        className,
+      )}
+    >
+      {children}
+    </span>
+  );
 }
 
 function formatBytes(value?: number) {
@@ -416,10 +453,25 @@ function monacoLanguageForPath(filePath: string): string {
 function FileEntryIcon({
   name,
   isDirectory,
+  isSymlink,
+  pending,
 }: {
   name: string;
   isDirectory: boolean;
+  isSymlink?: boolean;
+  /** HEAD row not merged yet — show a neutral loading glyph, not a folder heuristic. */
+  pending?: boolean;
 }) {
+  if (pending) {
+    return (
+      <Loader2 className="text-muted-foreground size-4 shrink-0 animate-spin" />
+    );
+  }
+  if (isSymlink) {
+    return (
+      <Link2 className="text-muted-foreground group-hover:text-foreground size-4 shrink-0" />
+    );
+  }
   if (isDirectory) {
     return <FolderIcon className="text-primary size-4 shrink-0" />;
   }
@@ -498,7 +550,7 @@ function TransferAlert({
   );
 }
 
-function BreadcrumbDirPeek({
+const BreadcrumbDirPeek = React.memo(function BreadcrumbDirPeek({
   dirPath,
   depth = 0,
   fetchDirectoryEntries,
@@ -575,7 +627,12 @@ function BreadcrumbDirPeek({
                 className="hover:bg-muted flex min-w-0 flex-1 items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm"
                 onClick={() => onActivate(item, item.name, dirPath)}
               >
-                <FileEntryIcon name={item.name} isDirectory={isDir} />
+                <FileEntryIcon
+                  name={item.name}
+                  pending={item.type === undefined}
+                  isDirectory={isDir}
+                  isSymlink={item.type?.toLowerCase() === 'symlink'}
+                />
                 <span className="truncate">{item.name}</span>
               </button>
               {isDir ? (
@@ -618,11 +675,14 @@ function BreadcrumbDirPeek({
       })}
     </ul>
   );
-}
+});
 
 export function FileBrowser({
   files,
   isLoading,
+  isRoutePending = false,
+  isListingRevalidating = false,
+  isMetadataLoading = false,
   isError,
   homePath = '/',
   currentPath,
@@ -640,6 +700,8 @@ export function FileBrowser({
   listChildDirectories,
   probePathKind,
   fetchDirectoryEntries,
+  requestMetadataForNames,
+  resolveSymlinkNavTarget,
 }: FileBrowserProps) {
   const [actionError, setActionError] = React.useState<string | null>(null);
   const [isCreateDirOpen, setIsCreateDirOpen] = React.useState(false);
@@ -696,6 +758,31 @@ export function FileBrowser({
     [currentPath],
   );
 
+  /** Short-lived cache so breadcrumb hover cards don’t refetch the same folder repeatedly. */
+  const peekListingCacheRef = React.useRef(
+    new Map<string, { at: number; entries: FileItem[] }>(),
+  );
+  const PEEK_LISTING_TTL_MS = 45_000;
+
+  React.useEffect(() => {
+    peekListingCacheRef.current.clear();
+  }, [currentPath]);
+
+  const fetchPeekDirectoryEntries = React.useCallback(
+    async (dirPath: string) => {
+      const key = normalizedPathKey(dirPath);
+      const hit = peekListingCacheRef.current.get(key);
+      const now = Date.now();
+      if (hit && now - hit.at < PEEK_LISTING_TTL_MS) {
+        return hit.entries;
+      }
+      const entries = await fetchDirectoryEntries(dirPath);
+      peekListingCacheRef.current.set(key, { at: now, entries });
+      return entries;
+    },
+    [fetchDirectoryEntries],
+  );
+
   const { options: moveDestLiveOptions, loading: moveDestListingLoading } =
     useDirectoryPathOptions(
       moveDestPath,
@@ -706,7 +793,7 @@ export function FileBrowser({
   const { options: pathJumpLiveOptions } = usePathEntryAutocompleteOptions(
     pathJumpValue,
     pathJumpOpen,
-    fetchDirectoryEntries,
+    fetchPeekDirectoryEntries,
   );
 
   const moveSubmitBlocked =
@@ -728,6 +815,17 @@ export function FileBrowser({
       return f as FileItem;
     });
   }, [files]);
+
+  const onVirtualVisibleFileRows = React.useCallback(
+    (visibleRows: Row<object>[]) => {
+      requestMetadataForNames?.(
+        visibleRows
+          .map((r) => (r.original as FileItem).name)
+          .filter((n) => n.length > 0),
+      );
+    },
+    [requestMetadataForNames],
+  );
 
   const isDirty = editingFile !== null && fileContent !== syncedContent;
 
@@ -773,9 +871,14 @@ export function FileBrowser({
 
   const rowIsDirectory = (item: FileItem) => {
     if (item.type === 'directory') return true;
-    if (item.type === 'file' || item.type === 'symlink') return false;
+    if (item.type === 'symlink') return false;
+    if (item.type === 'file') return false;
     return !item.name.includes('.');
   };
+
+  /** Breadcrumb peek treats symlinks as navigable containers (listing follows the link). */
+  const rowIsTreeFolder = (item: FileItem) =>
+    rowIsDirectory(item) || item.type?.toLowerCase() === 'symlink';
 
   const handleOpenEntry = async (
     item: FileItem,
@@ -784,6 +887,25 @@ export function FileBrowser({
   ) => {
     const fullPath = joinAbsPath(entryParentPath, fileName);
     setActionError(null);
+
+    if (
+      item.type?.toLowerCase() === 'symlink' &&
+      resolveSymlinkNavTarget
+    ) {
+      try {
+        const nav = await resolveSymlinkNavTarget(fullPath);
+        navigateOrDiscard(nav.directoryPath);
+        if (nav.fileBasename) {
+          pendingJumpOpen.current = {
+            targetPath: joinAbsPath(nav.directoryPath, nav.fileBasename),
+          };
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        setActionError(message);
+      }
+      return;
+    }
 
     if (rowIsDirectory(item)) {
       navigateOrDiscard(fullPath);
@@ -804,6 +926,13 @@ export function FileBrowser({
         `This file is about ${formatBytes(item.size)}. Load it in the editor?`,
       );
       if (!ok) return;
+    }
+
+    const fileParentDir = absPathParent(fullPath);
+    if (
+      normalizedPathKey(fileParentDir) !== normalizedPathKey(currentPath)
+    ) {
+      onNavigate(fileParentDir);
     }
 
     setEditingFile(fullPath);
@@ -860,8 +989,10 @@ export function FileBrowser({
   }, [currentPath, editingFile]);
 
   React.useEffect(() => {
-    if (!pathJumpOpen) setPathJumpValue(currentPath);
-  }, [currentPath, pathJumpOpen]);
+    if (pathJumpOpen) return;
+    const dir = editingFile ? absPathParent(editingFile) : currentPath;
+    setPathJumpValue(normalizeAbsPath(dir));
+  }, [currentPath, editingFile, pathJumpOpen]);
 
   React.useEffect(() => {
     if (!pathJumpOpen) return;
@@ -892,12 +1023,16 @@ export function FileBrowser({
       }
       if (t.isContentEditable) return;
       e.preventDefault();
-      setPathJumpValue(currentPath);
+      setPathJumpValue(
+        normalizeAbsPath(
+          editingFile ? absPathParent(editingFile) : currentPath,
+        ),
+      );
       setPathJumpOpen(true);
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [currentPath]);
+  }, [currentPath, editingFile]);
 
   const requestDeletePaths = React.useCallback((paths: string[]) => {
     if (!paths.length) return;
@@ -986,11 +1121,18 @@ export function FileBrowser({
       cell: ({ row }) => {
         const item = row.original;
         const name = item.name;
+        const pendingMeta = item.type === undefined;
+        const isSymlink = item.type?.toLowerCase() === 'symlink';
         const isDirectory = rowIsDirectory(item);
 
         return (
           <div className="flex items-center gap-2">
-            <FileEntryIcon name={name} isDirectory={isDirectory} />
+            <FileEntryIcon
+              name={name}
+              pending={pendingMeta}
+              isDirectory={isDirectory}
+              isSymlink={isSymlink}
+            />
             <span
               className="cursor-pointer font-medium hover:underline"
               onClick={() => openRow(item)}
@@ -1005,20 +1147,63 @@ export function FileBrowser({
       id: 'size',
       header: 'Size',
       cell: ({ row }) => {
-        if (row.original.type === 'directory') return '—';
-        return formatBytes(row.original.size);
+        const item = row.original;
+        if (item.type === undefined) {
+          return (
+            <Spinner
+              className="text-muted-foreground size-4"
+              aria-label="Loading size"
+            />
+          );
+        }
+        const kind = item.type.toLowerCase();
+        if (kind === 'directory') {
+          return (
+            <span className="text-muted-foreground">
+              <FileDetailFade show>—</FileDetailFade>
+            </span>
+          );
+        }
+        if (typeof item.size !== 'number') {
+          return (
+            <Spinner
+              className="text-muted-foreground size-4"
+              aria-label="Loading size"
+            />
+          );
+        }
+        return (
+          <span className="tabular-nums">{formatBytes(item.size)}</span>
+        );
       },
     },
     {
       id: 'type',
       header: 'Type',
       cell: ({ row }) => {
-        const name = row.original.name;
-        const type = row.original.type?.toLowerCase();
-        if (type === 'directory') return 'Directory';
-        if (type === 'symlink') return 'Symlink';
-        if (type === 'file') return 'File';
-        return !name.includes('.') ? 'Directory' : 'File';
+        const item = row.original;
+        const type = item.type?.toLowerCase();
+        if (type === undefined) {
+          return (
+            <Spinner
+              className="text-muted-foreground size-4"
+              aria-label="Loading type"
+            />
+          );
+        }
+        const label =
+          type === 'directory'
+            ? 'Directory'
+            : type === 'symlink'
+              ? 'Symlink'
+              : type === 'file'
+                ? 'File'
+                : item.type ?? '—';
+        return (
+          <FileDetailFade show>
+            <span>{label}</span>
+          </FileDetailFade>
+        );
       },
     },
     {
@@ -1028,6 +1213,7 @@ export function FileBrowser({
         const item = row.original;
         const name = item.name;
         const isDirectory = rowIsDirectory(item);
+        const isSymlink = item.type?.toLowerCase() === 'symlink';
         const fullPath = joinAbsPath(currentPath, name);
 
         return (
@@ -1041,7 +1227,7 @@ export function FileBrowser({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                {!isDirectory && (
+                {!isDirectory && !isSymlink && (
                   <DropdownMenuItem
                     onClick={() => void handleOpenEntry(item, name)}
                   >
@@ -1056,14 +1242,14 @@ export function FileBrowser({
                 <DropdownMenuItem
                   onClick={() =>
                     isDirectory
-                      ? onNavigate(fullPath)
+                      ? navigateOrDiscard(fullPath)
                       : void handleOpenEntry(item, name)
                   }
                 >
                   <FolderIcon className="mr-2 h-4 w-4" />
                   Open
                 </DropdownMenuItem>
-                {!isDirectory ? (
+                {!isDirectory && !isSymlink ? (
                   <>
                     <DropdownMenuItem
                       onClick={() => {
@@ -1268,8 +1454,8 @@ export function FileBrowser({
               <HoverCardContent align="start" className="w-72 p-2" side="bottom">
                 <BreadcrumbDirPeek
                   dirPath={homePath}
-                  fetchDirectoryEntries={fetchDirectoryEntries}
-                  rowIsDirectory={rowIsDirectory}
+                  fetchDirectoryEntries={fetchPeekDirectoryEntries}
+                  rowIsDirectory={rowIsTreeFolder}
                   onActivate={(item, name, parent) =>
                     void handleOpenEntry(item, name, parent)
                   }
@@ -1290,7 +1476,7 @@ export function FileBrowser({
                       <HoverCardTrigger asChild>
                         <BreadcrumbLink
                           onClick={() => navigateOrDiscard('/')}
-                          className="cursor-pointer"
+                          className="cursor-pointer select-none"
                         >
                           /
                         </BreadcrumbLink>
@@ -1298,8 +1484,8 @@ export function FileBrowser({
                       <HoverCardContent align="start" className="w-72 p-2" side="bottom">
                         <BreadcrumbDirPeek
                           dirPath="/"
-                          fetchDirectoryEntries={fetchDirectoryEntries}
-                          rowIsDirectory={rowIsDirectory}
+                          fetchDirectoryEntries={fetchPeekDirectoryEntries}
+                          rowIsDirectory={rowIsTreeFolder}
                           onActivate={(item, name, parent) =>
                             void handleOpenEntry(item, name, parent)
                           }
@@ -1309,7 +1495,7 @@ export function FileBrowser({
                   ) : (
                     <BreadcrumbLink
                       onClick={() => navigateOrDiscard('/')}
-                      className="cursor-pointer"
+                      className="cursor-pointer select-none"
                     >
                       /
                     </BreadcrumbLink>
@@ -1328,7 +1514,7 @@ export function FileBrowser({
                           <HoverCardTrigger asChild>
                             <BreadcrumbLink
                               onClick={() => navigateOrDiscard(crumb.path)}
-                              className="cursor-pointer"
+                              className="cursor-pointer select-none"
                             >
                               {crumb.name}
                             </BreadcrumbLink>
@@ -1340,8 +1526,8 @@ export function FileBrowser({
                           >
                             <BreadcrumbDirPeek
                               dirPath={crumb.path}
-                              fetchDirectoryEntries={fetchDirectoryEntries}
-                              rowIsDirectory={rowIsDirectory}
+                              fetchDirectoryEntries={fetchPeekDirectoryEntries}
+                              rowIsDirectory={rowIsTreeFolder}
                               onActivate={(item, name, parent) =>
                                 void handleOpenEntry(item, name, parent)
                               }
@@ -1351,7 +1537,7 @@ export function FileBrowser({
                       ) : (
                         <BreadcrumbLink
                           onClick={() => navigateOrDiscard(crumb.path)}
-                          className="cursor-pointer"
+                          className="cursor-pointer select-none"
                         >
                           {crumb.name}
                         </BreadcrumbLink>
@@ -1365,7 +1551,13 @@ export function FileBrowser({
               open={pathJumpOpen}
               onOpenChange={(open) => {
                 setPathJumpOpen(open);
-                if (open) setPathJumpValue(currentPath);
+                if (open) {
+                  setPathJumpValue(
+                    normalizeAbsPath(
+                      editingFile ? absPathParent(editingFile) : currentPath,
+                    ),
+                  );
+                }
               }}
             >
               <PopoverTrigger asChild>
@@ -1409,6 +1601,38 @@ export function FileBrowser({
               </div>
             </PopoverContent>
           </Popover>
+            <button
+              type="button"
+              title="Copy path"
+              className={cn(
+                'text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex size-9 shrink-0 items-center justify-center rounded-md transition-[color,opacity] select-none hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
+                !(pathJumpOpen || pathJumpZoneHover) && 'opacity-0',
+              )}
+              onClick={() => {
+                void navigator.clipboard.writeText(
+                  normalizeAbsPath(editingFile ?? currentPath),
+                );
+              }}
+            >
+              <ClipboardCopy className="size-4" aria-hidden />
+              <span className="sr-only">Copy path</span>
+            </button>
+            {(isRoutePending ||
+              isListingRevalidating ||
+              isMetadataLoading) && (
+              <span className="text-muted-foreground ml-1 flex min-w-0 max-w-[min(100%,14rem)] items-center gap-1.5 text-xs shrink-0 sm:max-w-[20rem]">
+                <Spinner className="size-3.5 shrink-0" />
+                <span className="truncate">
+                  {[
+                    isRoutePending ? 'Navigating' : null,
+                    isListingRevalidating ? 'Updating listing' : null,
+                    isMetadataLoading ? 'Loading details' : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </span>
+              </span>
+            )}
           </div>
         </div>
 
@@ -1759,23 +1983,34 @@ export function FileBrowser({
                 <AlertDescription>Failed to load files.</AlertDescription>
               </Alert>
             ) : (
+              <>
               <DataTable
                 key={currentPath}
+                className={cn(
+                  isListingRevalidating && 'animate-pulse duration-1000',
+                )}
                 data={fileData}
                 cols={columns as ColumnDef<object, unknown>[]}
                 enableSelection
                 onSelectionChange={(rows) => setSelectedRows(rows)}
+                virtualizeRows={Boolean(requestMetadataForNames)}
+                onVirtualVisibleRowsChange={
+                  requestMetadataForNames
+                    ? onVirtualVisibleFileRows
+                    : undefined
+                }
                 wrapTableRow={(row, rowEl) => {
                   const item = row.original as FileItem;
                   const name = item.name;
                   const isDirectory = rowIsDirectory(item);
+                  const isSymlink = item.type?.toLowerCase() === 'symlink';
                   const fullPath = joinAbsPath(currentPath, name);
 
                   return (
                     <ContextMenu>
                       <ContextMenuTrigger asChild>{rowEl}</ContextMenuTrigger>
                       <ContextMenuContent>
-                        {!isDirectory && (
+                        {!isDirectory && !isSymlink && (
                           <ContextMenuItem
                             onClick={() => void handleOpenEntry(item, name)}
                           >
@@ -1790,14 +2025,14 @@ export function FileBrowser({
                         <ContextMenuItem
                           onClick={() =>
                             isDirectory
-                              ? onNavigate(fullPath)
+                              ? navigateOrDiscard(fullPath)
                               : void handleOpenEntry(item, name)
                           }
                         >
                           <FolderIcon className="mr-2 h-4 w-4" />
                           Open
                         </ContextMenuItem>
-                        {!isDirectory ? (
+                        {!isDirectory && !isSymlink ? (
                           <>
                             <ContextMenuItem
                               onClick={() => {
@@ -1830,6 +2065,7 @@ export function FileBrowser({
                 }}
                 disablePagination
               />
+              </>
             )}
           </>
         )}

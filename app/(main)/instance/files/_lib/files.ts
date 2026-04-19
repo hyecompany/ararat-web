@@ -1,4 +1,10 @@
-import { joinAbsPath, normalizeAbsPath } from '../../../_lib/files/path';
+import {
+  basenameAbsPath,
+  joinAbsPath,
+  normalizeAbsPath,
+  resolveSymlinkTarget,
+  absPathParent,
+} from '../../../_lib/files/path';
 import { errorMessageFromResponse } from '../../_lib/incus-fetch-error';
 
 export function getApiUrl(path: string) {
@@ -167,6 +173,65 @@ export async function fetchFileRaw(
   return { buffer, mode };
 }
 
+/**
+ * For a symlink, GET returns the link target as plain text (same as “file contents” for the path).
+ */
+export async function fetchSymlinkTargetRawPath(
+  instanceName: string,
+  absPath: string,
+): Promise<string | null> {
+  const p = normalizeAbsPath(absPath);
+  const res = await fetch(
+    getApiUrl(
+      `/1.0/instances/${instanceName}/files?path=${encodeURIComponent(p)}`,
+    ),
+  );
+  if (!res.ok) return null;
+  const ct = (res.headers.get('Content-Type') || '').toLowerCase();
+  if (ct.includes('application/json')) return null;
+  const text = await res.text();
+  const line = text.replace(/\r\n/g, '\n').split('\n')[0]?.trim() ?? '';
+  return line || null;
+}
+
+const SYMLINK_PROBE_MAX_DEPTH = 12;
+
+/** Where to navigate after opening a symlink row: list this directory, optionally then open this file. */
+export async function getSymlinkResolvedNavTarget(
+  instanceName: string,
+  linkAbsPath: string,
+  depth = 0,
+): Promise<{ directoryPath: string; fileBasename?: string }> {
+  if (depth > SYMLINK_PROBE_MAX_DEPTH) {
+    return { directoryPath: normalizeAbsPath(linkAbsPath) };
+  }
+  const raw = await fetchSymlinkTargetRawPath(instanceName, linkAbsPath);
+  if (!raw) {
+    return { directoryPath: normalizeAbsPath(linkAbsPath) };
+  }
+  const resolved = resolveSymlinkTarget(linkAbsPath, raw);
+  let meta;
+  try {
+    meta = await getFileMetadata(instanceName, resolved);
+  } catch {
+    return { directoryPath: resolved };
+  }
+  const t = (meta.type ?? '').toLowerCase();
+  if (t === 'directory') {
+    return { directoryPath: resolved };
+  }
+  if (t === 'symlink') {
+    return getSymlinkResolvedNavTarget(instanceName, resolved, depth + 1);
+  }
+  if (t === 'file') {
+    return {
+      directoryPath: absPathParent(resolved),
+      fileBasename: basenameAbsPath(resolved),
+    };
+  }
+  return { directoryPath: resolved };
+}
+
 export async function saveFileContent(
   instanceName: string,
   filePath: string,
@@ -261,6 +326,9 @@ function parseSyncDirectoryListing(text: string): string[] | null {
   return null;
 }
 
+/** Parallelism for HEAD fan-out when classifying listing entries as directories. */
+const DIRECTORY_HEAD_BATCH = 16;
+
 /** Immediate child directories of `parentDir` (HEAD each entry). */
 export async function listChildDirectoryPaths(
   instanceName: string,
@@ -275,15 +343,24 @@ export async function listChildDirectoryPaths(
   const names = parseSyncDirectoryListing(await res.text());
   if (!names?.length) return [];
   const out: string[] = [];
-  for (const name of names) {
-    const full = joinAbsPath(parent, name);
-    try {
-      const meta = await getFileMetadata(instanceName, full);
-      if ((meta.type ?? '').toLowerCase() === 'directory') {
-        out.push(full);
-      }
-    } catch {
-      /* skip */
+  for (let i = 0; i < names.length; i += DIRECTORY_HEAD_BATCH) {
+    const slice = names.slice(i, i + DIRECTORY_HEAD_BATCH);
+    const flags = await Promise.all(
+      slice.map(async (name) => {
+        const full = joinAbsPath(parent, name);
+        try {
+          const meta = await getFileMetadata(instanceName, full);
+          const mt = (meta.type ?? '').toLowerCase();
+          if (mt === 'directory') return full;
+          if (mt === 'symlink') return full;
+        } catch {
+          /* skip */
+        }
+        return null;
+      }),
+    );
+    for (const f of flags) {
+      if (f !== null) out.push(f);
     }
   }
   return out.sort((a, b) => a.localeCompare(b));
@@ -295,12 +372,27 @@ export async function probeInstancePathKind(
   instanceName: string,
   absPath: string,
 ): Promise<InstancePathKind> {
+  return probeInstancePathKindInner(instanceName, absPath, 0);
+}
+
+async function probeInstancePathKindInner(
+  instanceName: string,
+  absPath: string,
+  depth: number,
+): Promise<InstancePathKind> {
+  if (depth > SYMLINK_PROBE_MAX_DEPTH) return 'missing';
   try {
     const p = normalizeAbsPath(absPath);
     const meta = await getFileMetadata(instanceName, p);
     const t = (meta.type ?? '').toLowerCase();
     if (t === 'directory') return 'directory';
-    if (t === 'file' || t === 'symlink') return 'file';
+    if (t === 'symlink') {
+      const raw = await fetchSymlinkTargetRawPath(instanceName, p);
+      if (!raw) return 'directory';
+      const resolved = resolveSymlinkTarget(p, raw);
+      return probeInstancePathKindInner(instanceName, resolved, depth + 1);
+    }
+    if (t === 'file') return 'file';
     return 'missing';
   } catch {
     return 'missing';

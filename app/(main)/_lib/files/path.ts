@@ -25,6 +25,38 @@ export function absPathParent(filePath: string): string {
   return p.slice(0, idx) || '/';
 }
 
+/** Final segment of an absolute Unix path (may be empty for `/`). */
+export function basenameAbsPath(filePath: string): string {
+  const p = normalizeAbsPath(filePath);
+  const i = p.lastIndexOf('/');
+  if (i < 0) return p;
+  return p.slice(i + 1) || p;
+}
+
+/**
+ * Resolve a symlink target string (relative or absolute) against the symlink’s path.
+ * `linkFullPath` must be the absolute path to the symlink.
+ */
+export function resolveSymlinkTarget(
+  linkFullPath: string,
+  rawTarget: string,
+): string {
+  const t = rawTarget.trim();
+  if (!t) return normalizeAbsPath(linkFullPath);
+  if (t.startsWith('/')) return normalizeAbsPath(t);
+  const dir = absPathParent(normalizeAbsPath(linkFullPath));
+  const parts: string[] = [...dir.split('/').filter(Boolean)];
+  for (const segment of t.split('/')) {
+    if (segment === '' || segment === '.') continue;
+    if (segment === '..') {
+      parts.pop();
+    } else {
+      parts.push(segment);
+    }
+  }
+  return normalizeAbsPath(`/${parts.join('/')}`);
+}
+
 /**
  * Maps typed path input to which directory should be listed and the filter for
  * the trailing segment (for `/root/foo`, list `/root` filtered by `foo`).

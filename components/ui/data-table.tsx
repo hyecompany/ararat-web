@@ -17,6 +17,7 @@ import {
   useReactTable,
   VisibilityState,
 } from '@tanstack/react-table';
+import { useVirtualizer } from '@tanstack/react-virtual';
 
 import { Button } from './button';
 import { Checkbox } from './checkbox';
@@ -105,6 +106,10 @@ export default function DataTable({
   getRowClassName,
   wrapTableRow,
   disablePagination,
+  virtualizeRows,
+  virtualScrollMaxHeightClassName,
+  virtualRowEstimatePx,
+  onVirtualVisibleRowsChange,
 }: {
   data: object[];
   cols: ColumnDef<object, unknown>[];
@@ -124,9 +129,12 @@ export default function DataTable({
     >,
   ) => React.ReactNode;
   disablePagination?: boolean;
+  virtualizeRows?: boolean;
+  virtualScrollMaxHeightClassName?: string;
+  virtualRowEstimatePx?: number;
+  onVirtualVisibleRowsChange?: (rows: Row<object>[]) => void;
 }) {
   let columns: ColumnDef<object, unknown>[] = cols.map((col) => {
-    console.log(typeof col.header);
     return {
       ...col,
       id:
@@ -195,6 +203,12 @@ export default function DataTable({
   const table = useReactTable({
     data,
     columns,
+    ...(virtualizeRows && disablePagination
+      ? {
+          getRowId: (orig, index) =>
+            String((orig as { name?: string }).name ?? `row-${index}`),
+        }
+      : {}),
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
@@ -221,15 +235,120 @@ export default function DataTable({
     if (!enableSelection || !onSelectionChange) return;
     onSelectionChange(table.getFilteredSelectedRowModel().rows);
   }, [enableSelection, onSelectionChange, rowSelection, table]);
+
+  const scrollParentRef = React.useRef<HTMLDivElement>(null);
+  const tableRows = table.getRowModel().rows;
+  const estimate = virtualRowEstimatePx ?? 44;
+
+  const useVirtual =
+    Boolean(virtualizeRows && disablePagination && tableRows.length > 0);
+
+  const rowVirtualizer = useVirtualizer({
+    count: useVirtual ? tableRows.length : 0,
+    getScrollElement: () => scrollParentRef.current,
+    estimateSize: () => estimate,
+    overscan: 10,
+  });
+
+  const virtualItems =
+    useVirtual ? rowVirtualizer.getVirtualItems() : [];
+
+  const paddingTop =
+    virtualItems.length > 0 ? (virtualItems[0]?.start ?? 0) : 0;
+  const paddingBottom =
+    virtualItems.length > 0
+      ? rowVirtualizer.getTotalSize() -
+        (virtualItems[virtualItems.length - 1]?.end ?? 0)
+      : 0;
+
+  /** Re-measure when the scroll parent or row count changes so the first paint has virtual items. */
+  React.useLayoutEffect(() => {
+    if (!useVirtual) return;
+    const v = rowVirtualizer as { measure?: () => void };
+    v.measure?.();
+  }, [rowVirtualizer, useVirtual, tableRows.length]);
+
+  React.useLayoutEffect(() => {
+    if (
+      !virtualizeRows ||
+      !disablePagination ||
+      !onVirtualVisibleRowsChange
+    ) {
+      return;
+    }
+    const run = () => {
+      const items = rowVirtualizer.getVirtualItems();
+      if (items.length === 0) return;
+      const visibleRows = items
+        .map((vi) => tableRows[vi.index])
+        .filter((r): r is Row<object> => r != null);
+      onVirtualVisibleRowsChange(visibleRows);
+    };
+    run();
+    const raf = requestAnimationFrame(run);
+    return () => cancelAnimationFrame(raf);
+  }, [
+    virtualItems,
+    tableRows.length,
+    virtualizeRows,
+    disablePagination,
+    onVirtualVisibleRowsChange,
+    rowVirtualizer,
+  ]);
+
+  const renderOneRow = (row: Row<object>) => {
+    const rowEl = (
+      <TableRow
+        data-state={row.getIsSelected() && 'selected'}
+        className={cn(
+          onRowClick ? 'cursor-pointer' : '',
+          getRowClassName ? getRowClassName(row) : '',
+        )}
+        onClick={
+          onRowClick
+            ? (event) => {
+                onRowClick(row, event);
+              }
+            : undefined
+        }
+      >
+        {row.getVisibleCells().map((cell) => (
+          <TableCell
+            key={cell.id}
+            className="min-w-0"
+            style={{
+              width: cell.column.getSize().toString() + 'px',
+              maxWidth: cell.column.getSize().toString() + 'px',
+            }}
+          >
+            {flexRender(
+              cell.column.columnDef.cell,
+              cell.getContext(),
+            )}
+          </TableCell>
+        ))}
+      </TableRow>
+    );
+    return wrapTableRow ? wrapTableRow(row, rowEl) : rowEl;
+  };
+
   return (
     <div className={cn('w-full', className)}>
-      <div className="overflow-hidden rounded-md border">
+      <div
+        ref={useVirtual ? scrollParentRef : undefined}
+        className={cn(
+          'rounded-md border',
+          useVirtual
+            ? virtualScrollMaxHeightClassName ??
+              'max-h-[min(66vh,664px)] overflow-auto'
+            : 'overflow-auto',
+        )}
+      >
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
-                  console.log(header.getSize());
                   return (
                     <TableHead
                       className="min-w-0"
@@ -252,46 +371,40 @@ export default function DataTable({
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => {
-                const rowEl = (
-                  <TableRow
-                    data-state={row.getIsSelected() && 'selected'}
-                    className={cn(
-                      onRowClick ? 'cursor-pointer' : '',
-                      getRowClassName ? getRowClassName(row) : '',
-                    )}
-                    onClick={
-                      onRowClick
-                        ? (event) => {
-                            onRowClick(row, event);
-                          }
-                        : undefined
-                    }
-                  >
-                    {row.getVisibleCells().map((cell) => (
+            {tableRows.length ? (
+              useVirtual ? (
+                <>
+                  {paddingTop > 0 ? (
+                    <TableRow aria-hidden className="hover:bg-transparent">
                       <TableCell
-                        key={cell.id}
-                        className="min-w-0"
-                        style={{
-                          width: cell.column.getSize().toString() + 'px',
-                          maxWidth: cell.column.getSize().toString() + 'px',
-                        }}
-                      >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                );
-                return (
-                  <React.Fragment key={row.id}>
-                    {wrapTableRow ? wrapTableRow(row, rowEl) : rowEl}
-                  </React.Fragment>
-                );
-              })
+                        colSpan={columns.length}
+                        className="p-0"
+                        style={{ height: paddingTop, border: 'none' }}
+                      />
+                    </TableRow>
+                  ) : null}
+                  {virtualItems.map((vi) => {
+                    const row = tableRows[vi.index];
+                    if (!row) return null;
+                    return (
+                      <React.Fragment key={vi.key}>
+                        {renderOneRow(row)}
+                      </React.Fragment>
+                    );
+                  })}
+                  {paddingBottom > 0 ? (
+                    <TableRow aria-hidden className="hover:bg-transparent">
+                      <TableCell
+                        colSpan={columns.length}
+                        className="p-0"
+                        style={{ height: paddingBottom, border: 'none' }}
+                      />
+                    </TableRow>
+                  ) : null}
+                </>
+              ) : (
+                tableRows.map((row) => renderOneRow(row))
+              )
             ) : (
               <TableRow>
                 <TableCell
