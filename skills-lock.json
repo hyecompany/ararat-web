@@ -11,6 +11,11 @@
       "sourceType": "github",
       "computedHash": "20889af7cb9b3abca1e38824f7fffaa873eb0cc4d45187967b97bd85462cf934"
     },
+    "context7-cli": {
+      "source": "upstash/context7",
+      "sourceType": "github",
+      "computedHash": "fc0c682dac344a4c78787072ae9b5b8708d4d5a14b2101c9b45de557bf9b7755"
+    },
     "dogfood": {
       "source": "vercel-labs/agent-browser",
       "sourceType": "github",
