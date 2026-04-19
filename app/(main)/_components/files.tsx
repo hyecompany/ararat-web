@@ -1066,7 +1066,8 @@ export function FileBrowser({
       await onSaveContent(editingFile, fileContent, fileMode);
       setSyncedContent(fileContent);
       setShowSaved(true);
-      window.setTimeout(() => setShowSaved(false), 2000);
+      const timer = window.setTimeout(() => setShowSaved(false), 2000);
+      return () => window.clearTimeout(timer);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       setActionError(message);
