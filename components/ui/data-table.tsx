@@ -200,7 +200,7 @@ export default function DataTable({
   // TanStack Table's useReactTable returns functions that cannot be memoized safely,
   // which is why the React Compiler correctly skips memoization for this hook.
   // eslint-disable-next-line react-hooks/incompatible-library
-  const table = useReactTable({
+  const table = useReactTable<object>({
     data,
     columns,
     ...(virtualizeRows && disablePagination
