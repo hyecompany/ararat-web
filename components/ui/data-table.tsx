@@ -103,6 +103,7 @@ export default function DataTable({
   onSelectionChange,
   onRowClick,
   getRowClassName,
+  wrapTableRow,
   disablePagination,
 }: {
   data: object[];
@@ -116,6 +117,12 @@ export default function DataTable({
     event: React.MouseEvent<HTMLTableRowElement, MouseEvent>,
   ) => void;
   getRowClassName?: (row: Row<object>) => string | undefined;
+  wrapTableRow?: (
+    row: Row<object>,
+    rowElement: React.ReactElement<
+      React.ComponentProps<typeof TableRow>
+    >,
+  ) => React.ReactNode;
   disablePagination?: boolean;
 }) {
   let columns: ColumnDef<object, unknown>[] = cols.map((col) => {
@@ -246,39 +253,45 @@ export default function DataTable({
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && 'selected'}
-                  className={cn(
-                    onRowClick ? 'cursor-pointer' : '',
-                    getRowClassName ? getRowClassName(row) : '',
-                  )}
-                  onClick={
-                    onRowClick
-                      ? (event) => {
-                          onRowClick(row, event);
-                        }
-                      : undefined
-                  }
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell
-                      key={cell.id}
-                      className="min-w-0"
-                      style={{
-                        width: cell.column.getSize().toString() + 'px',
-                        maxWidth: cell.column.getSize().toString() + 'px',
-                      }}
-                    >
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext(),
-                      )}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
+              table.getRowModel().rows.map((row) => {
+                const rowEl = (
+                  <TableRow
+                    data-state={row.getIsSelected() && 'selected'}
+                    className={cn(
+                      onRowClick ? 'cursor-pointer' : '',
+                      getRowClassName ? getRowClassName(row) : '',
+                    )}
+                    onClick={
+                      onRowClick
+                        ? (event) => {
+                            onRowClick(row, event);
+                          }
+                        : undefined
+                    }
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell
+                        key={cell.id}
+                        className="min-w-0"
+                        style={{
+                          width: cell.column.getSize().toString() + 'px',
+                          maxWidth: cell.column.getSize().toString() + 'px',
+                        }}
+                      >
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext(),
+                        )}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                );
+                return (
+                  <React.Fragment key={row.id}>
+                    {wrapTableRow ? wrapTableRow(row, rowEl) : rowEl}
+                  </React.Fragment>
+                );
+              })
             ) : (
               <TableRow>
                 <TableCell

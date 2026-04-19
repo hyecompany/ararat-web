@@ -2,9 +2,7 @@
 
 import * as React from 'react';
 
-import { CheckIcon } from 'lucide-react';
 import { Input } from 'ui-web/components/input';
-import { cn } from 'ui-web/lib/utils';
 
 import {
   Command,
@@ -19,12 +17,18 @@ interface AutocompleteInputProps
   value: string;
   onValueChange: (value: string) => void;
   options: string[];
+  /** Called when Enter is pressed (e.g. submit parent form / “Go”). */
+  onSubmit?: () => void;
+  /** When false, Tab does not replace the value with the first suggestion (free-form paths, e.g. files). Default true. */
+  completeOnTab?: boolean;
 }
 
 export function AutocompleteInput({
   value,
   onValueChange,
   options,
+  onSubmit,
+  completeOnTab = true,
   className,
   disabled,
   onFocus,
@@ -87,6 +91,23 @@ export function AutocompleteInput({
               if (event.key === 'Escape') {
                 setOpen(false);
               }
+              if (
+                completeOnTab &&
+                event.key === 'Tab' &&
+                filteredOptions.length > 0
+              ) {
+                event.preventDefault();
+                onValueChange(filteredOptions[0]);
+                setOpen(false);
+                return;
+              }
+              if (event.key === 'Enter') {
+                if (onSubmit) {
+                  event.preventDefault();
+                  onSubmit();
+                  return;
+                }
+              }
               props.onKeyDown?.(event);
             }}
           />
@@ -108,26 +129,20 @@ export function AutocompleteInput({
         <Command shouldFilter={false}>
           <CommandList>
             <CommandGroup>
-              {filteredOptions.map((option) => {
-                const isSelected = option === value;
-                return (
-                  <CommandItem
-                    key={option}
-                    value={option}
-                    onMouseDown={(event) => event.preventDefault()}
-                    onSelect={(selectedValue) => {
-                      onValueChange(selectedValue);
-                      setOpen(false);
-                      inputRef.current?.focus();
-                    }}
-                  >
-                    <span className="flex-1">{option}</span>
-                    <CheckIcon
-                      className={cn('size-4 opacity-0', isSelected && 'opacity-100')}
-                    />
-                  </CommandItem>
-                );
-              })}
+              {filteredOptions.map((option) => (
+                <CommandItem
+                  key={option}
+                  value={option}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onSelect={(selectedValue) => {
+                    onValueChange(selectedValue);
+                    setOpen(false);
+                    inputRef.current?.focus();
+                  }}
+                >
+                  <span className="font-mono">{option}</span>
+                </CommandItem>
+              ))}
             </CommandGroup>
           </CommandList>
         </Command>
