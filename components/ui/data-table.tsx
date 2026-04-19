@@ -203,12 +203,13 @@ export default function DataTable({
   const table = useReactTable<object>({
     data,
     columns,
-    ...(virtualizeRows && disablePagination
-      ? {
-          getRowId: (orig, index) =>
-            String((orig as { name?: string }).name ?? `row-${index}`),
-        }
-      : {}),
+    getRowId: (orig, index) => {
+      const row = orig as { id?: string; name?: string; project?: string };
+      if (row.id) return String(row.id);
+      if (row.name && row.project) return `${row.project}:${row.name}`;
+      if (row.name) return String(row.name);
+      return `row-${index}`;
+    },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
@@ -299,6 +300,7 @@ export default function DataTable({
   const renderOneRow = (row: Row<object>) => {
     const rowEl = (
       <TableRow
+        key={row.id}
         data-state={row.getIsSelected() && 'selected'}
         className={cn(
           onRowClick ? 'cursor-pointer' : '',
@@ -387,7 +389,7 @@ export default function DataTable({
                     const row = tableRows[vi.index];
                     if (!row) return null;
                     return (
-                      <React.Fragment key={vi.key}>
+                      <React.Fragment key={row.id}>
                         {renderOneRow(row)}
                       </React.Fragment>
                     );

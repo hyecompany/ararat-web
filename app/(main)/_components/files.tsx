@@ -714,6 +714,8 @@ export function FileBrowser({
   } | null>(null);
 
   const [selectedRows, setSelectedRows] = React.useState<Row<object>[]>([]);
+  const currentPathRef = React.useRef(currentPath);
+  currentPathRef.current = currentPath;
   const [moveDestOpen, setMoveDestOpen] = React.useState(false);
   const [moveDestPath, setMoveDestPath] = React.useState('/');
   const [moveBusy, setMoveBusy] = React.useState(false);
@@ -883,13 +885,28 @@ export function FileBrowser({
   const handleOpenEntry = async (
     item: FileItem,
     fileName: string,
-    entryParentPath: string = currentPath,
+    entryParentPath?: string,
   ) => {
-    const fullPath = joinAbsPath(entryParentPath, fileName);
+    const activeCurrentPath = currentPathRef.current;
+    const resolvedParentPath = entryParentPath ?? activeCurrentPath;
+    const fullPath = joinAbsPath(resolvedParentPath, fileName);
     setActionError(null);
 
+    const normalizedType = item.type?.toLowerCase();
+
+    // Some production deployments can miss/alter metadata headers; probe on-demand
+    // to keep folder navigation reliable when row type is ambiguous.
+    let kindFromProbe: 'directory' | 'file' | 'missing' | null = null;
+    if (!normalizedType || !['directory', 'file', 'symlink'].includes(normalizedType)) {
+      try {
+        kindFromProbe = await probePathKind(fullPath);
+      } catch {
+        kindFromProbe = null;
+      }
+    }
+
     if (
-      item.type?.toLowerCase() === 'symlink' &&
+      normalizedType === 'symlink' &&
       resolveSymlinkNavTarget
     ) {
       try {
@@ -907,8 +924,16 @@ export function FileBrowser({
       return;
     }
 
-    if (rowIsDirectory(item)) {
+    if (
+      kindFromProbe === 'directory' ||
+      (kindFromProbe === null && rowIsDirectory(item))
+    ) {
       navigateOrDiscard(fullPath);
+      return;
+    }
+
+    if (kindFromProbe === 'missing') {
+      setActionError('That path does not exist.');
       return;
     }
 
@@ -930,7 +955,7 @@ export function FileBrowser({
 
     const fileParentDir = absPathParent(fullPath);
     if (
-      normalizedPathKey(fileParentDir) !== normalizedPathKey(currentPath)
+      normalizedPathKey(fileParentDir) !== normalizedPathKey(activeCurrentPath)
     ) {
       onNavigate(fileParentDir);
     }
@@ -1167,10 +1192,9 @@ export function FileBrowser({
         }
         if (typeof item.size !== 'number') {
           return (
-            <Spinner
-              className="text-muted-foreground size-4"
-              aria-label="Loading size"
-            />
+            <span className="text-muted-foreground">
+              <FileDetailFade show>—</FileDetailFade>
+            </span>
           );
         }
         return (

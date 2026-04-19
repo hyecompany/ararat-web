@@ -41,7 +41,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './_components/alert-dialog';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 type InstanceAction = 'start' | 'stop' | 'restart' | 'freeze';
 
@@ -149,16 +149,18 @@ export default function Instances() {
         cell: ({ row }: { row: Row<object> }) => {
           const instance = row.original as Instance;
           return (
-            <button
-              type="button"
+            <Link
+              href={{
+                pathname: '/instance',
+                query: { name: instance.name },
+              }}
               className="text-left font-medium text-primary underline focus:outline-none cursor-pointer"
               onClick={(event) => {
                 event.stopPropagation();
-                router.push(`/instance?name=${instance.name}`);
               }}
             >
               {instance.name}
-            </button>
+            </Link>
           );
         },
       },
@@ -295,8 +297,6 @@ export default function Instances() {
   const handleSelectionChange = React.useCallback((rows: Row<object>[]) => {
     setSelectedInstances(rows.map((row) => row.original as Instance));
   }, []);
-
-  const router = useRouter();
 
   const handleRowClick = React.useCallback((row: Row<object>) => {
     const instance = row.original as Instance;

@@ -134,9 +134,8 @@ export function useFiles(instanceName: string, path: string) {
   // Ensure path starts with /
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   /**
-   * Last path for which a listing GET finished (`!isValidating`). While the next folder
-   * is fetching, SWR can still return the previous listing (`keepPreviousData`); HEAD
-   * requests must use this path, not the in-flight route path.
+   * Last path for which a listing GET finished (`!isValidating`). HEAD metadata probes
+   * should target the listing payload currently on screen, not an in-flight route path.
    */
   const settledListingPathRef = useRef(normalizedPath);
 
@@ -149,7 +148,7 @@ export function useFiles(instanceName: string, path: string) {
   } = useSWR(
     buildFilesCacheKey(instanceName, normalizedPath),
     directoryFetcher,
-    { keepPreviousData: true },
+    { keepPreviousData: false },
   );
 
   const hasListingPayload =

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useInstanceContext } from '../_context/instance';
 import { useFiles } from './_hooks/files';
 import { getSymlinkResolvedNavTarget } from './_lib/files';
@@ -24,22 +24,33 @@ function getInstanceFilesHomePath(instance: Instance): string {
 }
 
 export default function FilesPage() {
+  const searchParams = useSearchParams();
+  const urlName = searchParams.get('name');
   const { instance, isLoading } = useInstanceContext();
 
   if (isLoading) {
     return <Spinner />;
   }
 
-  if (!instance) {
+  if (!urlName || !instance) {
     return null;
   }
 
-  return <Files instance={instance} />;
+  // URL query is authoritative for active instance; wait for context to align.
+  if (instance.name !== urlName) {
+    return <Spinner />;
+  }
+
+  return <Files key={urlName} instance={instance} instanceName={urlName} />;
 }
 
-function Files({ instance }: { instance: Instance }) {
-  const router = useRouter();
-  const pathname = usePathname();
+function Files({
+  instance,
+  instanceName,
+}: {
+  instance: Instance;
+  instanceName: string;
+}) {
   const searchParams = useSearchParams();
   const [isRoutePending, startRouteTransition] = React.useTransition();
   const homePath = React.useMemo(() => getInstanceFilesHomePath(instance), [instance]);
@@ -49,9 +60,17 @@ function Files({ instance }: { instance: Instance }) {
     return normalizeInstanceFsPath(raw) ?? homePath;
   }, [pathParam, homePath]);
 
-  const handleNavigate = (path: string) => {
+  const handleNavigate = React.useCallback((path: string) => {
     startRouteTransition(() => {
-      const params = new URLSearchParams(searchParams.toString());
+      // Ignore delayed callbacks from a previously mounted instance view.
+      const liveParams = new URLSearchParams(window.location.search);
+      const liveName = liveParams.get('name');
+      if (liveName !== instanceName) {
+        return;
+      }
+
+      const params = new URLSearchParams();
+      params.set('name', instanceName);
       if (path === '/') {
         params.set('path', '/');
       } else if (path === homePath && homePath !== '/') {
@@ -61,9 +80,11 @@ function Files({ instance }: { instance: Instance }) {
       }
 
       const query = params.toString();
-      router.push(query ? `${pathname}?${query}` : pathname);
+      const currentPathname = window.location.pathname;
+      const target = query ? `${currentPathname}?${query}` : currentPathname;
+      window.history.pushState(null, '', target);
     });
-  };
+  }, [homePath, instanceName, startRouteTransition]);
 
   const {
     files,
@@ -85,10 +106,11 @@ function Files({ instance }: { instance: Instance }) {
     probeInstancePathKind,
     fetchDirectoryEntries,
     requestMetadataForNames,
-  } = useFiles(instance.name, currentPath);
+  } = useFiles(instanceName, currentPath);
 
   return (
     <FileBrowser
+      key={instanceName}
       files={files}
       isLoading={isLoading}
       isRoutePending={isRoutePending}
@@ -106,7 +128,7 @@ function Files({ instance }: { instance: Instance }) {
       fetchDirectoryEntries={fetchDirectoryEntries}
       requestMetadataForNames={requestMetadataForNames}
       resolveSymlinkNavTarget={(path) =>
-        getSymlinkResolvedNavTarget(instance.name, path)
+        getSymlinkResolvedNavTarget(instanceName, path)
       }
       onCreateEmptyFile={(name) => createEmptyFile(currentPath, name)}
       onCreateDirectory={(name) => createDirectory(currentPath, name)}
