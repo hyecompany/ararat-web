@@ -340,7 +340,7 @@ export default function ImageSelector({
                 placeholder="Search images..."
                 value={stringFilter}
                 onChange={(event) => setStringFilter(event.currentTarget.value)}
-                className="h-9 w-40  sm:w-64"
+                className="h-9 w-40 sm:w-64"
               />
               <Dialog open={addingRemote} onOpenChange={setAddingRemote}>
                 <DialogTrigger asChild>
