@@ -70,10 +70,9 @@ export async function uploadFile(
   const url = getApiUrl(
     `/1.0/instances/${instanceName}/files?path=${encodeURIComponent(filePath)}`,
   );
-  const buffer = await file.arrayBuffer();
   await postFileXhr(
     url,
-    buffer,
+    file,
     {
       'Content-Type': 'application/octet-stream',
       'X-Incus-uid': '0',
