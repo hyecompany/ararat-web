@@ -877,8 +877,8 @@ export function FileBrowser({
 
   React.useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (!e.ctrlKey || e.metaKey || e.altKey) return;
-      if (e.key !== 'k' && e.key !== 'K') return;
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      if (e.key.toLowerCase() !== 'k') return;
       const t = e.target;
       if (!(t instanceof HTMLElement)) return;
       if (t.closest('.monaco-editor')) return;
