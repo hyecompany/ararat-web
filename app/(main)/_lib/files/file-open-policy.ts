@@ -23,7 +23,7 @@ const KNOWN_TEXT_FILENAMES = new Set(
 );
 
 /** Names like `.bashrc`, `.npmrc`, `Dockerfile`, `Makefile`. */
-export function looksLikeLikelyTextFilename(fileName: string): boolean {
+export function looksLikelyTextFilename(fileName: string): boolean {
   const base = fileName.split('/').pop() ?? fileName;
   const lower = base.toLowerCase();
   if (KNOWN_TEXT_FILENAMES.has(lower)) return true;
@@ -97,7 +97,7 @@ export function preflightOpen(fileName: string): PreflightOpen {
   if (FORCE_DOWNLOAD_EXT.has(ext)) {
     return { kind: 'download_now' };
   }
-  if (looksLikeLikelyTextFilename(fileName)) {
+  if (looksLikelyTextFilename(fileName)) {
     return { kind: 'fetch_then_classify' };
   }
   if (!ext) {
