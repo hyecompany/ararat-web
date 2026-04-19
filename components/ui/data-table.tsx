@@ -314,21 +314,24 @@ export default function DataTable({
             : undefined
         }
       >
-        {row.getVisibleCells().map((cell) => (
-          <TableCell
-            key={cell.id}
-            className="min-w-0"
-            style={{
-              width: cell.column.getSize().toString() + 'px',
-              maxWidth: cell.column.getSize().toString() + 'px',
-            }}
-          >
-            {flexRender(
-              cell.column.columnDef.cell,
-              cell.getContext(),
-            )}
-          </TableCell>
-        ))}
+        {row.getVisibleCells().map((cell) => {
+          const cellSizePx = `${cell.column.getSize()}px`;
+          return (
+            <TableCell
+              key={cell.id}
+              className="min-w-0"
+              style={{
+                width: cellSizePx,
+                maxWidth: cellSizePx,
+              }}
+            >
+              {flexRender(
+                cell.column.columnDef.cell,
+                cell.getContext(),
+              )}
+            </TableCell>
+          );
+        })}
       </TableRow>
     );
     return wrapTableRow ? wrapTableRow(row, rowEl) : rowEl;
