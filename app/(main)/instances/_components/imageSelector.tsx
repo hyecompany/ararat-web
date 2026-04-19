@@ -418,6 +418,7 @@ export default function ImageSelector({
               stringFilter={stringFilter}
               cols={columns}
               data={images}
+              disablePagination
               onRowClick={handleRowClick}
               getRowClassName={(row) =>
                 (row.original as SelectableImage).id === selectedImageId

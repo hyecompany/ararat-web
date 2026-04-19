@@ -16,6 +16,15 @@ proper context and ensures all Next.js queries use official documentation.
 
 Route files, layouts, contexts, hooks, and feature modules live in `app/`; grouped routes such as `app/(main)/instances` keep feature-specific `_components`, `_hooks`, and `_lib` beside their pages. Shared shadcn UI primitives live in `components/ui`, global hooks in `hooks`, and shared utilities in `lib`. Static assets are in `public`, currently `public/images`; build helpers are in `scripts`.
 
+### Feature modules next to the route that owns them
+
+Code that exists only for a specific route should live **under that route segment**, not in a parent `_hooks` / `_lib` folder unless it is shared across multiple routes under the same parent.
+
+- **Example (instance file browser):** API clients, route-only hooks, and helpers such as remote move logic belong under `app/(main)/instance/files/`—e.g. `files/_hooks/`, `files/_lib/`—not in `instance/_hooks` or `instance/_lib` when nothing else imports them.
+- **`app/(main)/_lib/files/`** (and similar) is for **cross-cutting** file UI concerns shared by multiple hosts (path normalization, open/download policy, etc.), not for Incus-instance-only API wrappers.
+
+When adding a new feature, default to **colocating** `_hooks` and `_lib` with the `page.tsx` that uses them; lift to a parent folder only when two or more sibling routes need the same module.
+
 ## Build, Test, and Development Commands
 - `bun run dev` starts the development server on :3001, with the UI accesible on `/ui`.
 - `bun run lint`: runs `eslint .`.

@@ -1,0 +1,10 @@
+{
+    "setup-worktree-windows": [
+        "bun install",
+        "cp \"$env:ROOT_WORKTREE_PATH/server.crt\" \"server.crt\"",
+        "cp \"$env:ROOT_WORKTREE_PATH/server.key\" \"server.key\"",
+        "cp \"$env:ROOT_WORKTREE_PATH/ararat.crt\" \"ararat.crt\"",
+        "cp \"$env:ROOT_WORKTREE_PATH/ararat.pfx\" \"ararat.pfx\"",
+        "cp \"$env:ROOT_WORKTREE_PATH/.env\" \".env\""
+    ]
+}
