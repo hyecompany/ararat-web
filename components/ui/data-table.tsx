@@ -351,12 +351,13 @@ export default function DataTable({
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
+                  const headerSizePx = `${header.getSize()}px`;
                   return (
                     <TableHead
                       className="min-w-0"
                       style={{
-                        width: header.getSize().toString() + 'px',
-                        maxWidth: header.getSize().toString() + 'px',
+                        width: headerSizePx,
+                        maxWidth: headerSizePx,
                       }}
                       key={header.id}
                     >
