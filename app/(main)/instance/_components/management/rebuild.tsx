@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { z } from 'zod';
 
 import ImageSelector, {
   type SelectableImage,
@@ -23,6 +24,32 @@ import { SettingsYamlEditor } from '../settings-yaml-editor';
 import { ManagementFooter } from './footer';
 
 type RebuildMode = 'image' | 'empty';
+
+const rebuildSourceSchema = z
+  .object({
+    type: z.enum(['image', 'none']),
+    fingerprint: z.string().trim().min(1).optional(),
+    alias: z.string().trim().min(1).optional(),
+    server: z.string().trim().min(1).optional(),
+    mode: z.literal('pull').optional(),
+    protocol: z.enum(['simplestreams', 'oci']).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.type === 'none') {
+      return;
+    }
+
+    const hasFingerprint = Boolean(value.fingerprint);
+    const hasAliasAndServer = Boolean(value.alias && value.server);
+
+    if (!hasFingerprint && !hasAliasAndServer) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          'Image source YAML must include fingerprint or both alias and server.',
+      });
+    }
+  });
 
 export default function Rebuild({
   instance,
@@ -207,75 +234,25 @@ export default function Rebuild({
 
       try {
         const parsed = fromYaml(nextValue);
-        if (!parsed || typeof parsed !== 'object') {
-          throw new Error('Invalid source YAML.');
-        }
-        const parsedSource = parsed as Record<string, unknown>;
-        const type = parsedSource.type;
+        const nextSource = rebuildSourceSchema.parse(parsed) as AdvancedInstanceRebuildSource;
 
-        if (type !== 'image' && type !== 'none') {
-          throw new Error('Source YAML must include type: image or type: none.');
-        }
-
-        if (type === 'none') {
-          const nextSource: AdvancedInstanceRebuildSource = { type: 'none' };
+        if (nextSource.type === 'none') {
           setRebuildMode('empty');
           updateYamlSourceOverride(nextSource, true);
           syncSelectedImageFromSource(nextSource);
           return;
         }
 
-        const fingerprint =
-          typeof parsedSource.fingerprint === 'string' &&
-          parsedSource.fingerprint.trim()
-            ? parsedSource.fingerprint.trim()
-            : undefined;
-        const alias =
-          typeof parsedSource.alias === 'string' && parsedSource.alias.trim()
-            ? parsedSource.alias.trim()
-            : undefined;
-        const server =
-          typeof parsedSource.server === 'string' && parsedSource.server.trim()
-            ? parsedSource.server.trim()
-            : undefined;
-        const mode = parsedSource.mode;
-        const protocol = parsedSource.protocol;
-
-        if (!fingerprint && !(alias && server)) {
-          throw new Error(
-            'Image source YAML must include fingerprint or both alias and server.',
-          );
-        }
-
-        if (mode !== undefined && mode !== 'pull') {
-          throw new Error('Only mode: pull is supported for rebuild sources.');
-        }
-
-        if (
-          protocol !== undefined &&
-          protocol !== 'simplestreams' &&
-          protocol !== 'oci'
-        ) {
-          throw new Error(
-            'protocol must be either simplestreams or oci when provided.',
-          );
-        }
-
-        const nextSource: AdvancedInstanceRebuildSource = {
-          type: 'image',
-          ...(fingerprint ? { fingerprint } : {}),
-          ...(alias ? { alias } : {}),
-          ...(server ? { server } : {}),
-          ...(mode === 'pull' ? { mode } : {}),
-          ...(protocol ? { protocol } : {}),
-        };
-
         setRebuildMode('image');
         updateYamlSourceOverride(nextSource, true);
         syncSelectedImageFromSource(nextSource);
       } catch (yamlError) {
         setSourceYamlError(
-          yamlError instanceof Error ? yamlError.message : 'Invalid source YAML.',
+          yamlError instanceof z.ZodError
+            ? yamlError.issues[0]?.message ?? 'Invalid source YAML.'
+            : yamlError instanceof Error
+              ? yamlError.message
+              : 'Invalid source YAML.',
         );
       }
     },
