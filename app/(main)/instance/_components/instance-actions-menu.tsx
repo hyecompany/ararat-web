@@ -604,7 +604,7 @@ export function InstanceActionsMenu({
           </Button>
           <Button
             loading={busyAction === 'rebuild'}
-            disabled={Boolean(sourceYamlError)}
+            disabled={Boolean(sourceYamlError) || (rebuildMode === 'image' && !selectedImage && !yamlSourceOverride)}
             onClick={() => void handleRebuild()}
           >
             Rebuild instance
