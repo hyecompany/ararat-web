@@ -62,6 +62,7 @@ import Editor, { OnMount } from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
 import { mutate } from 'swr';
 import type * as Monaco from 'monaco-editor';
+import { CodeXmlIcon } from 'lucide-react';
 import { cn } from 'ui-web/lib/utils';
 
 const sourceSchema = z
@@ -589,12 +590,11 @@ export default function CreateInstance({ className }: { className?: string }) {
                 <div className="flex w-full items-center justify-between">
                   <Button
                     type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="text-muted-foreground"
+                    variant="outline"
                     onClick={toggleYamlEditor}
                   >
-                    {showYamlEditor ? 'Back to wizard' : 'Edit YAML'}
+                    <CodeXmlIcon className="mr-2 size-4" />
+                    {showYamlEditor ? 'Back to Wizard' : 'Edit YAML'}
                   </Button>
                   <Button
                     type="submit"
