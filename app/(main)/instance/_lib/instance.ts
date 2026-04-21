@@ -358,7 +358,7 @@ export async function cloneInstance({
       source: {
         type: 'copy',
         source: instance.name,
-        ...(instance.project ? { project: instance.project } : {}),
+        project: instance.project ?? 'default',
         allow_inconsistent: allowInconsistent,
         instance_only: instanceOnly,
       },
