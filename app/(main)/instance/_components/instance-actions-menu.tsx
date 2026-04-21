@@ -95,7 +95,7 @@ export function InstanceActionsMenu({
   }, [handleClose, router]);
 
   const dialogContentClassName = cn(
-    'flex w-full flex-col overflow-hidden transition-[width,max-width,height,max-height] duration-200 ease-out motion-reduce:transition-none',
+    'flex w-full flex-col overflow-hidden',
     view === 'configuration' || view === 'devices' || view === 'rebuild'
       ? 'h-[90vh] max-h-[90vh] sm:max-w-6xl'
       : view === 'menu'
