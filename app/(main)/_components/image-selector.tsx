@@ -82,6 +82,7 @@ export default function ImageSelector({
   projectLabel,
   emptyDescription = 'Select an image to define the instance base.',
   defaultSelection,
+  disableAutoSelect = false,
 }: {
   selectedImage: SelectableImage | null;
   onSelect: (image: SelectableImage) => void;
@@ -94,6 +95,7 @@ export default function ImageSelector({
     alias?: string | null;
     description?: string | null;
   };
+  disableAutoSelect?: boolean;
 }) {
   const { currentProject } = use(ProjectsContext);
   const resolvedProject = project === undefined ? currentProject : project;
@@ -248,12 +250,12 @@ export default function ImageSelector({
   const selectedImageId = displayedImage?.id ?? null;
 
   useEffect(() => {
-    if (selectedImage || !defaultMatchedImage) {
+    if (disableAutoSelect || selectedImage || !defaultMatchedImage) {
       return;
     }
 
     onSelect(defaultMatchedImage);
-  }, [defaultMatchedImage, onSelect, selectedImage]);
+  }, [defaultMatchedImage, disableAutoSelect, onSelect, selectedImage]);
 
   const handleSelect = useCallback(
     (image: SelectableImage) => {

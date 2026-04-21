@@ -153,7 +153,10 @@ export function InstanceActionsMenu({
   }, [getSelectedImageSource, rebuildMode, yamlSourceOverride]);
 
   const updateYamlSourceOverride = React.useCallback(
-    (nextSource: AdvancedInstanceRebuildSource | null) => {
+    (
+      nextSource: AdvancedInstanceRebuildSource | null,
+      skipContentUpdate = false,
+    ) => {
       setYamlSourceOverride(nextSource);
 
       if (!nextSource) {
@@ -161,9 +164,11 @@ export function InstanceActionsMenu({
         return;
       }
 
-      setSourceYamlContent(
-        toYaml(nextSource as unknown as Record<string, unknown>),
-      );
+      if (!skipContentUpdate) {
+        setSourceYamlContent(
+          toYaml(nextSource as unknown as Record<string, unknown>),
+        );
+      }
       setSourceYamlError(null);
     },
     [],
@@ -207,7 +212,11 @@ export function InstanceActionsMenu({
 
       try {
         const parsed = fromYaml(nextValue);
-        const type = parsed.type;
+        if (!parsed || typeof parsed !== 'object') {
+          throw new Error('Invalid source YAML.');
+        }
+        const parsedSource = parsed as Record<string, unknown>;
+        const type = parsedSource.type;
 
         if (type !== 'image' && type !== 'none') {
           throw new Error('Source YAML must include type: image or type: none.');
@@ -216,25 +225,26 @@ export function InstanceActionsMenu({
         if (type === 'none') {
           const nextSource: AdvancedInstanceRebuildSource = { type: 'none' };
           setRebuildMode('empty');
-          updateYamlSourceOverride(nextSource);
+          updateYamlSourceOverride(nextSource, true);
           syncSelectedImageFromSource(nextSource);
           return;
         }
 
         const fingerprint =
-          typeof parsed.fingerprint === 'string' && parsed.fingerprint.trim()
-            ? parsed.fingerprint.trim()
+          typeof parsedSource.fingerprint === 'string' &&
+          parsedSource.fingerprint.trim()
+            ? parsedSource.fingerprint.trim()
             : undefined;
         const alias =
-          typeof parsed.alias === 'string' && parsed.alias.trim()
-            ? parsed.alias.trim()
+          typeof parsedSource.alias === 'string' && parsedSource.alias.trim()
+            ? parsedSource.alias.trim()
             : undefined;
         const server =
-          typeof parsed.server === 'string' && parsed.server.trim()
-            ? parsed.server.trim()
+          typeof parsedSource.server === 'string' && parsedSource.server.trim()
+            ? parsedSource.server.trim()
             : undefined;
-        const mode = parsed.mode;
-        const protocol = parsed.protocol;
+        const mode = parsedSource.mode;
+        const protocol = parsedSource.protocol;
 
         if (!fingerprint && !(alias && server)) {
           throw new Error(
@@ -266,7 +276,7 @@ export function InstanceActionsMenu({
         };
 
         setRebuildMode('image');
-        updateYamlSourceOverride(nextSource);
+        updateYamlSourceOverride(nextSource, true);
         syncSelectedImageFromSource(nextSource);
       } catch (error) {
         setSourceYamlError(
@@ -556,6 +566,7 @@ export function InstanceActionsMenu({
                 alias: instance.config?.['image.alias'] ?? null,
                 description: instance.config?.['image.description'] ?? null,
               }}
+              disableAutoSelect={showSourceYamlEditor}
             />
           )}
         </div>
