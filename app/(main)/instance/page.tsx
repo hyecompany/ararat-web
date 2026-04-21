@@ -85,6 +85,12 @@ export default function InstancePage() {
   const networkDetails = getNetworkDetails(instance);
   const baseImage = getBaseImage(instance);
   const rootDiskPool = getRootDiskPool(instance);
+  const instanceType =
+    instance.type === 'virtual-machine'
+      ? 'Virtual Machine'
+      : instance.type === 'container'
+        ? 'Container'
+        : (instance.type ?? '—');
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -192,6 +198,10 @@ export default function InstancePage() {
           <div className="flex justify-between">
             <span className="text-muted-foreground">Project</span>
             <span>{instance.project ?? 'default'}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Type</span>
+            <span>{instanceType}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Base Image</span>
