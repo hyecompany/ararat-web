@@ -8,7 +8,7 @@ interface SettingsYamlEditorProps {
   value: string;
   error: string | null;
   onChange: (value: string | undefined) => void;
-  description: string;
+  description?: string;
 }
 
 export function SettingsYamlEditor({
@@ -21,10 +21,16 @@ export function SettingsYamlEditor({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="border-b px-6 py-4">
-        <p className="text-muted-foreground text-sm">{description}</p>
-        {error ? <p className="text-destructive mt-2 text-sm">{error}</p> : null}
-      </div>
+      {description || error ? (
+        <div className="border-b px-6 py-4">
+          {description ? (
+            <p className="text-muted-foreground text-sm">{description}</p>
+          ) : null}
+          {error ? (
+            <p className="text-destructive mt-2 text-sm">{error}</p>
+          ) : null}
+        </div>
+      ) : null}
       <div className="min-h-0 flex-1 overflow-hidden">
         <Editor
           height="100%"

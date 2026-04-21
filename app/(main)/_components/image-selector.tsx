@@ -78,17 +78,37 @@ export default function ImageSelector({
   selectedImage,
   onSelect,
   instanceType,
+  project,
+  projectLabel,
+  emptyDescription = 'Select an image to define the instance base.',
+  defaultSelection,
 }: {
   selectedImage: SelectableImage | null;
   onSelect: (image: SelectableImage) => void;
   instanceType?: 'virtual-machine' | 'container';
+  project?: string | null;
+  projectLabel?: string;
+  emptyDescription?: string;
+  defaultSelection?: {
+    fingerprint?: string | null;
+    alias?: string | null;
+    description?: string | null;
+  };
 }) {
   const { currentProject } = use(ProjectsContext);
+  const resolvedProject = project === undefined ? currentProject : project;
+  const resolvedProjectLabel =
+    projectLabel ??
+    (resolvedProject === 'all'
+      ? 'All projects'
+      : resolvedProject
+        ? `Project · ${resolvedProject}`
+        : 'Project · default');
   const {
     data: localImagesData,
     isLoading,
     isValidating,
-  } = useImages(currentProject);
+  } = useImages(resolvedProject);
   const [userAddedRemoteServers, setUserAddedRemoteServers] = useState<
     RemoteServer[]
   >([]);
@@ -124,7 +144,7 @@ export default function ImageSelector({
     const map = new Map<string, RemoteServer>();
     localImagesData.forEach((image: Image) => {
       const server = image.update_source?.server;
-      if (!server) return;
+      if (!server || image.update_source?.protocol !== 'simplestreams') return;
       const normalized = normalizeRemoteURL(server);
       if (!normalized || map.has(normalized)) return;
       map.set(normalized, {
@@ -186,8 +206,54 @@ export default function ImageSelector({
     const allImages = [...localImages, ...remoteImages];
     if (!instanceType) return allImages;
     return allImages.filter((image) => image.types.includes(instanceType));
-  }, [localImages, remoteImages, instanceType]);
-  const selectedImageId = selectedImage?.id ?? null;
+  }, [instanceType, localImages, remoteImages]);
+  const defaultMatchedImage = useMemo(() => {
+    if (!localImages.length || !defaultSelection) {
+      return null;
+    }
+
+    const normalizedAlias = defaultSelection.alias?.trim().toLowerCase();
+    const normalizedDescription = defaultSelection.description
+      ?.trim()
+      .toLowerCase();
+
+    return (
+      localImages.find(
+        (image) =>
+          defaultSelection.fingerprint &&
+          image.fingerprint === defaultSelection.fingerprint,
+      ) ??
+      localImages.find((image) => {
+        if (!normalizedAlias) return false;
+        const labels = [image.label, image.os]
+          .filter(Boolean)
+          .map((value) => value!.trim().toLowerCase());
+        return labels.some((value) => value === normalizedAlias);
+      }) ??
+      localImages.find((image) => {
+        if (!normalizedDescription) return false;
+        const haystacks = [
+          image.label,
+          image.os,
+          [image.os, image.release].filter(Boolean).join(' '),
+        ]
+          .filter(Boolean)
+          .map((value) => value!.trim().toLowerCase());
+        return haystacks.some((value) => normalizedDescription.includes(value));
+      }) ??
+      null
+    );
+  }, [defaultSelection, localImages]);
+  const displayedImage = selectedImage ?? defaultMatchedImage;
+  const selectedImageId = displayedImage?.id ?? null;
+
+  useEffect(() => {
+    if (selectedImage || !defaultMatchedImage) {
+      return;
+    }
+
+    onSelect(defaultMatchedImage);
+  }, [defaultMatchedImage, onSelect, selectedImage]);
 
   const handleSelect = useCallback(
     (image: SelectableImage) => {
@@ -232,27 +298,27 @@ export default function ImageSelector({
           const image = row.original as SelectableImage;
           return (
             <div className="flex min-w-0 flex-col gap-0.5">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="font-semibold truncate" title={image.os}>
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="truncate font-semibold" title={image.os}>
                   {image.os ?? 'Unknown OS'}
                   {image.release ? ` ${image.release}` : ''}
                 </span>
                 <Badge
                   variant={image.local ? 'secondary' : 'outline'}
-                  className="text-[10px] uppercase shrink-0"
+                  className="shrink-0 text-[10px] uppercase"
                 >
                   {image.local ? 'Local' : 'Remote'}
                 </Badge>
               </div>
               <span
-                className="text-xs text-muted-foreground truncate"
+                className="truncate text-xs text-muted-foreground"
                 title={image.label}
               >
                 {image.label}
               </span>
               {!image.local && image.remote?.server ? (
                 <span
-                  className="text-[10px] text-muted-foreground truncate"
+                  className="truncate text-[10px] text-muted-foreground"
                   title={formatSource(image.remote.server)}
                 >
                   {formatSource(image.remote.server)}
@@ -298,44 +364,40 @@ export default function ImageSelector({
   );
 
   return (
-    <div className="mt-2 space-y-4 flex flex-col min-h-0">
+    <div className="mt-2 flex h-full min-h-0 flex-col space-y-4 overflow-hidden">
       {isLoading ? <Spinner className="mx-auto my-6" /> : null}
       {!isLoading ? (
         <>
-          <div className="rounded-md border bg-muted/30 p-3 text-sm shrink-0">
-            {selectedImage ? (
+          <div className="shrink-0 rounded-md border bg-muted/30 p-3 text-sm">
+            {displayedImage ? (
               <>
                 <p className="font-medium">
-                  {selectedImage.os ?? 'Unknown OS'}
-                  {selectedImage.release ? ` · ${selectedImage.release}` : ''}
-                </p>
-                <p className="text-muted-foreground text-xs">
-                  {selectedImage.label}
+                  {displayedImage.os ?? 'Unknown OS'}
+                  {displayedImage.release ? ` · ${displayedImage.release}` : ''}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {selectedImage.remote
+                  {displayedImage.label}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {displayedImage.remote
                     ? `${formatProtocol(
-                        selectedImage.remote.protocol,
-                      )} · ${formatSource(selectedImage.remote.server)}`
+                        displayedImage.remote.protocol,
+                      )} · ${formatSource(displayedImage.remote.server)}`
                     : 'Local image'}
                 </p>
               </>
             ) : (
-              <p className="text-muted-foreground">
-                Select an image to define the instance base.
-              </p>
+              <p className="text-muted-foreground">{emptyDescription}</p>
             )}
           </div>
-          <div className="flex flex-wrap items-center gap-3 shrink-0">
+          <div className="shrink-0 flex flex-wrap items-center gap-3">
             <div>
-              <p className="font-medium text-md my-auto">Available Images</p>
+              <p className="my-auto text-md font-medium">Available Images</p>
               <p className="text-xs text-muted-foreground">
-                {currentProject === 'all'
-                  ? 'All projects'
-                  : `Project · ${currentProject}`}
+                {resolvedProjectLabel}
               </p>
             </div>
-            <div className="sm:ml-auto flex flex-wrap items-center gap-2 w-full sm:w-fit">
+            <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-fit">
               <Input
                 placeholder="Search images..."
                 value={stringFilter}
@@ -356,7 +418,7 @@ export default function ImageSelector({
                     </DialogDescription>
                   </DialogHeader>
                   <Label htmlFor="remoteProtocol">Remote Type</Label>
-                  <div className="flex gap-2 -mt-2" id="remoteProtocol">
+                  <div className="-mt-2 flex gap-2" id="remoteProtocol">
                     <Select
                       value={remoteProtocol}
                       onValueChange={(value) =>
@@ -409,12 +471,12 @@ export default function ImageSelector({
             </div>
           </div>
           <div
-            className={`mt-2 flex-1 min-h-0 overflow-hidden ${
+            className={`mt-2 min-h-0 flex-1 overflow-hidden ${
               isValidating || loadingRemotes ? 'animate-pulse' : ''
             }`}
           >
             <DataTable
-              className="h-full [&>div]:h-full [&>div]:overflow-auto"
+              className="h-full [&>div]:h-full [&>div]:overflow-hidden [&>div>div]:h-full"
               stringFilter={stringFilter}
               cols={columns}
               data={images}
@@ -422,7 +484,7 @@ export default function ImageSelector({
               onRowClick={handleRowClick}
               getRowClassName={(row) =>
                 (row.original as SelectableImage).id === selectedImageId
-                  ? 'bg-muted/30'
+                  ? 'bg-accent/40 hover:bg-accent/40'
                   : ''
               }
             />

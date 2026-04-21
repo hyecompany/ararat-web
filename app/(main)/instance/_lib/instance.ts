@@ -5,6 +5,19 @@ import { jsonFetcherWithResponse } from '@/app/_lib/fetcher';
 import type { StandardResponse } from '@/app/_lib/response.d';
 
 export type InstanceAction = 'start' | 'stop' | 'restart' | 'freeze';
+export type AdvancedInstanceRepairAction = 'rebuild-config-volume';
+export type AdvancedInstanceRebuildSource =
+  | {
+      type: 'none';
+    }
+  | {
+      type: 'image';
+      fingerprint?: string;
+      alias?: string;
+      server?: string;
+      mode?: 'pull';
+      protocol?: 'simplestreams' | 'oci';
+    };
 const OPERATION_TIMEOUT_MS = 30000;
 
 interface UpdateInstanceMetadataInput {
@@ -40,15 +53,50 @@ interface UpdateInstanceBody {
   profiles: string[];
 }
 
+interface OperationResponseBody {
+  type?: string;
+  error?: string;
+  operation?: string;
+}
+
 function getProjectSuffix(instance: Instance) {
   return instance.project
     ? `?project=${encodeURIComponent(instance.project)}`
     : '';
 }
 
+function getProjectParam(instance: Instance) {
+  const params = new URLSearchParams();
+  if (instance.project) {
+    params.set('project', instance.project);
+  }
+
+  const query = params.toString();
+  return query ? `?${query}` : '';
+}
+
 async function getErrorMessage(res: Response, fallback: string) {
   const payload = await res.json().catch(() => ({ error: res.statusText }));
   return payload?.error || fallback;
+}
+
+async function parseOperationResponse(
+  res: Response,
+  fallback: string,
+): Promise<OperationResponseBody | null> {
+  const payload = (await res
+    .json()
+    .catch(() => null)) as OperationResponseBody | null;
+
+  if (!res.ok) {
+    throw new Error(payload?.error || fallback);
+  }
+
+  if (payload?.type === 'error') {
+    throw new Error(payload.error || fallback);
+  }
+
+  return payload;
 }
 
 async function getInstanceForUpdate({
@@ -106,9 +154,11 @@ function buildInstanceUpdateBody({
 
 export async function performInstanceAction({
   action,
+  force = false,
   instance,
 }: {
   action: InstanceAction;
+  force?: boolean;
   instance: Instance;
 }) {
   const projectSuffix = getProjectSuffix(instance);
@@ -122,17 +172,116 @@ export async function performInstanceAction({
       body: JSON.stringify({
         action,
         timeout: 30,
-        force: false,
+        force,
         stateful: false,
       }),
     },
   );
-  if (!res.ok) {
-    const payload = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(
-      payload?.error || `Unable to ${action} instance ${instance.name}`,
-    );
+  const payload = await parseOperationResponse(
+    res,
+    `Unable to ${action} instance ${instance.name}`,
+  );
+
+  if (payload?.operation) {
+    await waitForOperation({
+      operation: payload.operation,
+      project: instance.project,
+    });
   }
+}
+
+export function isInstanceDeleteProtected(instance: Instance) {
+  const config = instance.expanded_config ?? instance.config ?? {};
+  return config['security.protection.delete'] === 'true';
+}
+
+export function isInstanceRunning(instance: Instance) {
+  const status = instance.status?.toLowerCase();
+  return status === 'running' || status === 'started';
+}
+
+export function canDeleteInstance(instance: Instance) {
+  return !isInstanceDeleteProtected(instance) && !isInstanceRunning(instance);
+}
+
+export async function deleteInstance(instance: Instance, force = false) {
+  if (force && isInstanceRunning(instance)) {
+    await performInstanceAction({
+      action: 'stop',
+      force: true,
+      instance,
+    });
+  }
+
+  const projectParam = getProjectParam(instance);
+  const res = await fetch(
+    `/1.0/instances/${encodeURIComponent(instance.name)}${projectParam}`,
+    {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    },
+  );
+
+  return parseOperationResponse(
+    res,
+    `Unable to delete instance ${instance.name}.`,
+  );
+}
+
+export async function rebuildInstance({
+  instance,
+  source,
+}: {
+  instance: Instance;
+  source: AdvancedInstanceRebuildSource;
+}) {
+  const projectParam = getProjectParam(instance);
+  const res = await fetch(
+    `/1.0/instances/${encodeURIComponent(instance.name)}/rebuild${projectParam}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        source,
+      }),
+    },
+  );
+
+  return parseOperationResponse(
+    res,
+    `Unable to rebuild instance ${instance.name}.`,
+  );
+}
+
+export async function repairInstance({
+  instance,
+  action,
+}: {
+  instance: Instance;
+  action: AdvancedInstanceRepairAction;
+}) {
+  const projectParam = getProjectParam(instance);
+  const res = await fetch(
+    `/1.0/instances/${encodeURIComponent(instance.name)}/debug/repair${projectParam}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        action,
+      }),
+    },
+  );
+
+  return parseOperationResponse(
+    res,
+    `Unable to repair instance ${instance.name}.`,
+  );
 }
 
 async function updateInstanceDescription({

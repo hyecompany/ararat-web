@@ -30,7 +30,9 @@ import { useState, useMemo, use, useCallback, useRef } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import z from 'zod';
-import ImageSelector, { SelectableImage } from './imageSelector';
+import ImageSelector, {
+  type SelectableImage,
+} from '@/app/(main)/_components/image-selector';
 import InstanceProperties from '@/app/(main)/instances/_components/properties';
 import InstanceDevices from './devices';
 import type { Device } from '@/app/(main)/instances/_lib/instances.d';
