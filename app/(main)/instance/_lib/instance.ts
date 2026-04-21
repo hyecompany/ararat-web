@@ -66,13 +66,7 @@ function getProjectSuffix(instance: Instance) {
 }
 
 function getProjectParam(instance: Instance) {
-  const params = new URLSearchParams();
-  if (instance.project) {
-    params.set('project', instance.project);
-  }
-
-  const query = params.toString();
-  return query ? `?${query}` : '';
+  return getProjectSuffix(instance);
 }
 
 async function getErrorMessage(res: Response, fallback: string) {
@@ -97,6 +91,23 @@ async function parseOperationResponse(
   }
 
   return payload;
+}
+
+async function waitForOperationIfNeeded({
+  payload,
+  instance,
+}: {
+  payload: OperationResponseBody | null;
+  instance: Instance;
+}) {
+  if (!payload?.operation) {
+    return;
+  }
+
+  await waitForOperation({
+    operation: payload.operation,
+    project: instance.project,
+  });
 }
 
 async function getInstanceForUpdate({
@@ -182,12 +193,7 @@ export async function performInstanceAction({
     `Unable to ${action} instance ${instance.name}`,
   );
 
-  if (payload?.operation) {
-    await waitForOperation({
-      operation: payload.operation,
-      project: instance.project,
-    });
-  }
+  await waitForOperationIfNeeded({ payload, instance });
 }
 
 export function isInstanceDeleteProtected(instance: Instance) {
@@ -224,10 +230,14 @@ export async function deleteInstance(instance: Instance, force = false) {
     },
   );
 
-  return parseOperationResponse(
+  const payload = await parseOperationResponse(
     res,
     `Unable to delete instance ${instance.name}.`,
   );
+
+  await waitForOperationIfNeeded({ payload, instance });
+
+  return payload;
 }
 
 export async function rebuildInstance({
@@ -251,10 +261,14 @@ export async function rebuildInstance({
     },
   );
 
-  return parseOperationResponse(
+  const payload = await parseOperationResponse(
     res,
     `Unable to rebuild instance ${instance.name}.`,
   );
+
+  await waitForOperationIfNeeded({ payload, instance });
+
+  return payload;
 }
 
 export async function repairInstance({
@@ -278,10 +292,14 @@ export async function repairInstance({
     },
   );
 
-  return parseOperationResponse(
+  const payload = await parseOperationResponse(
     res,
     `Unable to repair instance ${instance.name}.`,
   );
+
+  await waitForOperationIfNeeded({ payload, instance });
+
+  return payload;
 }
 
 async function updateInstanceDescription({
