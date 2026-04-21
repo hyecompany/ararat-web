@@ -478,7 +478,7 @@ export default function ImageSelector({
             }`}
           >
             <DataTable
-              className="h-full [&>div]:h-full [&>div]:overflow-hidden [&>div>div]:h-full"
+              className="h-full [&>div]:h-full [&>div]:overflow-auto [&>div>div]:h-full"
               stringFilter={stringFilter}
               cols={columns}
               data={images}
