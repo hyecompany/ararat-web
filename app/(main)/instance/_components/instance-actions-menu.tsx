@@ -329,6 +329,15 @@ export function InstanceActionsMenu({
     [getSelectedImageSource, updateYamlSourceOverride],
   );
 
+  const handleRebuildImageSelect = React.useCallback(
+    (image: SelectableImage) => {
+      setSelectedImage(image);
+      updateYamlSourceOverride(null);
+      setSourceYamlError(null);
+    },
+    [updateYamlSourceOverride],
+  );
+
   const handleDelete = async () => {
     if (!canDelete) {
       if (!canForceDelete || !forceDelete) {
@@ -545,11 +554,7 @@ export function InstanceActionsMenu({
           ) : (
             <ImageSelector
               selectedImage={selectedImage}
-              onSelect={(image) => {
-                setSelectedImage(image);
-                updateYamlSourceOverride(null);
-                setSourceYamlError(null);
-              }}
+              onSelect={handleRebuildImageSelect}
               instanceType={
                 instance.type === 'virtual-machine'
                   ? 'virtual-machine'
