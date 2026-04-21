@@ -5,6 +5,27 @@ import { jsonFetcherWithResponse } from '@/app/_lib/fetcher';
 import type { StandardResponse } from '@/app/_lib/response.d';
 
 export type InstanceAction = 'start' | 'stop' | 'restart' | 'freeze';
+export type AdvancedInstanceRepairAction = 'rebuild-config-volume';
+export interface CloneInstanceInput {
+  instance: Instance;
+  name: string;
+  targetProject: string;
+  rootStoragePool: string;
+  allowInconsistent: boolean;
+  instanceOnly: boolean;
+}
+export type AdvancedInstanceRebuildSource =
+  | {
+      type: 'none';
+    }
+  | {
+      type: 'image';
+      fingerprint?: string;
+      alias?: string;
+      server?: string;
+      mode?: 'pull';
+      protocol?: 'simplestreams' | 'oci';
+    };
 const OPERATION_TIMEOUT_MS = 30000;
 
 interface UpdateInstanceMetadataInput {
@@ -18,6 +39,7 @@ interface UpdateInstanceSettingsInput {
   instance: Instance;
   nextConfig?: Record<string, string>;
   nextDevices?: Record<string, Device>;
+  nextProfiles?: string[];
   signal?: AbortSignal;
 }
 
@@ -40,15 +62,63 @@ interface UpdateInstanceBody {
   profiles: string[];
 }
 
+interface OperationResponseBody {
+  type?: string;
+  error?: string;
+  operation?: string;
+}
+
+function getProjectQuery(project?: string | null) {
+  return project ? `?project=${encodeURIComponent(project)}` : '';
+}
+
 function getProjectSuffix(instance: Instance) {
-  return instance.project
-    ? `?project=${encodeURIComponent(instance.project)}`
-    : '';
+  return getProjectQuery(instance.project);
+}
+
+function getProjectParam(instance: Instance) {
+  return getProjectSuffix(instance);
 }
 
 async function getErrorMessage(res: Response, fallback: string) {
   const payload = await res.json().catch(() => ({ error: res.statusText }));
   return payload?.error || fallback;
+}
+
+async function parseOperationResponse(
+  res: Response,
+  fallback: string,
+): Promise<OperationResponseBody | null> {
+  const payload = (await res
+    .json()
+    .catch(() => null)) as OperationResponseBody | null;
+
+  if (!res.ok) {
+    throw new Error(payload?.error || fallback);
+  }
+
+  if (payload?.type === 'error') {
+    throw new Error(payload.error || fallback);
+  }
+
+  return payload;
+}
+
+async function waitForOperationIfNeeded({
+  payload,
+  instance,
+}: {
+  payload: OperationResponseBody | null;
+  instance: Instance;
+}) {
+  if (!payload?.operation) {
+    return;
+  }
+
+  await waitForOperation({
+    operation: payload.operation,
+    project: instance.project,
+  });
 }
 
 async function getInstanceForUpdate({
@@ -74,15 +144,17 @@ function buildInstanceUpdateBody({
   instance,
   nextConfig,
   nextDevices,
+  nextProfiles,
 }: {
   instance: Instance;
   nextConfig?: Record<string, string>;
   nextDevices?: Record<string, Device>;
+  nextProfiles?: string[];
 }) {
   const payload: UpdateInstanceBody = {
     config: nextConfig ?? instance.config ?? {},
     devices: nextDevices ?? (instance.devices as Record<string, Device>) ?? {},
-    profiles: instance.profiles ?? ['default'],
+    profiles: nextProfiles ?? instance.profiles ?? ['default'],
   };
 
   if (instance.architecture) {
@@ -106,9 +178,11 @@ function buildInstanceUpdateBody({
 
 export async function performInstanceAction({
   action,
+  force = false,
   instance,
 }: {
   action: InstanceAction;
+  force?: boolean;
   instance: Instance;
 }) {
   const projectSuffix = getProjectSuffix(instance);
@@ -122,17 +196,188 @@ export async function performInstanceAction({
       body: JSON.stringify({
         action,
         timeout: 30,
-        force: false,
+        force,
         stateful: false,
       }),
     },
   );
-  if (!res.ok) {
-    const payload = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(
-      payload?.error || `Unable to ${action} instance ${instance.name}`,
-    );
+  const payload = await parseOperationResponse(
+    res,
+    `Unable to ${action} instance ${instance.name}`,
+  );
+
+  await waitForOperationIfNeeded({ payload, instance });
+}
+
+export function isInstanceDeleteProtected(instance: Instance) {
+  const config = instance.expanded_config ?? instance.config ?? {};
+  return config['security.protection.delete'] === 'true';
+}
+
+export function isInstanceRunning(instance: Instance) {
+  const status = instance.status?.toLowerCase();
+  return status === 'running' || status === 'started';
+}
+
+export function canDeleteInstance(instance: Instance) {
+  return !isInstanceDeleteProtected(instance) && !isInstanceRunning(instance);
+}
+
+export async function deleteInstance(instance: Instance, force = false) {
+  if (force && isInstanceRunning(instance)) {
+    await performInstanceAction({
+      action: 'stop',
+      force: true,
+      instance,
+    });
   }
+
+  const projectParam = getProjectParam(instance);
+  const res = await fetch(
+    `/1.0/instances/${encodeURIComponent(instance.name)}${projectParam}`,
+    {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    },
+  );
+
+  const payload = await parseOperationResponse(
+    res,
+    `Unable to delete instance ${instance.name}.`,
+  );
+
+  await waitForOperationIfNeeded({ payload, instance });
+
+  return payload;
+}
+
+export async function rebuildInstance({
+  instance,
+  source,
+}: {
+  instance: Instance;
+  source: AdvancedInstanceRebuildSource;
+}) {
+  const projectParam = getProjectParam(instance);
+  const res = await fetch(
+    `/1.0/instances/${encodeURIComponent(instance.name)}/rebuild${projectParam}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        source,
+      }),
+    },
+  );
+
+  const payload = await parseOperationResponse(
+    res,
+    `Unable to rebuild instance ${instance.name}.`,
+  );
+
+  await waitForOperationIfNeeded({ payload, instance });
+
+  return payload;
+}
+
+export async function repairInstance({
+  instance,
+  action,
+}: {
+  instance: Instance;
+  action: AdvancedInstanceRepairAction;
+}) {
+  const projectParam = getProjectParam(instance);
+  const res = await fetch(
+    `/1.0/instances/${encodeURIComponent(instance.name)}/debug/repair${projectParam}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        action,
+      }),
+    },
+  );
+
+  const payload = await parseOperationResponse(
+    res,
+    `Unable to repair instance ${instance.name}.`,
+  );
+
+  await waitForOperationIfNeeded({ payload, instance });
+
+  return payload;
+}
+
+export async function cloneInstance({
+  instance,
+  name,
+  targetProject,
+  rootStoragePool,
+  allowInconsistent,
+  instanceOnly,
+}: CloneInstanceInput) {
+  const normalizedName = name.trim();
+  const normalizedTargetProject = targetProject.trim();
+  const normalizedRootStoragePool = rootStoragePool.trim();
+
+  if (!normalizedName) {
+    throw new Error('Clone name is required.');
+  }
+
+  if (!normalizedRootStoragePool) {
+    throw new Error('Root storage pool is required.');
+  }
+
+  const sourceRootDevice =
+    (instance.expanded_devices?.root as Device | undefined) ??
+    (instance.devices?.root as Device | undefined);
+
+  const res = await fetch(`/1.0/instances${getProjectQuery(normalizedTargetProject)}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name: normalizedName,
+      type: instance.type,
+      devices: {
+        root: {
+          ...(sourceRootDevice ?? {}),
+          type: sourceRootDevice?.type ?? 'disk',
+          path: sourceRootDevice?.path ?? '/',
+          pool: normalizedRootStoragePool,
+        },
+      },
+      source: {
+        type: 'copy',
+        source: instance.name,
+        project: instance.project ?? 'default',
+        allow_inconsistent: allowInconsistent,
+        instance_only: instanceOnly,
+      },
+    }),
+  });
+
+  const payload = await parseOperationResponse(
+    res,
+    `Unable to clone instance ${instance.name}.`,
+  );
+
+  if (payload?.operation) {
+    await waitForOperation({
+      operation: payload.operation,
+      project: normalizedTargetProject,
+    });
+  }
+
+  return payload;
 }
 
 async function updateInstanceDescription({
@@ -306,6 +551,7 @@ export async function updateInstanceSettings({
   instance,
   nextConfig,
   nextDevices,
+  nextProfiles,
   signal,
 }: UpdateInstanceSettingsInput) {
   const { instance: latestInstance, etag } = await getInstanceForUpdate({
@@ -317,6 +563,7 @@ export async function updateInstanceSettings({
     instance: latestInstance,
     nextConfig,
     nextDevices,
+    nextProfiles,
   });
 
   const res = await fetch(

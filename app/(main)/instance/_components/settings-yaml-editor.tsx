@@ -3,12 +3,14 @@
 import * as React from 'react';
 import Editor from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
+import { cn } from 'ui-web/lib/utils';
 
 interface SettingsYamlEditorProps {
   value: string;
   error: string | null;
   onChange: (value: string | undefined) => void;
-  description: string;
+  description?: string;
+  className?: string;
 }
 
 export function SettingsYamlEditor({
@@ -16,15 +18,22 @@ export function SettingsYamlEditor({
   error,
   onChange,
   description,
+  className,
 }: SettingsYamlEditorProps) {
   const { resolvedTheme } = useTheme();
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="border-b px-6 py-4">
-        <p className="text-muted-foreground text-sm">{description}</p>
-        {error ? <p className="text-destructive mt-2 text-sm">{error}</p> : null}
-      </div>
+    <div className={cn('flex min-h-[22rem] flex-col overflow-hidden', className)}>
+      {description || error ? (
+        <div className="border-b px-6 py-4">
+          {description ? (
+            <p className="text-muted-foreground text-sm">{description}</p>
+          ) : null}
+          {error ? (
+            <p className="text-destructive mt-2 text-sm">{error}</p>
+          ) : null}
+        </div>
+      ) : null}
       <div className="min-h-0 flex-1 overflow-hidden">
         <Editor
           height="100%"

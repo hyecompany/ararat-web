@@ -20,21 +20,19 @@ import {
   Terminal,
   Folder,
   Camera,
-  Cpu,
-  Settings,
   PencilIcon,
   CheckIcon,
   XIcon,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from 'ui-web/components/tabs';
-import { OSLogo } from '@/app/_components/OSLogo';
-import { getBaseImage } from './_lib/utils';
 import {
   performInstanceAction,
   updateInstanceMetadata,
   type InstanceAction,
 } from './_lib/instance';
 import { SiteHeader } from '@/app/(main)/_components/header';
+import { InstanceActionsMenu } from './_components/instance-actions-menu';
+import IsClientContext from '@/app/_context/isClient';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -47,6 +45,7 @@ import { cn } from 'ui-web/lib/utils';
 import Link from 'next/link';
 
 function InstanceLayoutContent({ children }: { children: React.ReactNode }) {
+  const isClient = React.use(IsClientContext);
   const { name, instance, isLoading, isError, mutate } = useInstanceContext();
 
   const pathname = usePathname();
@@ -64,17 +63,17 @@ function InstanceLayoutContent({ children }: { children: React.ReactNode }) {
     if (!name) {
       return (
         <div className="h-full overflow-auto p-6">
-            <Alert variant="destructive">
-              <AlertTitle>Missing Parameter</AlertTitle>
-              <AlertDescription>
-                The <code>name</code> query parameter is required.
-              </AlertDescription>
-            </Alert>
-          </div>
+          <Alert variant="destructive">
+            <AlertTitle>Missing Parameter</AlertTitle>
+            <AlertDescription>
+              The <code>name</code> query parameter is required.
+            </AlertDescription>
+          </Alert>
+        </div>
       );
     }
 
-    if (isLoading && !instance) {
+    if (!isClient || (isLoading && !instance)) {
       return (
         <div className="flex h-full items-center justify-center p-8">
           <Spinner className="size-8" />
@@ -110,7 +109,7 @@ function InstanceLayoutContent({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <SiteHeader>
-<Breadcrumb className="select-none">
+        <Breadcrumb className="select-none">
           <BreadcrumbList>
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
@@ -134,7 +133,9 @@ function InstanceLayoutContent({ children }: { children: React.ReactNode }) {
           </BreadcrumbList>
         </Breadcrumb>
       </SiteHeader>
-      <div className="min-h-0 flex-1 overflow-auto">{renderContent()}</div>
+      <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+        {renderContent()}
+      </div>
     </div>
   );
 }
@@ -355,8 +356,6 @@ function InstanceHeader({
     availableActions.push('start');
   }
 
-  const isUnknownStatus = !isRunning && !isStopped && !isFrozen;
-
   const renderEditableField = ({
     field,
     value,
@@ -459,27 +458,11 @@ function InstanceHeader({
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
-        <div className="relative flex h-16 w-16 items-center justify-center rounded-lg border bg-muted">
-          <OSLogo brand={getBaseImage(instance)} className="h-8 w-8" />
-
-          {/* Pulsing Status Circle */}
-          {isRunning && (
-            <span className="absolute -bottom-1 -right-1 flex h-4 w-4">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-4 w-4 bg-green-500"></span>
-            </span>
-          )}
-          {isUnknownStatus && (
-            <span className="absolute -bottom-1 -right-1 flex h-4 w-4">
-              <span className="relative inline-flex rounded-full h-4 w-4 bg-gray-400"></span>
-            </span>
-          )}
-          {isStopped && (
-            <span className="absolute -bottom-1 -right-1 flex h-4 w-4">
-              <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500"></span>
-            </span>
-          )}
-        </div>
+        <InstanceActionsMenu
+          instance={instance}
+          disabled={isBusy}
+          onMutate={onMutate}
+        />
 
         <div ref={fieldContainerRef} className="flex-1 space-y-1">
           {renderEditableField({
@@ -540,12 +523,10 @@ function InstanceHeader({
 
 const TABS = [
   { value: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { value: 'backups', label: 'Backups', icon: Archive },
   { value: 'console', label: 'Console', icon: Terminal },
   { value: 'files', label: 'Files', icon: Folder },
   { value: 'snapshots', label: 'Snapshots', icon: Camera },
-  { value: 'devices', label: 'Devices', icon: Cpu },
-  { value: 'configuration', label: 'Configuration', icon: Settings },
+  { value: 'backups', label: 'Backups', icon: Archive },
 ];
 
 function InstanceTabs() {

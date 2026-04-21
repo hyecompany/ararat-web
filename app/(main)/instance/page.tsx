@@ -25,35 +25,20 @@ import {
 
 export default function InstancePage() {
   const { instance, isLoading } = useInstanceContext();
-
-  if (isLoading) {
-    return <Spinner />;
-  }
-
-  if (!instance) {
-    return null; // Layout handles error display
-  }
-
-  // Dashboard content inlined
-
-  const memoryUsage = instance.state?.memory?.usage ?? 0;
-  const memoryTotal =
-    instance.state?.memory?.total ?? instance.state?.memory?.usage_peak;
-  const memoryPercent = calcResourcePercent(memoryUsage, memoryTotal);
-
-  const diskUsage = getRootDiskUsage(instance.state) ?? 0;
-  const diskTotal = instance.state?.disk?.root?.total;
-  const diskPercent = calcResourcePercent(diskUsage, diskTotal);
-
-  const networkDetails = getNetworkDetails(instance);
-  const baseImage = getBaseImage(instance);
-  const rootDiskPool = getRootDiskPool(instance);
-
   const [cpuPercent, setCpuPercent] = React.useState<number>(0);
   const lastCpuUsage = React.useRef<number | null>(null);
   const lastTime = React.useRef<number | null>(null);
 
+  const currentCpuUsage = instance?.state?.cpu?.usage;
+
   React.useEffect(() => {
+    if (!instance) {
+      lastCpuUsage.current = null;
+      lastTime.current = null;
+      setCpuPercent(0);
+      return;
+    }
+
     const currentUsage = instance.state?.cpu?.usage;
     const currentTime = Date.now();
 
@@ -78,7 +63,34 @@ export default function InstancePage() {
       lastCpuUsage.current = currentUsage;
       lastTime.current = currentTime;
     }
-  }, [instance.state?.cpu?.usage]);
+  }, [currentCpuUsage, instance]);
+
+  if (isLoading) {
+    return <Spinner />;
+  }
+
+  if (!instance) {
+    return null; // Layout handles error display
+  }
+
+  const memoryUsage = instance.state?.memory?.usage ?? 0;
+  const memoryTotal =
+    instance.state?.memory?.total ?? instance.state?.memory?.usage_peak;
+  const memoryPercent = calcResourcePercent(memoryUsage, memoryTotal);
+
+  const diskUsage = getRootDiskUsage(instance.state) ?? 0;
+  const diskTotal = instance.state?.disk?.root?.total;
+  const diskPercent = calcResourcePercent(diskUsage, diskTotal);
+
+  const networkDetails = getNetworkDetails(instance);
+  const baseImage = getBaseImage(instance);
+  const rootDiskPool = getRootDiskPool(instance);
+  const instanceType =
+    instance.type === 'virtual-machine'
+      ? 'Virtual Machine'
+      : instance.type === 'container'
+        ? 'Container'
+        : (instance.type ?? '—');
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -186,6 +198,10 @@ export default function InstancePage() {
           <div className="flex justify-between">
             <span className="text-muted-foreground">Project</span>
             <span>{instance.project ?? 'default'}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Type</span>
+            <span>{instanceType}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Base Image</span>

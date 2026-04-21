@@ -8,7 +8,7 @@ import { mutate } from 'swr';
 import z from 'zod';
 import Editor from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
-import { Code2Icon } from 'lucide-react';
+import { CodeXmlIcon } from 'lucide-react';
 
 import {
   createProject,
@@ -462,21 +462,23 @@ export default function ProjectDialog({ open, onOpenChange, mode, project }: Pro
                 </TabsContent>
               </Tabs>
             </div>
-              <DialogFooter className="mt-4 shrink-0 border-t pt-4">
-              <Button type="button" variant="outline" onClick={toggleYamlEditor}>
-                <Code2Icon className="mr-2 h-4 w-4" />
-                {showYamlEditor ? 'Back to form' : 'Edit YAML'}
-              </Button>
-              <Button type="submit" disabled={!isFormValid}>
-                {isSubmitting ? (
-                  <>
-                    <Spinner className="mr-2 h-4 w-4" />
-                    {copy.submittingLabel}
-                  </>
-                ) : (
-                  copy.submitLabel
-                )}
-              </Button>
+            <DialogFooter className="mt-4 shrink-0 border-t pt-4">
+              <div className="flex w-full items-center justify-between">
+                <Button type="button" variant="outline" onClick={toggleYamlEditor}>
+                  <CodeXmlIcon className="mr-2 size-4" />
+                  {showYamlEditor ? 'Back to Wizard' : 'Edit YAML'}
+                </Button>
+                <Button type="submit" disabled={!isFormValid}>
+                  {isSubmitting ? (
+                    <>
+                      <Spinner className="mr-2 h-4 w-4" />
+                      {copy.submittingLabel}
+                    </>
+                  ) : (
+                    copy.submitLabel
+                  )}
+                </Button>
+              </div>
             </DialogFooter>
           </form>
         </Form>
