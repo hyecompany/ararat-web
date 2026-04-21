@@ -2,57 +2,48 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
+import { IconSettings } from '@tabler/icons-react';
 import {
-  ArrowLeftIcon,
-  CodeXmlIcon,
-  PackageIcon,
+  CopyPlusIcon,
+  HardDriveIcon,
   RefreshCcwDotIcon,
   Settings2Icon,
+  SquaresIntersectIcon,
   Trash2Icon,
   WrenchIcon,
 } from 'lucide-react';
 
 import { OSLogo } from '@/app/_components/OSLogo';
-import ImageSelector, {
-  type SelectableImage,
-} from '@/app/(main)/_components/image-selector';
-import { useStoragePools } from '@/app/(main)/_hooks/storagePools';
-import { fromYaml, toYaml } from '@/app/(main)/_lib/yaml';
-import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
-import { Badge } from 'ui-web/components/badge';
 import { Button } from 'ui-web/components/button';
-import { Checkbox } from 'ui-web/components/checkbox';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from 'ui-web/components/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from 'ui-web/components/select';
-import {
-  canDeleteInstance,
-  deleteInstance,
-  isInstanceDeleteProtected,
-  isInstanceRunning,
-  rebuildInstance,
-  repairInstance,
-  type AdvancedInstanceRebuildSource,
-} from '../_lib/instance';
-import { SettingsYamlEditor } from './settings-yaml-editor';
-import { getBaseImage } from '../_lib/utils';
+import { cn } from 'ui-web/lib/utils';
 import type { Instance } from '../../instances/_lib/instances.d';
+import { getBaseImage } from '../_lib/utils';
+import Clone from './management/clone';
+import Configuration from './management/configuration';
+import Delete from './management/delete';
+import Devices from './management/devices';
+import Profiles from './management/profiles';
+import Rebuild from './management/rebuild';
+import Repair from './management/repair';
+import { useStoragePools } from '@/app/(main)/_hooks/storagePools';
 
-type ActionView = 'menu' | 'delete' | 'rebuild' | 'repair';
-type RebuildMode = 'image' | 'empty';
+type ActionView =
+  | 'menu'
+  | 'devices'
+  | 'configuration'
+  | 'profiles'
+  | 'rebuild'
+  | 'clone'
+  | 'repair'
+  | 'delete';
 
 export function InstanceActionsMenu({
   instance,
@@ -67,580 +58,55 @@ export function InstanceActionsMenu({
   const { data: storagePools } = useStoragePools();
   const [open, setOpen] = React.useState(false);
   const [view, setView] = React.useState<ActionView>('menu');
-  const [busyAction, setBusyAction] = React.useState<ActionView | null>(null);
-  const [actionError, setActionError] = React.useState<string | null>(null);
-  const [rebuildMode, setRebuildMode] = React.useState<RebuildMode>('image');
-  const [forceDelete, setForceDelete] = React.useState(false);
-  const [selectedImage, setSelectedImage] =
-    React.useState<SelectableImage | null>(null);
-  const [showSourceYamlEditor, setShowSourceYamlEditor] = React.useState(false);
-  const [sourceYamlContent, setSourceYamlContent] = React.useState('');
-  const [sourceYamlError, setSourceYamlError] = React.useState<string | null>(null);
-  const [yamlSourceOverride, setYamlSourceOverride] =
-    React.useState<AdvancedInstanceRebuildSource | null>(null);
 
   const rootDiskPoolName =
     instance.expanded_devices?.root?.pool ?? instance.devices?.root?.pool ?? null;
   const rootDiskPool =
     storagePools?.find((pool) => pool.name === rootDiskPoolName) ?? null;
-  const isRunning = isInstanceRunning(instance);
-  const isDeleteProtected = isInstanceDeleteProtected(instance);
-  const canDelete = canDeleteInstance(instance);
-  const canForceDelete = isRunning && !isDeleteProtected;
   const canRepair =
     instance.type === 'virtual-machine' &&
     rootDiskPool?.driver === 'lvm' &&
     (rootDiskPool.locations?.length ?? 0) > 1;
-  const isBusy = busyAction !== null;
+  const status = instance.status?.toLowerCase();
+  const isRunning = status === 'running' || status === 'started';
+  const isStopped = status === 'stopped';
 
   React.useEffect(() => {
-    if (open) {
-      return;
+    if (!open) {
+      setView('menu');
     }
-
-    setView('menu');
-    setBusyAction(null);
-    setActionError(null);
-    setRebuildMode('image');
-    setForceDelete(false);
-    setSelectedImage(null);
-    setShowSourceYamlEditor(false);
-    setSourceYamlContent('');
-    setSourceYamlError(null);
-    setYamlSourceOverride(null);
   }, [open]);
 
-  const projectLabel = instance.project
-    ? `Project · ${instance.project}`
-    : 'Project · default';
+  const handleClose = React.useCallback(() => {
+    setOpen(false);
+    setView('menu');
+  }, []);
 
-  const getSelectedImageSource =
-    React.useCallback((): AdvancedInstanceRebuildSource => {
-      if (!selectedImage) {
-        throw new Error('Select an image before rebuilding this instance.');
-      }
+  const handleMutateAndClose = React.useCallback(async () => {
+    handleClose();
+    await onMutate();
+  }, [handleClose, onMutate]);
 
-      if (selectedImage.local && selectedImage.fingerprint) {
-        return {
-          type: 'image',
-          fingerprint: selectedImage.fingerprint,
-        };
-      }
+  const handleDeleteDone = React.useCallback(async () => {
+    handleClose();
+    React.startTransition(() => {
+      router.push('/instances');
+    });
+  }, [handleClose, router]);
 
-      if (selectedImage.remote?.alias && selectedImage.remote?.server) {
-        return {
-          type: 'image',
-          alias: selectedImage.remote.alias,
-          server: selectedImage.remote.server,
-          mode: 'pull',
-          protocol: selectedImage.remote.protocol,
-        };
-      }
-
-      throw new Error('The selected image is missing the data needed for rebuild.');
-    }, [selectedImage]);
-
-  const getRebuildSource = React.useCallback((): AdvancedInstanceRebuildSource => {
-    if (yamlSourceOverride) {
-      return yamlSourceOverride;
-    }
-
-    if (rebuildMode === 'empty') {
-      return { type: 'none' };
-    }
-
-    return getSelectedImageSource();
-  }, [getSelectedImageSource, rebuildMode, yamlSourceOverride]);
-
-  const updateYamlSourceOverride = React.useCallback(
-    (
-      nextSource: AdvancedInstanceRebuildSource | null,
-      skipContentUpdate = false,
-    ) => {
-      setYamlSourceOverride(nextSource);
-
-      if (!nextSource) {
-        setSourceYamlError(null);
-        return;
-      }
-
-      if (!skipContentUpdate) {
-        setSourceYamlContent(
-          toYaml(nextSource as unknown as Record<string, unknown>),
-        );
-      }
-      setSourceYamlError(null);
-    },
-    [],
-  );
-
-  const syncSelectedImageFromSource = React.useCallback(
-    (nextSource: AdvancedInstanceRebuildSource) => {
-      if (nextSource.type !== 'image') {
-        setSelectedImage(null);
-        return;
-      }
-
-      if (nextSource.fingerprint) {
-        setSelectedImage((current) =>
-          current?.fingerprint === nextSource.fingerprint
-            ? current
-            : null,
-        );
-        return;
-      }
-
-      if (nextSource.alias && nextSource.server) {
-        setSelectedImage((current) =>
-          current?.remote?.alias === nextSource.alias &&
-          current?.remote?.server === nextSource.server
-            ? current
-            : null,
-        );
-        return;
-      }
-
-      setSelectedImage(null);
-    },
-    [],
-  );
-
-  const handleSourceYamlChange = React.useCallback(
-    (value: string | undefined) => {
-      const nextValue = value ?? '';
-      setSourceYamlContent(nextValue);
-
-      try {
-        const parsed = fromYaml(nextValue);
-        if (!parsed || typeof parsed !== 'object') {
-          throw new Error('Invalid source YAML.');
-        }
-        const parsedSource = parsed as Record<string, unknown>;
-        const type = parsedSource.type;
-
-        if (type !== 'image' && type !== 'none') {
-          throw new Error('Source YAML must include type: image or type: none.');
-        }
-
-        if (type === 'none') {
-          const nextSource: AdvancedInstanceRebuildSource = { type: 'none' };
-          setRebuildMode('empty');
-          updateYamlSourceOverride(nextSource, true);
-          syncSelectedImageFromSource(nextSource);
-          return;
-        }
-
-        const fingerprint =
-          typeof parsedSource.fingerprint === 'string' &&
-          parsedSource.fingerprint.trim()
-            ? parsedSource.fingerprint.trim()
-            : undefined;
-        const alias =
-          typeof parsedSource.alias === 'string' && parsedSource.alias.trim()
-            ? parsedSource.alias.trim()
-            : undefined;
-        const server =
-          typeof parsedSource.server === 'string' && parsedSource.server.trim()
-            ? parsedSource.server.trim()
-            : undefined;
-        const mode = parsedSource.mode;
-        const protocol = parsedSource.protocol;
-
-        if (!fingerprint && !(alias && server)) {
-          throw new Error(
-            'Image source YAML must include fingerprint or both alias and server.',
-          );
-        }
-
-        if (mode !== undefined && mode !== 'pull') {
-          throw new Error('Only mode: pull is supported for rebuild sources.');
-        }
-
-        if (
-          protocol !== undefined &&
-          protocol !== 'simplestreams' &&
-          protocol !== 'oci'
-        ) {
-          throw new Error(
-            'protocol must be either simplestreams or oci when provided.',
-          );
-        }
-
-        const nextSource: AdvancedInstanceRebuildSource = {
-          type: 'image',
-          ...(fingerprint ? { fingerprint } : {}),
-          ...(alias ? { alias } : {}),
-          ...(server ? { server } : {}),
-          ...(mode === 'pull' ? { mode } : {}),
-          ...(protocol ? { protocol } : {}),
-        };
-
-        setRebuildMode('image');
-        updateYamlSourceOverride(nextSource, true);
-        syncSelectedImageFromSource(nextSource);
-      } catch (error) {
-        setSourceYamlError(
-          error instanceof Error ? error.message : 'Invalid source YAML.',
-        );
-      }
-    },
-    [syncSelectedImageFromSource, updateYamlSourceOverride],
-  );
-
-  const handleToggleSourceYamlEditor = React.useCallback(() => {
-    if (!showSourceYamlEditor) {
-      try {
-        const currentSource = getRebuildSource();
-        setSourceYamlContent(
-          toYaml(currentSource as unknown as Record<string, unknown>),
-        );
-        setSourceYamlError(null);
-      } catch {
-        setSourceYamlContent(
-          toYaml({ type: rebuildMode } as unknown as Record<string, unknown>),
-        );
-      }
-    }
-
-    setShowSourceYamlEditor((current) => !current);
-  }, [getRebuildSource, rebuildMode, showSourceYamlEditor]);
-
-  const handleRebuildModeChange = React.useCallback(
-    (nextMode: RebuildMode) => {
-      setRebuildMode(nextMode);
-      setSourceYamlError(null);
-
-      if (nextMode === 'empty') {
-        const emptySource: AdvancedInstanceRebuildSource = { type: 'none' };
-        updateYamlSourceOverride(emptySource);
-        setSourceYamlContent(toYaml(emptySource as Record<string, unknown>));
-        return;
-      }
-
-      updateYamlSourceOverride(null);
-
-      try {
-        const imageSource = getSelectedImageSource();
-        setSourceYamlContent(toYaml(imageSource as Record<string, unknown>));
-      } catch {
-        setSourceYamlContent(toYaml({ type: 'image' } as Record<string, unknown>));
-      }
-    },
-    [getSelectedImageSource, updateYamlSourceOverride],
-  );
-
-  const handleRebuildImageSelect = React.useCallback(
-    (image: SelectableImage) => {
-      setSelectedImage(image);
-      updateYamlSourceOverride(null);
-      setSourceYamlError(null);
-    },
-    [updateYamlSourceOverride],
-  );
-
-  const handleDelete = async () => {
-    if (!canDelete) {
-      if (!canForceDelete || !forceDelete) {
-        return;
-      }
-    }
-
-    try {
-      setActionError(null);
-      setBusyAction('delete');
-      await deleteInstance(instance, canForceDelete && forceDelete);
-      setOpen(false);
-      React.startTransition(() => {
-        router.push('/instances');
-      });
-    } catch (error) {
-      setActionError(
-        error instanceof Error ? error.message : 'Unable to delete instance.',
-      );
-    } finally {
-      setBusyAction(null);
-    }
-  };
-
-  const handleRebuild = async () => {
-    try {
-      setActionError(null);
-      setBusyAction('rebuild');
-      const source = getRebuildSource();
-      await rebuildInstance({ instance, source });
-      setOpen(false);
-      await onMutate();
-    } catch (error) {
-      setActionError(
-        error instanceof Error ? error.message : 'Unable to rebuild instance.',
-      );
-    } finally {
-      setBusyAction(null);
-    }
-  };
-
-  const handleRepair = async () => {
-    try {
-      setActionError(null);
-      setBusyAction('repair');
-      await repairInstance({
-        instance,
-        action: 'rebuild-config-volume',
-      });
-      setOpen(false);
-      await onMutate();
-    } catch (error) {
-      setActionError(
-        error instanceof Error ? error.message : 'Unable to repair instance.',
-      );
-    } finally {
-      setBusyAction(null);
-    }
-  };
-
-  const renderStatusIndicator = () => {
-    const status = instance.status?.toLowerCase();
-
-    if (status === 'running' || status === 'started') {
-      return (
-        <span className="absolute -right-1 -bottom-1 flex h-4 w-4">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
-          <span className="relative inline-flex h-4 w-4 rounded-full bg-green-500" />
-        </span>
-      );
-    }
-
-    if (status === 'stopped') {
-      return (
-        <span className="absolute -right-1 -bottom-1 flex h-4 w-4">
-          <span className="relative inline-flex h-4 w-4 rounded-full bg-red-500" />
-        </span>
-      );
-    }
-
-    return (
-      <span className="absolute -right-1 -bottom-1 flex h-4 w-4">
-        <span className="relative inline-flex h-4 w-4 rounded-full bg-gray-400" />
-      </span>
-    );
-  };
-
-  const renderMenu = () => (
-    <div className="grid gap-3">
-      <ActionCard
-        icon={<RefreshCcwDotIcon className="size-4" />}
-        title="Rebuild instance"
-        description="Recreate the instance from a selected image or as empty."
-        onClick={() => setView('rebuild')}
-      />
-      {canRepair ? (
-        <ActionCard
-          icon={<WrenchIcon className="size-4" />}
-          title="Repair instance"
-          description="Run the supported low-level repair action for this instance."
-          onClick={() => setView('repair')}
-        />
-      ) : null}
-      <ActionCard
-        icon={<Trash2Icon className="size-4 text-destructive" />}
-        title="Delete instance"
-        description="Permanently remove this instance and all of its data."
-        onClick={() => setView('delete')}
-      />
-    </div>
-  );
-
-  const renderDeleteView = () => (
-    <div className="space-y-4">
-      <div className="rounded-md border border-destructive/20 bg-destructive/5 p-4 text-sm">
-        This action cannot be undone. This will permanently delete{' '}
-        <strong>{instance.name}</strong> and all of its data.
-      </div>
-
-      {isRunning ? (
-        <Alert>
-          <AlertTitle>Stop the instance first</AlertTitle>
-          <AlertDescription>
-            Running instances must be stopped before deletion. You can force a
-            stop first and then continue with deletion from here.
-          </AlertDescription>
-        </Alert>
-      ) : null}
-
-      {isDeleteProtected ? (
-        <Alert>
-          <AlertTitle>Delete protection is enabled</AlertTitle>
-          <AlertDescription>
-            Disable <code>security.protection.delete</code> before deleting this
-            instance.
-          </AlertDescription>
-        </Alert>
-      ) : null}
-
-      {!isRunning && !isDeleteProtected ? (
-        <p className="text-sm text-muted-foreground">
-          The delete request will be sent immediately and progress will be
-          tracked through the existing operation events.
-        </p>
-      ) : null}
-
-      {canForceDelete ? (
-        <label className="flex items-start gap-3 rounded-md border bg-muted/20 p-3 text-sm">
-          <Checkbox
-            checked={forceDelete}
-            onCheckedChange={(checked) => setForceDelete(checked === true)}
-            disabled={isBusy}
-            aria-label="Force stop before deleting"
-          />
-          <span className="space-y-1">
-            <span className="block font-medium">Force stop before delete</span>
-            <span className="block text-muted-foreground">
-              Stop the running instance with force, wait for it to stop, then
-              delete it.
-            </span>
-          </span>
-        </label>
-      ) : null}
-
-      <DialogFooter>
-        <Button variant="outline" onClick={() => setView('menu')} disabled={isBusy}>
-          Back
-        </Button>
-        <Button
-          variant="destructive"
-          loading={busyAction === 'delete'}
-          disabled={(!canDelete && !(canForceDelete && forceDelete)) || isBusy}
-          onClick={() => void handleDelete()}
-        >
-          {canForceDelete && forceDelete ? 'Force stop and delete' : 'Delete instance'}
-        </Button>
-      </DialogFooter>
-    </div>
-  );
-
-  const renderRebuildView = () => (
-    <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)_auto] gap-4 overflow-hidden">
-      {!showSourceYamlEditor ? (
-        <div className="grid gap-2">
-          <p className="text-sm font-medium">Rebuild source</p>
-          <Select
-            value={rebuildMode}
-            onValueChange={(value) =>
-              handleRebuildModeChange(value as RebuildMode)
-            }
-            disabled={isBusy}
-          >
-            <SelectTrigger className="w-full sm:w-64">
-              <SelectValue placeholder="Select rebuild source" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="image">Image</SelectItem>
-              <SelectItem value="empty">Empty rebuild</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      ) : null}
-
-      {rebuildMode === 'image' ? (
-        <div className="min-h-0 overflow-hidden">
-          {showSourceYamlEditor ? (
-            <div className="h-[24rem] min-h-[24rem] overflow-hidden">
-              <SettingsYamlEditor
-                value={sourceYamlContent}
-                error={sourceYamlError}
-                onChange={handleSourceYamlChange}
-              />
-            </div>
-          ) : (
-            <ImageSelector
-              selectedImage={selectedImage}
-              onSelect={handleRebuildImageSelect}
-              instanceType={
-                instance.type === 'virtual-machine'
-                  ? 'virtual-machine'
-                  : 'container'
-              }
-              project={instance.project ?? null}
-              projectLabel={projectLabel}
-              emptyDescription="Select the image to use for the rebuild."
-              defaultSelection={{
-                fingerprint:
-                  instance.expanded_config?.['volatile.base_image'] ??
-                  instance.config?.['volatile.base_image'] ??
-                  null,
-                alias: instance.config?.['image.alias'] ?? null,
-                description: instance.config?.['image.description'] ?? null,
-              }}
-              disableAutoSelect={showSourceYamlEditor}
-            />
-          )}
-        </div>
-      ) : (
-        <div className="rounded-md border bg-muted/30 p-4 text-sm text-muted-foreground">
-          An empty rebuild recreates the instance without selecting an image
-          source.
-        </div>
-      )}
-
-      <div className="flex flex-wrap items-center gap-3 border-t pt-4">
-        <div>
-          {rebuildMode === 'image' ? (
-            <Button
-              variant="outline"
-              onClick={handleToggleSourceYamlEditor}
-              disabled={isBusy}
-            >
-              {showSourceYamlEditor ? (
-                <PackageIcon className="mr-2 h-4 w-4" />
-              ) : (
-                <CodeXmlIcon className="mr-2 h-4 w-4" />
-              )}
-              {showSourceYamlEditor ? 'Back to image list' : 'Edit YAML'}
-            </Button>
-          ) : null}
-        </div>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => setView('menu')}
-            disabled={isBusy}
-          >
-            Back
-          </Button>
-          <Button
-            loading={busyAction === 'rebuild'}
-            disabled={Boolean(sourceYamlError) || (rebuildMode === 'image' && !selectedImage && !yamlSourceOverride)}
-            onClick={() => void handleRebuild()}
-          >
-            Rebuild instance
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderRepairView = () => (
-    <div className="space-y-4">
-      <div className="rounded-md border bg-muted/30 p-4 text-sm">
-        <div className="flex items-center gap-2">
-          <span className="font-medium">Supported action</span>
-          <Badge variant="outline">rebuild-config-volume</Badge>
-        </div>
-        <p className="mt-2 text-muted-foreground">
-          This triggers the currently supported low-level repair action exposed
-          by Incus for this instance.
-        </p>
-      </div>
-
-      <DialogFooter>
-        <Button variant="outline" onClick={() => setView('menu')} disabled={isBusy}>
-          Back
-        </Button>
-        <Button loading={busyAction === 'repair'} onClick={() => void handleRepair()}>
-          Run repair
-        </Button>
-      </DialogFooter>
-    </div>
+  const dialogContentClassName = cn(
+    'flex w-full flex-col overflow-hidden transition-[width,max-width,height,max-height] duration-200 ease-out motion-reduce:transition-none',
+    view === 'configuration' || view === 'devices' || view === 'rebuild'
+      ? 'h-[90vh] max-h-[90vh] sm:max-w-6xl'
+      : view === 'menu'
+        ? 'max-h-[90vh] sm:max-w-4xl'
+        : view === 'clone'
+          ? 'max-h-[90vh] sm:max-w-2xl'
+          : view === 'profiles'
+            ? 'max-h-[90vh] sm:max-w-2xl'
+            : view === 'delete'
+              ? 'max-h-[90vh] sm:max-w-2xl'
+              : 'max-h-[90vh] sm:max-w-2xl',
   );
 
   return (
@@ -649,73 +115,205 @@ export function InstanceActionsMenu({
         <Button
           type="button"
           variant="ghost"
+          size="icon"
           disabled={disabled}
-          className="group relative h-16 w-16 rounded-lg border bg-muted p-0 hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          aria-label="Open instance actions"
+          className="group relative h-16 w-16 rounded-lg border bg-muted p-0 hover:bg-muted"
+          aria-label={`Manage instance ${instance.name}`}
         >
           <OSLogo brand={getBaseImage(instance)} className="size-8" />
-          <span className="absolute inset-0 rounded-lg bg-background/75 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
-          <Settings2Icon className="absolute size-5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
-          {renderStatusIndicator()}
+          <span className="absolute inset-0 rounded-lg bg-background/0 transition-colors group-hover:bg-background/10 group-focus-visible:bg-background/10" />
+          <span className="absolute -right-1 -bottom-1 size-3.75" aria-hidden="true">
+            {isRunning ? (
+              <>
+                <span className="absolute inset-0 rounded-full bg-emerald-500/20 scale-[1.35]" />
+                <span className="absolute inset-0 rounded-full bg-emerald-500/35 [animation:status-halo-pulse_2.8s_ease-out_infinite]" />
+              </>
+            ) : null}
+            <span
+              className={cn(
+                'absolute inset-0 rounded-full border-2 border-background shadow-[0_0_0_1px_rgba(0,0,0,0.08)] transition-transform group-hover:scale-105',
+                isRunning && 'bg-emerald-500',
+                isStopped && 'bg-red-400',
+                !isRunning && !isStopped && 'bg-amber-400',
+              )}
+            />
+          </span>
+          <span className="absolute top-1 right-1 rounded-full border bg-background/95 p-1 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+            <Settings2Icon className="size-3" />
+          </span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="flex max-h-[85vh] flex-col overflow-hidden sm:max-w-4xl">
-        <DialogHeader className="shrink-0">
-          <div className="flex items-center gap-2">
-            {view !== 'menu' ? (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setView('menu')}
-                disabled={isBusy}
-                aria-label="Back to actions menu"
-              >
-                <ArrowLeftIcon className="size-4" />
-              </Button>
-            ) : null}
-            <DialogTitle>{getDialogTitle(view, instance.name)}</DialogTitle>
-          </div>
+      <DialogContent className={dialogContentClassName}>
+        <DialogHeader>
+          <DialogTitle>{getDialogTitle(view, instance.name)}</DialogTitle>
           <DialogDescription>
             {getDialogDescription(view, instance.name)}
           </DialogDescription>
         </DialogHeader>
 
-        {actionError ? (
-          <Alert variant="destructive">
-            <AlertTitle>Action failed</AlertTitle>
-            <AlertDescription>{actionError}</AlertDescription>
-          </Alert>
-        ) : null}
+        <div
+          className={cn(
+            'min-h-0 flex-1 pr-1',
+            view === 'menu' || view === 'clone' || view === 'delete' || view === 'repair' || view === 'profiles'
+              ? 'overflow-y-auto'
+              : 'overflow-hidden',
+          )}
+        >
+          {view === 'menu' ? (
+            <ActionMenu canRepair={canRepair} onSelect={setView} />
+          ) : null}
 
-        {view === 'menu' ? renderMenu() : null}
-        {view === 'delete' ? renderDeleteView() : null}
-        {view === 'rebuild' ? renderRebuildView() : null}
-        {view === 'repair' && canRepair ? renderRepairView() : null}
+          {view === 'devices' ? (
+            <Devices
+              instance={instance}
+              onMutate={onMutate}
+              onBack={() => setView('menu')}
+            />
+          ) : null}
+
+          {view === 'configuration' ? (
+            <Configuration
+              instance={instance}
+              onMutate={onMutate}
+              onBack={() => setView('menu')}
+            />
+          ) : null}
+
+          {view === 'profiles' ? (
+            <Profiles
+              instance={instance}
+              onMutate={onMutate}
+              onBack={() => setView('menu')}
+            />
+          ) : null}
+
+          {view === 'rebuild' ? (
+            <Rebuild
+              instance={instance}
+              onBack={() => setView('menu')}
+              onDone={handleMutateAndClose}
+            />
+          ) : null}
+
+          {view === 'clone' ? (
+            <Clone
+              instance={instance}
+              onBack={() => setView('menu')}
+              onDone={handleMutateAndClose}
+            />
+          ) : null}
+
+          {view === 'repair' ? (
+            <Repair
+              instance={instance}
+              onBack={() => setView('menu')}
+              onDone={handleMutateAndClose}
+            />
+          ) : null}
+
+          {view === 'delete' ? (
+            <Delete
+              instance={instance}
+              onBack={() => setView('menu')}
+              onDone={handleDeleteDone}
+            />
+          ) : null}
+        </div>
       </DialogContent>
     </Dialog>
   );
 }
 
+function ActionMenu({
+  canRepair,
+  onSelect,
+}: {
+  canRepair: boolean;
+  onSelect: (view: Exclude<ActionView, 'menu'>) => void;
+}) {
+  return (
+    <div className="grid gap-3 md:grid-cols-2">
+      <ActionCard
+        title="Manage Devices"
+        description="Add, remove, and edit instance devices."
+        icon={HardDriveIcon}
+        onClick={() => onSelect('devices')}
+      />
+      <ActionCard
+        title="Edit Configuration"
+        description="Update instance configuration values and raw YAML."
+        icon={IconSettings}
+        onClick={() => onSelect('configuration')}
+      />
+      <ActionCard
+        title="Manage Profiles"
+        description="Add or remove profiles applied to this instance."
+        icon={SquaresIntersectIcon}
+        onClick={() => onSelect('profiles')}
+      />
+      <ActionCard
+        title="Clone"
+        description="Create a local copy of this instance."
+        icon={CopyPlusIcon}
+        onClick={() => onSelect('clone')}
+      />
+      {canRepair ? (
+        <ActionCard
+          title="Repair"
+          description="Run the supported low-level repair action for this instance."
+          icon={WrenchIcon}
+          onClick={() => onSelect('repair')}
+        />
+      ) : null}
+      <ActionCard
+        title="Rebuild"
+        description="Replace this instance from an image or empty source."
+        icon={RefreshCcwDotIcon}
+        onClick={() => onSelect('rebuild')}
+      />
+      <ActionCard
+        title="Delete"
+        description="Permanently remove this instance and its data."
+        icon={Trash2Icon}
+        destructive
+        onClick={() => onSelect('delete')}
+      />
+    </div>
+  );
+}
+
 function ActionCard({
-  icon,
   title,
   description,
+  icon: Icon,
+  destructive = false,
   onClick,
 }: {
-  icon: React.ReactNode;
   title: string;
   description: string;
+    icon: React.ComponentType<{ className?: string }>;
+    destructive?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
-      className="flex w-full items-start gap-3 rounded-lg border p-4 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       onClick={onClick}
+      className={cn(
+        'flex w-full items-start gap-3 rounded-lg border bg-card p-4 text-left transition-colors hover:bg-accent/40',
+        destructive && 'border-destructive/30 hover:bg-destructive/5',
+      )}
     >
-      <span className="mt-0.5 rounded-md border bg-background p-2">{icon}</span>
+      <span
+        className={cn(
+          'rounded-md border bg-muted p-2 text-muted-foreground',
+          destructive && 'border-destructive/20 text-destructive',
+        )}
+      >
+        <Icon className="size-4" />
+      </span>
       <span className="space-y-1">
-        <span className="block font-medium">{title}</span>
+        <span className="block text-sm font-medium">{title}</span>
         <span className="block text-sm text-muted-foreground">
           {description}
         </span>
@@ -726,26 +324,44 @@ function ActionCard({
 
 function getDialogTitle(view: ActionView, instanceName: string) {
   switch (view) {
-    case 'delete':
-      return `Delete ${instanceName}`;
+    case 'devices':
+      return 'Manage Devices';
+    case 'configuration':
+      return 'Edit Configuration';
+    case 'profiles':
+      return 'Manage Profiles';
     case 'rebuild':
       return `Rebuild ${instanceName}`;
+    case 'clone':
+      return `Clone ${instanceName}`;
     case 'repair':
       return `Repair ${instanceName}`;
+    case 'delete':
+      return `Delete ${instanceName}`;
+    case 'menu':
     default:
-      return `${instanceName} actions`;
+      return 'Manage Instance';
   }
 }
 
 function getDialogDescription(view: ActionView, instanceName: string) {
   switch (view) {
-    case 'delete':
-      return 'Confirm the destructive delete action for this instance.';
+    case 'devices':
+      return `Manage the devices attached to ${instanceName}.`;
+    case 'configuration':
+      return `Edit configuration keys and YAML for ${instanceName}.`;
+    case 'profiles':
+      return `Choose which profiles are applied to ${instanceName}.`;
     case 'rebuild':
       return 'Choose how to rebuild this instance.';
+    case 'clone':
+      return 'Create a local copy of this instance.';
     case 'repair':
       return 'Run the supported repair action for this instance.';
+    case 'delete':
+      return 'Confirm the destructive delete action for this instance.';
+    case 'menu':
     default:
-      return `Manage destructive and recovery actions for ${instanceName}.`;
+      return 'Edit this instance or run advanced actions.';
   }
 }

@@ -2,23 +2,27 @@
 
 import * as React from 'react';
 import stableStringify from 'fast-json-stable-stringify';
+import { CodeXmlIcon } from 'lucide-react';
 
-import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
 import { Button } from 'ui-web/components/button';
-import { cn } from 'ui-web/lib/utils';
 
-import GeneralConfiguration from '../../_components/general-configuration';
-import { useInstanceContext } from '../_context/instance';
-import { updateInstanceSettings } from '../_lib/instance';
-import { SettingsPageActions } from '../_components/settings-page-actions';
-import { SettingsYamlEditor } from '../_components/settings-yaml-editor';
-import {
-  parseConfigYaml,
-  serializeConfigYaml,
-} from '../_lib/settings-yaml';
+import GeneralConfiguration from '@/app/(main)/_components/general-configuration';
+import type { Instance } from '@/app/(main)/instances/_lib/instances.d';
+import { updateInstanceSettings } from '../../_lib/instance';
+import { SettingsYamlEditor } from '../settings-yaml-editor';
+import { parseConfigYaml, serializeConfigYaml } from '../../_lib/settings-yaml';
+import { ManagementFooter } from './footer';
+import { ManagementShell } from './shell';
 
-export default function ConfigurationPage() {
-  const { instance, mutate } = useInstanceContext();
+export default function Configuration({
+  instance,
+  onMutate,
+  onBack,
+}: {
+  instance: Instance;
+  onMutate: () => Promise<void>;
+  onBack?: () => void;
+}) {
   const [draftConfig, setDraftConfig] = React.useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | null>(null);
@@ -36,12 +40,12 @@ export default function ConfigurationPage() {
   }, []);
 
   const currentConfig = React.useMemo(
-    () => instance?.config ?? {},
-    [instance?.config],
+    () => instance.config ?? {},
+    [instance.config],
   );
   const expandedConfig = React.useMemo(
-    () => instance?.expanded_config ?? {},
-    [instance?.expanded_config],
+    () => instance.expanded_config ?? {},
+    [instance.expanded_config],
   );
   const serializedCurrentConfig = React.useMemo(
     () => stableStringify(currentConfig),
@@ -54,10 +58,6 @@ export default function ConfigurationPage() {
   const isDirty = serializedDraftConfig !== serializedCurrentConfig;
 
   React.useEffect(() => {
-    if (!instance) {
-      return;
-    }
-
     const instanceChanged = lastInstanceNameRef.current !== instance.name;
     const serverChanged = lastSyncedSnapshotRef.current !== serializedCurrentConfig;
 
@@ -69,11 +69,7 @@ export default function ConfigurationPage() {
     setSaveError(null);
     lastSyncedSnapshotRef.current = serializedCurrentConfig;
     lastInstanceNameRef.current = instance.name;
-  }, [currentConfig, instance, isDirty, serializedCurrentConfig]);
-
-  if (!instance) {
-    return null;
-  }
+  }, [currentConfig, instance.name, isDirty, serializedCurrentConfig]);
 
   const instanceType =
     instance.type === 'virtual-machine' ? 'virtual-machine' : 'container';
@@ -112,7 +108,7 @@ export default function ConfigurationPage() {
   };
 
   const handleSave = async () => {
-    if (!instance || !isDirty || isSaving) {
+    if (!isDirty || isSaving) {
       return;
     }
 
@@ -128,7 +124,7 @@ export default function ConfigurationPage() {
         nextConfig: draftConfig,
         signal: abortController.signal,
       });
-      await mutate();
+      await onMutate();
 
       lastSyncedSnapshotRef.current = stableStringify(draftConfig);
     } catch (error) {
@@ -136,11 +132,11 @@ export default function ConfigurationPage() {
         return;
       }
 
-      const message =
+      setSaveError(
         error instanceof Error
           ? error.message
-          : 'Unable to update instance configuration.';
-      setSaveError(message);
+          : 'Unable to update instance configuration.',
+      );
     } finally {
       saveAbortControllerRef.current = null;
       setIsSaving(false);
@@ -148,56 +144,51 @@ export default function ConfigurationPage() {
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
-      <div
-        className={cn(
-          'bg-card text-card-foreground flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border shadow-sm',
-        )}
-      >
-        {saveError ? (
-          <Alert variant="destructive" className="mx-6 mt-6">
-            <AlertTitle>Save failed</AlertTitle>
-            <AlertDescription>{saveError}</AlertDescription>
-          </Alert>
-        ) : null}
-        <div className="min-h-0 flex-1">
-          {showYamlEditor ? (
-            <SettingsYamlEditor
-              value={yamlContent}
-              error={yamlError}
-              onChange={handleYamlChange}
-              description="Edit the raw instance configuration YAML. Changes stay synced with the structured editor."
-            />
-          ) : (
-            <GeneralConfiguration
-              config={draftConfig}
-              expandedConfig={expandedConfig}
-              onConfigChange={setDraftConfig}
-              instanceType={instanceType}
-              configTarget="instance"
-              className="rounded-none border-0"
-            />
-          )}
-        </div>
-        <SettingsPageActions
-          isDirty={isDirty}
-          isSaving={isSaving}
-          onCancel={handleCancel}
-          onSave={handleSave}
-          className="px-6 py-4"
-          saveDisabled={Boolean(yamlError)}
-          extraActions={
+    <ManagementShell
+      error={saveError}
+      footer={
+        <ManagementFooter
+          left={
             <Button
               type="button"
               variant="outline"
               disabled={isSaving}
               onClick={toggleYamlEditor}
             >
-{showYamlEditor ? 'Back to form' : 'Edit YAML'}
+              <CodeXmlIcon className="mr-2 size-4" />
+              {showYamlEditor ? 'Back to Wizard' : 'Edit YAML'}
             </Button>
           }
+          backLabel={onBack ? 'Back' : 'Reset'}
+          onBack={onBack ?? handleCancel}
+          backDisabled={isSaving}
+          primaryLabel="Save Changes"
+          onPrimary={handleSave}
+          primaryDisabled={!isDirty || isSaving || Boolean(yamlError)}
+          primaryLoading={isSaving}
         />
-      </div>
-    </div>
+      }
+    >
+      {showYamlEditor ? (
+        <SettingsYamlEditor
+          value={yamlContent}
+          error={yamlError}
+          onChange={handleYamlChange}
+          description="Edit the raw instance configuration YAML. Changes stay synced with the structured editor."
+          className="h-full"
+        />
+      ) : (
+        <div className="h-full overflow-y-auto">
+          <GeneralConfiguration
+            config={draftConfig}
+            expandedConfig={expandedConfig}
+            onConfigChange={setDraftConfig}
+            instanceType={instanceType}
+            configTarget="instance"
+            className="rounded-xl border"
+          />
+        </div>
+      )}
+    </ManagementShell>
   );
 }

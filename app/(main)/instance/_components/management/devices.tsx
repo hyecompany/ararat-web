@@ -2,24 +2,27 @@
 
 import * as React from 'react';
 import stableStringify from 'fast-json-stable-stringify';
+import { CodeXmlIcon } from 'lucide-react';
 
-import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
 import { Button } from 'ui-web/components/button';
-import { cn } from 'ui-web/lib/utils';
 
-import { useInstanceContext } from '../_context/instance';
-import { updateInstanceSettings } from '../_lib/instance';
-import { SettingsPageActions } from '../_components/settings-page-actions';
-import { SettingsYamlEditor } from '../_components/settings-yaml-editor';
-import {
-  parseDevicesYaml,
-  serializeDevicesYaml,
-} from '../_lib/settings-yaml';
-import InstanceDevices from '../../instances/_components/devices';
-import type { Device } from '../../instances/_lib/instances.d';
+import type { Device, Instance } from '@/app/(main)/instances/_lib/instances.d';
+import InstanceDevices from '@/app/(main)/instances/_components/devices';
+import { updateInstanceSettings } from '../../_lib/instance';
+import { SettingsYamlEditor } from '../settings-yaml-editor';
+import { parseDevicesYaml, serializeDevicesYaml } from '../../_lib/settings-yaml';
+import { ManagementFooter } from './footer';
+import { ManagementShell } from './shell';
 
-export default function DevicesPage() {
-  const { instance, mutate } = useInstanceContext();
+export default function Devices({
+  instance,
+  onMutate,
+  onBack,
+}: {
+  instance: Instance;
+  onMutate: () => Promise<void>;
+  onBack?: () => void;
+}) {
   const [draftDevices, setDraftDevices] = React.useState<Record<string, Device>>({});
   const [isSaving, setIsSaving] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | null>(null);
@@ -37,8 +40,8 @@ export default function DevicesPage() {
   }, []);
 
   const currentDevices = React.useMemo(
-    () => ((instance?.devices as Record<string, Device> | undefined) ?? {}),
-    [instance?.devices],
+    () => (instance.devices as Record<string, Device> | undefined) ?? {},
+    [instance.devices],
   );
   const serializedCurrentDevices = React.useMemo(
     () => stableStringify(currentDevices),
@@ -51,10 +54,6 @@ export default function DevicesPage() {
   const isDirty = serializedDraftDevices !== serializedCurrentDevices;
 
   React.useEffect(() => {
-    if (!instance) {
-      return;
-    }
-
     const instanceChanged = lastInstanceNameRef.current !== instance.name;
     const serverChanged = lastSyncedSnapshotRef.current !== serializedCurrentDevices;
 
@@ -66,11 +65,7 @@ export default function DevicesPage() {
     setSaveError(null);
     lastSyncedSnapshotRef.current = serializedCurrentDevices;
     lastInstanceNameRef.current = instance.name;
-  }, [currentDevices, instance, isDirty, serializedCurrentDevices]);
-
-  if (!instance) {
-    return null;
-  }
+  }, [currentDevices, instance.name, isDirty, serializedCurrentDevices]);
 
   const instanceType =
     instance.type === 'virtual-machine' ? 'virtual-machine' : 'container';
@@ -109,7 +104,7 @@ export default function DevicesPage() {
   };
 
   const handleSave = async () => {
-    if (!instance || !isDirty || isSaving) {
+    if (!isDirty || isSaving) {
       return;
     }
 
@@ -125,7 +120,7 @@ export default function DevicesPage() {
         nextDevices: draftDevices,
         signal: abortController.signal,
       });
-      await mutate();
+      await onMutate();
 
       lastSyncedSnapshotRef.current = stableStringify(draftDevices);
     } catch (error) {
@@ -133,11 +128,9 @@ export default function DevicesPage() {
         return;
       }
 
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'Unable to update instance devices.';
-      setSaveError(message);
+      setSaveError(
+        error instanceof Error ? error.message : 'Unable to update instance devices.',
+      );
     } finally {
       saveAbortControllerRef.current = null;
       setIsSaving(false);
@@ -145,53 +138,50 @@ export default function DevicesPage() {
   };
 
   return (
-    <div
-      className={cn(
-        'bg-card text-card-foreground flex h-full min-h-[32rem] flex-col overflow-hidden rounded-xl border shadow-sm',
-      )}
+    <ManagementShell
+      error={saveError}
+      footer={
+        <ManagementFooter
+          left={
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isSaving}
+              onClick={toggleYamlEditor}
+            >
+              <CodeXmlIcon className="mr-2 size-4" />
+              {showYamlEditor ? 'Back to Wizard' : 'Edit YAML'}
+            </Button>
+          }
+          backLabel={onBack ? 'Back' : 'Reset'}
+          onBack={onBack ?? handleCancel}
+          backDisabled={isSaving}
+          primaryLabel="Save Changes"
+          onPrimary={handleSave}
+          primaryDisabled={!isDirty || isSaving || Boolean(yamlError)}
+          primaryLoading={isSaving}
+        />
+      }
     >
-      {saveError ? (
-        <Alert variant="destructive" className="mx-6 mt-6">
-          <AlertTitle>Save failed</AlertTitle>
-          <AlertDescription>{saveError}</AlertDescription>
-        </Alert>
-      ) : null}
-      <div className="min-h-0 flex-1">
-        {showYamlEditor ? (
-          <SettingsYamlEditor
-            value={yamlContent}
-            error={yamlError}
-            onChange={handleYamlChange}
-            description="Edit the raw instance devices YAML. Changes stay synced with the structured editor."
-          />
-        ) : (
+      {showYamlEditor ? (
+        <SettingsYamlEditor
+          value={yamlContent}
+          error={yamlError}
+          onChange={handleYamlChange}
+          description="Edit the raw instance devices YAML. Changes stay synced with the structured editor."
+          className="h-full"
+        />
+      ) : (
+        <div className="h-full overflow-y-auto">
           <InstanceDevices
             profiles={instance.profiles ?? ['default']}
             devices={draftDevices}
             onDevicesChange={setDraftDevices}
             instanceType={instanceType}
-            className="rounded-none border-0"
+            className="rounded-xl border"
           />
-        )}
-      </div>
-      <SettingsPageActions
-        isDirty={isDirty}
-        isSaving={isSaving}
-        onCancel={handleCancel}
-        onSave={handleSave}
-        className="px-6 py-4"
-        saveDisabled={Boolean(yamlError)}
-        extraActions={
-          <Button
-            type="button"
-            variant="outline"
-            disabled={isSaving}
-            onClick={toggleYamlEditor}
-          >
-{showYamlEditor ? 'Back to form' : 'Edit YAML'}
-          </Button>
-        }
-      />
-    </div>
+        </div>
+      )}
+    </ManagementShell>
   );
 }

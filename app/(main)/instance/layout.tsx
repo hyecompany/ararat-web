@@ -20,8 +20,6 @@ import {
   Terminal,
   Folder,
   Camera,
-  Cpu,
-  Settings,
   PencilIcon,
   CheckIcon,
   XIcon,
@@ -525,12 +523,10 @@ function InstanceHeader({
 
 const TABS = [
   { value: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { value: 'backups', label: 'Backups', icon: Archive },
   { value: 'console', label: 'Console', icon: Terminal },
   { value: 'files', label: 'Files', icon: Folder },
   { value: 'snapshots', label: 'Snapshots', icon: Camera },
-  { value: 'devices', label: 'Devices', icon: Cpu },
-  { value: 'configuration', label: 'Configuration', icon: Settings },
+  { value: 'backups', label: 'Backups', icon: Archive },
 ];
 
 function InstanceTabs() {

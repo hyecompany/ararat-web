@@ -6,6 +6,14 @@ import type { StandardResponse } from '@/app/_lib/response.d';
 
 export type InstanceAction = 'start' | 'stop' | 'restart' | 'freeze';
 export type AdvancedInstanceRepairAction = 'rebuild-config-volume';
+export interface CloneInstanceInput {
+  instance: Instance;
+  name: string;
+  targetProject: string;
+  rootStoragePool: string;
+  allowInconsistent: boolean;
+  instanceOnly: boolean;
+}
 export type AdvancedInstanceRebuildSource =
   | {
       type: 'none';
@@ -31,6 +39,7 @@ interface UpdateInstanceSettingsInput {
   instance: Instance;
   nextConfig?: Record<string, string>;
   nextDevices?: Record<string, Device>;
+  nextProfiles?: string[];
   signal?: AbortSignal;
 }
 
@@ -59,10 +68,12 @@ interface OperationResponseBody {
   operation?: string;
 }
 
+function getProjectQuery(project?: string | null) {
+  return project ? `?project=${encodeURIComponent(project)}` : '';
+}
+
 function getProjectSuffix(instance: Instance) {
-  return instance.project
-    ? `?project=${encodeURIComponent(instance.project)}`
-    : '';
+  return getProjectQuery(instance.project);
 }
 
 function getProjectParam(instance: Instance) {
@@ -133,15 +144,17 @@ function buildInstanceUpdateBody({
   instance,
   nextConfig,
   nextDevices,
+  nextProfiles,
 }: {
   instance: Instance;
   nextConfig?: Record<string, string>;
   nextDevices?: Record<string, Device>;
+  nextProfiles?: string[];
 }) {
   const payload: UpdateInstanceBody = {
     config: nextConfig ?? instance.config ?? {},
     devices: nextDevices ?? (instance.devices as Record<string, Device>) ?? {},
-    profiles: instance.profiles ?? ['default'],
+    profiles: nextProfiles ?? instance.profiles ?? ['default'],
   };
 
   if (instance.architecture) {
@@ -298,6 +311,71 @@ export async function repairInstance({
   );
 
   await waitForOperationIfNeeded({ payload, instance });
+
+  return payload;
+}
+
+export async function cloneInstance({
+  instance,
+  name,
+  targetProject,
+  rootStoragePool,
+  allowInconsistent,
+  instanceOnly,
+}: CloneInstanceInput) {
+  const normalizedName = name.trim();
+  const normalizedTargetProject = targetProject.trim();
+  const normalizedRootStoragePool = rootStoragePool.trim();
+
+  if (!normalizedName) {
+    throw new Error('Clone name is required.');
+  }
+
+  if (!normalizedRootStoragePool) {
+    throw new Error('Root storage pool is required.');
+  }
+
+  const sourceRootDevice =
+    (instance.expanded_devices?.root as Device | undefined) ??
+    (instance.devices?.root as Device | undefined);
+
+  const res = await fetch(`/1.0/instances${getProjectQuery(normalizedTargetProject)}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name: normalizedName,
+      type: instance.type,
+      devices: {
+        root: {
+          ...(sourceRootDevice ?? {}),
+          type: sourceRootDevice?.type ?? 'disk',
+          path: sourceRootDevice?.path ?? '/',
+          pool: normalizedRootStoragePool,
+        },
+      },
+      source: {
+        type: 'copy',
+        source: instance.name,
+        ...(instance.project ? { project: instance.project } : {}),
+        allow_inconsistent: allowInconsistent,
+        instance_only: instanceOnly,
+      },
+    }),
+  });
+
+  const payload = await parseOperationResponse(
+    res,
+    `Unable to clone instance ${instance.name}.`,
+  );
+
+  if (payload?.operation) {
+    await waitForOperation({
+      operation: payload.operation,
+      project: normalizedTargetProject,
+    });
+  }
 
   return payload;
 }
@@ -473,6 +551,7 @@ export async function updateInstanceSettings({
   instance,
   nextConfig,
   nextDevices,
+  nextProfiles,
   signal,
 }: UpdateInstanceSettingsInput) {
   const { instance: latestInstance, etag } = await getInstanceForUpdate({
@@ -484,6 +563,7 @@ export async function updateInstanceSettings({
     instance: latestInstance,
     nextConfig,
     nextDevices,
+    nextProfiles,
   });
 
   const res = await fetch(
