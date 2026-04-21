@@ -221,11 +221,19 @@ export default function Rebuild({
       return;
     }
 
-    initializedDefaultSourceRef.current = true;
     setRebuildMode('image');
     updateYamlSourceOverride(defaultRebuildSource);
-    syncSelectedImageFromSource(defaultRebuildSource);
-  }, [defaultRebuildSource, syncSelectedImageFromSource, updateYamlSourceOverride]);
+
+    if (localImagesData !== undefined) {
+      syncSelectedImageFromSource(defaultRebuildSource);
+      initializedDefaultSourceRef.current = true;
+    }
+  }, [
+    defaultRebuildSource,
+    localImagesData,
+    syncSelectedImageFromSource,
+    updateYamlSourceOverride,
+  ]);
 
   const handleSourceYamlChange = React.useCallback(
     (value: string | undefined) => {
