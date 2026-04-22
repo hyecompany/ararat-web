@@ -149,7 +149,7 @@ function parseQmpLog(content: string): QmpLogEntry[] {
           if (payload.return) {
             summary = 'success';
             if (Array.isArray(payload.return)) summary = `return ${payload.return.length} items`;
-            else if (typeof payload.return === 'object') summary = `return {${Object.keys(payload.return).join(', ')}}`;
+            else if (payload.return && typeof payload.return === 'object') summary = 'return {' + Object.keys(payload.return).join(', ') + '}';
           } else if (payload.error) {
             summary = `error: ${payload.error.class || 'unknown'}`;
           }
