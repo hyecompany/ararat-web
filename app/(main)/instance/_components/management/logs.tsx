@@ -68,7 +68,7 @@ export default function Logs({
       setIsDeleting(true);
       await deleteInstanceLog(instance, logToDelete);
       
-      await mutate(`/1.0/instances/${instance.name}/logs`);
+      await mutate('/1.0/instances/' + instance.name + '/logs?project=' + instance.project);
       
       if (selectedLog === logToDelete) {
         setSelectedLog(null);
