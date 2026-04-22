@@ -98,6 +98,8 @@ export function DataTableColumnHeader<TData, TValue>({
 export default function DataTable({
   data,
   className,
+  containerClassName,
+  innerClassName,
   cols,
   enableSelection,
   stringFilter,
@@ -114,6 +116,8 @@ export default function DataTable({
   data: object[];
   cols: ColumnDef<object, unknown>[];
   className?: string;
+  containerClassName?: string;
+  innerClassName?: string;
   enableSelection?: boolean;
   stringFilter?: string;
   onSelectionChange?: (rows: Row<object>[]) => void;
@@ -315,14 +319,20 @@ export default function DataTable({
         }
       >
         {row.getVisibleCells().map((cell) => {
-          const cellSizePx = `${cell.column.getSize()}px`;
+          const size = cell.column.getSize();
+          // If the size is the default (150) and no explicit size was provided in columnDef, 
+          // we might want to treat it as flexible. However, TanStack Table always provides a size.
+          // We'll use the columnDef.size as a hint for "fixed" width.
+          const isFixed = Boolean(cell.column.columnDef.size);
+          const cellSizePx = `${size}px`;
+          
           return (
             <TableCell
               key={cell.id}
               className="min-w-0"
               style={{
-                width: cellSizePx,
-                maxWidth: cellSizePx,
+                width: isFixed ? cellSizePx : 'auto',
+                maxWidth: isFixed ? cellSizePx : 'none',
               }}
             >
               {flexRender(
@@ -338,29 +348,33 @@ export default function DataTable({
   };
 
   return (
-    <div className={cn('w-full', className)}>
+    <div className={cn('w-full', containerClassName)}>
       <div
         ref={useVirtual ? scrollParentRef : undefined}
         className={cn(
           'rounded-md border',
+          innerClassName,
+          'overflow-auto',
           useVirtual
             ? virtualScrollMaxHeightClassName ??
-              'max-h-[min(66vh,664px)] overflow-auto'
-            : 'overflow-auto',
+              'max-h-[min(66vh,664px)]'
+            : '',
         )}
       >
-        <Table>
+        <Table className="table-fixed w-full">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
-                  const headerSizePx = `${header.getSize()}px`;
+                  const size = header.getSize();
+                  const isFixed = Boolean(header.column.columnDef.size);
+                  const headerSizePx = `${size}px`;
                   return (
                     <TableHead
                       className="min-w-0"
                       style={{
-                        width: headerSizePx,
-                        maxWidth: headerSizePx,
+                        width: isFixed ? headerSizePx : 'auto',
+                        maxWidth: isFixed ? headerSizePx : 'none',
                       }}
                       key={header.id}
                     >
