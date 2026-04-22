@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Trash2Icon, LogsIcon } from 'lucide-react';
+import { LogsIcon } from 'lucide-react';
 import { useSWRConfig } from 'swr';
 
 import { Button } from 'ui-web/components/button';
