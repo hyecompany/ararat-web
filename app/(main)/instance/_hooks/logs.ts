@@ -4,7 +4,7 @@ import { getInstanceLogContent, getInstanceLogs } from '../_lib/logs';
 
 export function useInstanceLogs(instance: Instance) {
   return useSWR(
-    instance ? `/1.0/instances/${instance.name}/logs` : null,
+    instance ? '/1.0/instances/' + instance.name + '/logs?project=' + instance.project : null,
     () => getInstanceLogs(instance),
   );
 }
