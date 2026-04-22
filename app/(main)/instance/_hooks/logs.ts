@@ -12,7 +12,7 @@ export function useInstanceLogs(instance: Instance) {
 export function useInstanceLogContent(instance: Instance, filename: string | null) {
   return useSWR(
     instance && filename
-      ? `/1.0/instances/${instance.name}/logs/${filename}`
+      ? '/1.0/instances/' + instance.name + '/logs/' + filename + '?project=' + instance.project
       : null,
     () => (instance && filename ? getInstanceLogContent(instance, filename) : null),
     {
