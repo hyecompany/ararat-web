@@ -4,7 +4,6 @@ import * as React from 'react';
 import { LogsIcon } from 'lucide-react';
 import { useSWRConfig } from 'swr';
 
-import { Button } from 'ui-web/components/button';
 import { ScrollArea } from 'ui-web/components/scroll-area';
 import { Separator } from 'ui-web/components/separator';
 import { cn } from 'ui-web/lib/utils';
