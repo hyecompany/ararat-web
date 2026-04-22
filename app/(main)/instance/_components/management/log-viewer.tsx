@@ -101,11 +101,7 @@ function parseLxcLog(content: string): LxcLogEntry[] {
     }
   }
 
-  return entries.sort((a, b) => {
-    if (a.level === 'RAW' && b.level !== 'RAW') return -1;
-    if (a.level !== 'RAW' && b.level === 'RAW') return 1;
-    return 0;
-  });
+  return entries;
 }
 
 // --- QMP Log Parsing ---
