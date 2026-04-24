@@ -1,0 +1,13 @@
+name: DCO Verification
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  dco_check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check DCO
+        uses: tim-actions/dco@master
+        with:
+          fail_block: true

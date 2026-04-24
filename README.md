@@ -1,6 +1,53 @@
-# Hye Ararat Web Client
+# Hye Ararat
 
-Copyright 2026 Hye Hosting LLC
+**A modern, web-based UI for managing [Incus](https://linuxcontainers.org/incus/).**
+
+Hye Ararat provides a clean, intuitive dashboard for managing your Incus deployment. Whether you are running an old iMac in your closet or building a hyperscaler, Ararat gives you the unified comprehensive control plane you need to take your infrastructure to its peak.
+
+**Current Release:** v3.0.0-beta.1
+
+## Roadmap
+
+Hye Ararat is currently in public beta. Below is a high-level summary of our progress on supporting the foundational Incus primitives:
+
+- [x] Instances (almost complete)
+- [x] Operations
+- [x] Projects
+- [ ] Networks
+- [ ] Storage
+- [ ] Server
+- [ ] Cluster
+- [ ] Images
+- [ ] Profiles
+
+We are actively working on completing the UI implementation for all Incus primitives to provide a comprehensive management experience.
+
+We aim to support all core primitives by July 24th. Our planned release schedule is available on our [GitHub Milestones](https://github.com/hyecompany/ararat-web/milestones).
+
+## Screenshots
+
+*I will upload screenshots via GitHub here*
+
+## Installation
+
+This guide is designed for the latest LTS release of Debian/Ubuntu.
+
+### Prerequisites
+- A working Incus installation accessible over the network
+- Node.JS
+- Bun
+- A local clone of the repository
+
+### Installation Instructions
+1. Install Ararat's core dependencies: `bun install`
+2. Build and copy Ararat to Incus's UI directory: `bun run build-install`
+
+
+### Accessing the UI
+Simply visit `https://{host}:{port}` (default `8443`) that you set Incus to listen on in your browser, and Hye Ararat will be served! If it is not, restart Incus with `systemctl restart incus` and try visiting again.
+
+## License
+Copyright (C) 2026 Hye Hosting LLC & Hye Ararat contributors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

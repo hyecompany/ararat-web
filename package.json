@@ -1,6 +1,15 @@
 {
   "name": "ararat-web",
-  "version": "1.0.0",
+  "version": "3.0.0-beta.1",
+  "description": "A modern web-based UI for managing Incus instances and servers.",
+  "keywords": [
+    "incus",
+    "ui",
+    "management",
+    "containers",
+    "virtual-machines"
+  ],
+  "author": "Hye Hosting LLC",
   "private": true,
   "scripts": {
     "dev": "concurrently \"bun run dev:proxy\" \"bun run dev:next\"",
