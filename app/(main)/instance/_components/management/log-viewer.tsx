@@ -19,17 +19,19 @@ import { cn } from 'ui-web/lib/utils';
 
 // --- Date Formatting Helpers ---
 
+const timestampFormatter = new Intl.DateTimeFormat(undefined, {
+  month: 'short',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: false,
+});
+
 function formatTimestamp(date: Date, ms?: string) {
   try {
-    const formatted = new Intl.DateTimeFormat(undefined, {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    }).format(date);
-    return ms ? `${formatted}.${ms}` : formatted;
+    const formatted = timestampFormatter.format(date);
+    return ms ? formatted + "." + ms : formatted;
   } catch (e) {
     return date.toISOString();
   }
