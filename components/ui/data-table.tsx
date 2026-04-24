@@ -369,7 +369,7 @@ export default function DataTable({
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   const size = header.getSize();
-                  const isFixedSize = Boolean(header.column.columnDef.size);
+                  const isFixedSize = header.column.columnDef.size != null;
                   const shouldFixWidth = !fixedLayout || isFixedSize;
                   const headerSizePx = `${size}px`;
                   return (
