@@ -1,7 +1,7 @@
 name: DCO Verification
 on:
   pull_request:
-    branches: [main]
+    branches: [develop]
 
 jobs:
   dco_check:
