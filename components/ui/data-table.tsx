@@ -322,7 +322,10 @@ export default function DataTable({
       >
         {row.getVisibleCells().map((cell) => {
           const size = cell.column.getSize();
-          const isFixed = Boolean(cell.column.columnDef.size);
+          // To maintain compatibility with existing tables, we default to fixed width if fixedLayout is false.
+          // In fixedLayout mode, we only fix columns that have an explicit size set in columnDef.
+          const isFixedSize = Boolean(cell.column.columnDef.size);
+          const shouldFixWidth = !fixedLayout || isFixedSize;
           const cellSizePx = `${size}px`;
           
           return (
@@ -330,8 +333,8 @@ export default function DataTable({
               key={cell.id}
               className="min-w-0"
               style={{
-                width: isFixed ? cellSizePx : 'auto',
-                maxWidth: isFixed ? cellSizePx : 'none',
+                width: shouldFixWidth ? cellSizePx : 'auto',
+                maxWidth: shouldFixWidth ? cellSizePx : 'none',
               }}
             >
               {flexRender(
@@ -366,14 +369,15 @@ export default function DataTable({
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   const size = header.getSize();
-                  const isFixed = Boolean(header.column.columnDef.size);
+                  const isFixedSize = Boolean(header.column.columnDef.size);
+                  const shouldFixWidth = !fixedLayout || isFixedSize;
                   const headerSizePx = `${size}px`;
                   return (
                     <TableHead
                       className="min-w-0"
                       style={{
-                        width: isFixed ? headerSizePx : 'auto',
-                        maxWidth: isFixed ? headerSizePx : 'none',
+                        width: shouldFixWidth ? headerSizePx : 'auto',
+                        maxWidth: shouldFixWidth ? headerSizePx : 'none',
                       }}
                       key={header.id}
                     >
