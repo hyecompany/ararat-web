@@ -496,7 +496,7 @@ export function LogViewer({
             <Editor
               height="100%"
               defaultLanguage="plaintext"
-              language={filename.endsWith('.json') || isQmpLog ? 'json' : 'plaintext'}
+              language={filename.endsWith('.json') ? 'json' : 'plaintext'}
               value={content || ''}
               theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
               options={{
