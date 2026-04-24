@@ -324,7 +324,7 @@ export default function DataTable({
           const size = cell.column.getSize();
           // To maintain compatibility with existing tables, we default to fixed width if fixedLayout is false.
           // In fixedLayout mode, we only fix columns that have an explicit size set in columnDef.
-          const isFixedSize = Boolean(cell.column.columnDef.size);
+          const isFixedSize = cell.column.columnDef.size != null;
           const shouldFixWidth = !fixedLayout || isFixedSize;
           const cellSizePx = `${size}px`;
           
