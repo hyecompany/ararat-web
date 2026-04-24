@@ -460,15 +460,14 @@ export function LogViewer({
               cols={(isLxcLog ? lxcColumns : qmpColumns) as any}
               containerClassName="h-full"
               innerClassName="rounded-none border-0 h-full overflow-auto"
-              virtualizeRows
+              virtualizeRows={false}
               disablePagination
-              virtualScrollMaxHeightClassName="h-full"
-              virtualRowEstimatePx={30}
               onRowClick={(row) => row.toggleExpanded()}
               getRowClassName={(row) => cn(
                 row.getIsExpanded() && "bg-muted/50",
                 "border-b border-muted/30 last:border-b-0 hover:bg-muted/20"
               )}
+              fixedLayout={true}
               wrapTableRow={(row, rowElement) => (
                 <React.Fragment key={row.id}>
                   {rowElement}

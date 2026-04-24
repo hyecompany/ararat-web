@@ -11,7 +11,7 @@ import type { Instance } from '@/app/(main)/instances/_lib/instances.d';
 import { ManagementFooter } from './footer';
 import { ManagementShell } from './shell';
 import { useInstanceLogs } from '../../_hooks/logs';
-import { deleteInstanceLog } from '../../_lib/logs';
+import { buildInstanceLogsKey, deleteInstanceLog } from '../../_lib/logs';
 import { LogViewer } from './log-viewer';
 import { Spinner } from 'ui-web/components/spinner';
 
@@ -114,7 +114,7 @@ export default function Logs({
                     key={filename}
                     type="button"
                     className={cn(
-                      'group flex flex-col items-start rounded-md px-3 py-2 text-left transition-colors',
+                      'group flex flex-col items-start rounded-md px-3 py-2 text-left transition-colors select-none',
                       selectedLog === filename
                         ? 'bg-primary text-primary-foreground'
                         : 'hover:bg-accent hover:text-accent-foreground',

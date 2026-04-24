@@ -97,21 +97,21 @@ export function InstanceActionsMenu({
     });
   }, [handleClose, router]);
 
+  const viewSizing: Record<ActionView, string> = {
+    logs: 'h-[95vh] max-h-[95vh] sm:max-w-[95vw]',
+    configuration: 'h-[90vh] max-h-[90vh] sm:max-w-6xl',
+    devices: 'h-[90vh] max-h-[90vh] sm:max-w-6xl',
+    rebuild: 'h-[90vh] max-h-[90vh] sm:max-w-6xl',
+    menu: 'max-h-[90vh] sm:max-w-4xl',
+    clone: 'max-h-[90vh] sm:max-w-2xl',
+    profiles: 'max-h-[90vh] sm:max-w-2xl',
+    delete: 'max-h-[90vh] sm:max-w-2xl',
+    repair: 'max-h-[90vh] sm:max-w-2xl',
+  };
+
   const dialogContentClassName = cn(
     'flex w-full flex-col overflow-hidden',
-    view === 'logs'
-      ? 'h-[95vh] max-h-[95vh] sm:max-w-[95vw]'
-      : view === 'configuration' || view === 'devices' || view === 'rebuild'
-        ? 'h-[90vh] max-h-[90vh] sm:max-w-6xl'
-        : view === 'menu'
-          ? 'max-h-[90vh] sm:max-w-4xl'
-          : view === 'clone'
-            ? 'max-h-[90vh] sm:max-w-2xl'
-            : view === 'profiles'
-              ? 'max-h-[90vh] sm:max-w-2xl'
-              : view === 'delete'
-                ? 'max-h-[90vh] sm:max-w-2xl'
-                : 'max-h-[90vh] sm:max-w-2xl',
+    viewSizing[view] || 'max-h-[90vh] sm:max-w-2xl',
   );
 
   return (

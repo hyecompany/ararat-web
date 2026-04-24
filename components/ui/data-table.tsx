@@ -112,6 +112,7 @@ export default function DataTable({
   virtualScrollMaxHeightClassName,
   virtualRowEstimatePx,
   onVirtualVisibleRowsChange,
+  fixedLayout = false,
 }: {
   data: object[];
   cols: ColumnDef<object, unknown>[];
@@ -137,6 +138,7 @@ export default function DataTable({
   virtualScrollMaxHeightClassName?: string;
   virtualRowEstimatePx?: number;
   onVirtualVisibleRowsChange?: (rows: Row<object>[]) => void;
+  fixedLayout?: boolean;
 }) {
   let columns: ColumnDef<object, unknown>[] = cols.map((col) => {
     return {
@@ -358,7 +360,7 @@ export default function DataTable({
             : '',
         )}
       >
-        <Table className="table-fixed w-full">
+        <Table className={cn(fixedLayout && 'table-fixed', 'w-full')}>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>

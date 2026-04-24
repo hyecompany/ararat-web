@@ -5,11 +5,14 @@ function getProjectQuery(project?: string | null) {
   return project ? `?project=${encodeURIComponent(project)}` : '';
 }
 
-export async function getInstanceLogs(instance: Instance) {
+export function buildInstanceLogsKey(instance: Instance, filename?: string | null) {
   const projectQuery = getProjectQuery(instance.project);
-  return jsonFetcher<string[]>(
-    `/1.0/instances/${encodeURIComponent(instance.name)}/logs${projectQuery}`,
-  ).then((data) => {
+  const logPath = filename ? `/${encodeURIComponent(filename)}` : '';
+  return `/1.0/instances/${encodeURIComponent(instance.name)}/logs${logPath}${projectQuery}`;
+}
+
+export async function getInstanceLogs(instance: Instance) {
+  return jsonFetcher<string[]>(buildInstanceLogsKey(instance)).then((data) => {
     // The API returns a list of URLs like "/1.0/instances/foo/logs/lxc.log"
     // We want to extract just the filename part for the UI
     return data.metadata.map((url) => {
