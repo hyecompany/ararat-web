@@ -24,9 +24,29 @@ We are actively working on completing the UI implementation for all Incus primit
 
 We aim to support all core primitives by July 24th. Our planned release schedule is available on our [GitHub Milestones](https://github.com/hyecompany/ararat-web/milestones).
 
-## Screenshots
-
-*I will upload screenshots via GitHub here*
+## Some Instance Screenshots
+<table>
+  <tr>
+    <td>
+      <p align="center"><strong>Console</strong></p>
+      <img alt="image" src="https://github.com/user-attachments/assets/37d5c15b-d094-4425-9d57-6585949ac851" />
+    </td>
+    <td>
+      <p align="center"><strong>Configuration</strong></p>
+      <img alt="image" src="https://github.com/user-attachments/assets/05993b1f-0b26-4394-9f42-21951ae99746" />
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <p align="center"><strong>Files</strong></p>
+      <img alt="image" src="https://github.com/user-attachments/assets/70ae8d74-6f6b-443f-b71e-0406051804cd" />
+    </td>
+    <td>
+      <p align="center"><strong>Devices</strong></p>
+      <img alt="image" src="https://github.com/user-attachments/assets/a139e383-4362-461b-a97c-6a798a6d63b5" />
+    </td>
+  </tr>
+</table>
 
 ## Installation
 
