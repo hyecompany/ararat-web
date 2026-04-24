@@ -196,7 +196,7 @@ function parseQmpLog(content: string): QmpLogEntry[] {
 // --- Table Components ---
 
 function LevelBadge({ level }: { level: string }) {
-  let variant: 'default' | 'destructive' | 'outline' | 'secondary' = 'default';
+  let variant: 'default' | 'destructive' | 'outline' | 'secondary';
   switch (level) {
     case 'ERROR':
       variant = 'destructive';
