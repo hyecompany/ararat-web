@@ -100,7 +100,7 @@ const data = {
       url: '/instances',
       icon: BoxesIcon,
     },
-    {
+    /*{
       title: 'Networking',
       url: '#',
       subItems: [
@@ -118,8 +118,8 @@ const data = {
         },
       ],
       icon: ChevronsLeftRightEllipsisIcon,
-    },
-    {
+    },*/
+    /*{
       title: 'Storage',
       url: '#',
       subItems: [
@@ -141,17 +141,17 @@ const data = {
         },
       ],
       icon: HardDriveIcon,
-    },
-    {
+    },*/
+    /*{
       title: 'Images',
       url: '/images',
       icon: PackageIcon,
-    },
-    {
+    },*/
+   /* {
       title: 'Profiles',
       url: '/profiles',
       icon: SquaresIntersectIcon,
-    },
+    },*/
     {
       title: 'Operations',
       url: '/operations',
@@ -159,7 +159,7 @@ const data = {
     },
   ],
   navSecondary: [
-    {
+    /*{
       title: 'Configuration',
       url: '#',
       icon: IconSettings,
@@ -168,7 +168,7 @@ const data = {
       title: 'Warnings',
       url: '#',
       icon: IconAlertTriangle,
-    },
+    },*/
   ],
 };
 

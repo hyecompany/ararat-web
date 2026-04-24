@@ -33,9 +33,9 @@ export async function jsonFetcher<T extends object = Record<string, unknown>>(
   return jsonFetcherWithResponse<StandardResponse<T>>(url, init).then(({ data }) => data);
 }
 
-export async function textFetcher(url: string) {
+export async function textFetcher(url: string, init?: RequestInit) {
   const endpoint = new URL(window.location.origin + url);
-  const res = await fetch(endpoint.toString());
+  const res = await fetch(endpoint.toString(), init);
   if (!res.ok) {
     throw new Error('Failed to fetch text content');
   }

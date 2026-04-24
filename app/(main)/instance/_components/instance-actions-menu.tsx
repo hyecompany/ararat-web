@@ -6,6 +6,7 @@ import { IconSettings } from '@tabler/icons-react';
 import {
   CopyPlusIcon,
   HardDriveIcon,
+  LogsIcon,
   RefreshCcwDotIcon,
   Settings2Icon,
   SquaresIntersectIcon,
@@ -30,6 +31,7 @@ import Clone from './management/clone';
 import Configuration from './management/configuration';
 import Delete from './management/delete';
 import Devices from './management/devices';
+import Logs from './management/logs';
 import Profiles from './management/profiles';
 import Rebuild from './management/rebuild';
 import Repair from './management/repair';
@@ -40,6 +42,7 @@ type ActionView =
   | 'devices'
   | 'configuration'
   | 'profiles'
+  | 'logs'
   | 'rebuild'
   | 'clone'
   | 'repair'
@@ -94,19 +97,21 @@ export function InstanceActionsMenu({
     });
   }, [handleClose, router]);
 
+  const viewSizing: Record<ActionView, string> = {
+    logs: 'h-[95vh] max-h-[95vh] sm:max-w-[95vw]',
+    configuration: 'h-[90vh] max-h-[90vh] sm:max-w-6xl',
+    devices: 'h-[90vh] max-h-[90vh] sm:max-w-6xl',
+    rebuild: 'h-[90vh] max-h-[90vh] sm:max-w-6xl',
+    menu: 'max-h-[90vh] sm:max-w-4xl',
+    clone: 'max-h-[90vh] sm:max-w-2xl',
+    profiles: 'max-h-[90vh] sm:max-w-2xl',
+    delete: 'max-h-[90vh] sm:max-w-2xl',
+    repair: 'max-h-[90vh] sm:max-w-2xl',
+  };
+
   const dialogContentClassName = cn(
     'flex w-full flex-col overflow-hidden',
-    view === 'configuration' || view === 'devices' || view === 'rebuild'
-      ? 'h-[90vh] max-h-[90vh] sm:max-w-6xl'
-      : view === 'menu'
-        ? 'max-h-[90vh] sm:max-w-4xl'
-        : view === 'clone'
-          ? 'max-h-[90vh] sm:max-w-2xl'
-          : view === 'profiles'
-            ? 'max-h-[90vh] sm:max-w-2xl'
-            : view === 'delete'
-              ? 'max-h-[90vh] sm:max-w-2xl'
-              : 'max-h-[90vh] sm:max-w-2xl',
+    viewSizing[view] || 'max-h-[90vh] sm:max-w-2xl',
   );
 
   return (
@@ -187,6 +192,13 @@ export function InstanceActionsMenu({
             />
           ) : null}
 
+          {view === 'logs' ? (
+            <Logs
+              instance={instance}
+              onBack={() => setView('menu')}
+            />
+          ) : null}
+
           {view === 'rebuild' ? (
             <Rebuild
               instance={instance}
@@ -250,6 +262,12 @@ function ActionMenu({
         description="Add or remove profiles applied to this instance."
         icon={SquaresIntersectIcon}
         onClick={() => onSelect('profiles')}
+      />
+      <ActionCard
+        title="Manage Logs"
+        description="View and delete instance log files."
+        icon={LogsIcon}
+        onClick={() => onSelect('logs')}
       />
       <ActionCard
         title="Clone"
@@ -330,6 +348,8 @@ function getDialogTitle(view: ActionView, instanceName: string) {
       return 'Edit Configuration';
     case 'profiles':
       return 'Manage Profiles';
+    case 'logs':
+      return 'Manage Logs';
     case 'rebuild':
       return `Rebuild ${instanceName}`;
     case 'clone':
@@ -352,6 +372,8 @@ function getDialogDescription(view: ActionView, instanceName: string) {
       return `Edit configuration keys and YAML for ${instanceName}.`;
     case 'profiles':
       return `Choose which profiles are applied to ${instanceName}.`;
+    case 'logs':
+      return `View and delete log files for ${instanceName}.`;
     case 'rebuild':
       return 'Choose how to rebuild this instance.';
     case 'clone':

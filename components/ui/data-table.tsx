@@ -98,6 +98,8 @@ export function DataTableColumnHeader<TData, TValue>({
 export default function DataTable({
   data,
   className,
+  containerClassName,
+  innerClassName,
   cols,
   enableSelection,
   stringFilter,
@@ -110,10 +112,13 @@ export default function DataTable({
   virtualScrollMaxHeightClassName,
   virtualRowEstimatePx,
   onVirtualVisibleRowsChange,
+  fixedLayout = false,
 }: {
   data: object[];
   cols: ColumnDef<object, unknown>[];
   className?: string;
+  containerClassName?: string;
+  innerClassName?: string;
   enableSelection?: boolean;
   stringFilter?: string;
   onSelectionChange?: (rows: Row<object>[]) => void;
@@ -133,6 +138,7 @@ export default function DataTable({
   virtualScrollMaxHeightClassName?: string;
   virtualRowEstimatePx?: number;
   onVirtualVisibleRowsChange?: (rows: Row<object>[]) => void;
+  fixedLayout?: boolean;
 }) {
   let columns: ColumnDef<object, unknown>[] = cols.map((col) => {
     return {
@@ -249,6 +255,7 @@ export default function DataTable({
     getScrollElement: () => scrollParentRef.current,
     estimateSize: () => estimate,
     overscan: 10,
+    measureElement: (el) => el.getBoundingClientRect().height,
   });
 
   const virtualItems =
@@ -297,10 +304,12 @@ export default function DataTable({
     rowVirtualizer,
   ]);
 
-  const renderOneRow = (row: Row<object>) => {
+  const renderOneRow = (row: Row<object>, index?: number) => {
     const rowEl = (
       <TableRow
         key={row.id}
+        data-index={index}
+        ref={useVirtual && index !== undefined ? (node) => rowVirtualizer.measureElement(node) : undefined}
         data-state={row.getIsSelected() && 'selected'}
         className={cn(
           onRowClick ? 'cursor-pointer' : '',
@@ -315,14 +324,20 @@ export default function DataTable({
         }
       >
         {row.getVisibleCells().map((cell) => {
-          const cellSizePx = `${cell.column.getSize()}px`;
+          const size = cell.column.getSize();
+          // To maintain compatibility with existing tables, we default to fixed width if fixedLayout is false.
+          // In fixedLayout mode, we only fix columns that have an explicit size set in columnDef.
+          const isFixedSize = cell.column.columnDef.size != null;
+          const shouldFixWidth = !fixedLayout || isFixedSize;
+          const cellSizePx = `${size}px`;
+          
           return (
             <TableCell
               key={cell.id}
               className="min-w-0"
               style={{
-                width: cellSizePx,
-                maxWidth: cellSizePx,
+                width: shouldFixWidth ? cellSizePx : 'auto',
+                maxWidth: shouldFixWidth ? cellSizePx : 'none',
               }}
             >
               {flexRender(
@@ -338,29 +353,34 @@ export default function DataTable({
   };
 
   return (
-    <div className={cn('w-full', className)}>
+    <div className={cn('w-full', containerClassName, className)}>
       <div
         ref={useVirtual ? scrollParentRef : undefined}
         className={cn(
           'rounded-md border',
+          innerClassName,
+          'overflow-auto',
           useVirtual
             ? virtualScrollMaxHeightClassName ??
-              'max-h-[min(66vh,664px)] overflow-auto'
-            : 'overflow-auto',
+              'max-h-[min(66vh,664px)]'
+            : '',
         )}
       >
-        <Table>
+        <Table className={cn(fixedLayout && 'table-fixed', 'w-full')}>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
-                  const headerSizePx = `${header.getSize()}px`;
+                  const size = header.getSize();
+                  const isFixedSize = header.column.columnDef.size != null;
+                  const shouldFixWidth = !fixedLayout || isFixedSize;
+                  const headerSizePx = `${size}px`;
                   return (
                     <TableHead
                       className="min-w-0"
                       style={{
-                        width: headerSizePx,
-                        maxWidth: headerSizePx,
+                        width: shouldFixWidth ? headerSizePx : 'auto',
+                        maxWidth: shouldFixWidth ? headerSizePx : 'none',
                       }}
                       key={header.id}
                     >
@@ -394,7 +414,7 @@ export default function DataTable({
                     if (!row) return null;
                     return (
                       <React.Fragment key={row.id}>
-                        {renderOneRow(row)}
+                        {renderOneRow(row, vi.index)}
                       </React.Fragment>
                     );
                   })}
