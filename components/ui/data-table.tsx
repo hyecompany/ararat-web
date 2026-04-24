@@ -320,9 +320,6 @@ export default function DataTable({
       >
         {row.getVisibleCells().map((cell) => {
           const size = cell.column.getSize();
-          // If the size is the default (150) and no explicit size was provided in columnDef, 
-          // we might want to treat it as flexible. However, TanStack Table always provides a size.
-          // We'll use the columnDef.size as a hint for "fixed" width.
           const isFixed = Boolean(cell.column.columnDef.size);
           const cellSizePx = `${size}px`;
           
@@ -348,7 +345,7 @@ export default function DataTable({
   };
 
   return (
-    <div className={cn('w-full', containerClassName)}>
+    <div className={cn('w-full', containerClassName, className)}>
       <div
         ref={useVirtual ? scrollParentRef : undefined}
         className={cn(

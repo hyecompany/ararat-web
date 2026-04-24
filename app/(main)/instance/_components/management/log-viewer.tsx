@@ -145,7 +145,7 @@ function parseQmpLog(content: string): QmpLogEntry[] {
           if (payload.return) {
             summary = 'success';
             if (Array.isArray(payload.return)) summary = `return ${payload.return.length} items`;
-            else if (payload.return && typeof payload.return === 'object') summary = 'return {' + Object.keys(payload.return).join(', ') + '}';
+            else if (typeof payload.return === 'object') summary = `return {${Object.keys(payload.return).join(', ')}}`;
           } else if (payload.error) {
             summary = `error: ${payload.error.class || 'unknown'}`;
           }
@@ -196,7 +196,7 @@ function parseQmpLog(content: string): QmpLogEntry[] {
 // --- Table Components ---
 
 function LevelBadge({ level }: { level: string }) {
-  let variant: 'default' | 'destructive' | 'outline' | 'secondary';
+  let variant: 'default' | 'destructive' | 'outline' | 'secondary' = 'default';
   switch (level) {
     case 'ERROR':
       variant = 'destructive';
@@ -261,6 +261,7 @@ const lxcColumns: ColumnDef<LxcLogEntry>[] = [
   {
     accessorKey: 'message',
     header: 'Message',
+    // No size -> flexible
     cell: ({ row }) => (
       <div className="font-mono text-[10px] leading-relaxed break-words whitespace-pre-wrap pr-4">
         {row.original.message}
@@ -287,7 +288,7 @@ const qmpColumns: ColumnDef<QmpLogEntry>[] = [
   {
     accessorKey: 'timestamp',
     header: 'Timestamp',
-    size: 120,
+    size: 110,
     cell: ({ row }) => <span className="text-[10px] font-mono text-muted-foreground whitespace-nowrap">{row.original.timestamp}</span>
   },
   {
@@ -305,6 +306,7 @@ const qmpColumns: ColumnDef<QmpLogEntry>[] = [
   {
     accessorKey: 'summary',
     header: 'Summary',
+    // No size -> flexible
     cell: ({ row }) => (
       <div className="font-mono text-[10px] break-words whitespace-pre-wrap text-foreground pr-4">
         {row.original.summary}
@@ -412,9 +414,9 @@ export function LogViewer({
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="flex items-center justify-between border-b px-4 py-1.5 bg-muted/20 shrink-0">
+      <div className="flex items-center justify-between border-b px-4 py-1 bg-muted/20 shrink-0">
         <div className="flex items-center gap-3 overflow-hidden mr-4">
-          <span className="text-xs font-mono font-medium text-muted-foreground truncate">
+          <span className="text-[10px] font-mono font-medium text-muted-foreground truncate">
             {filename}
           </span>
         </div>
@@ -423,23 +425,23 @@ export function LogViewer({
           <Button 
             variant="ghost" 
             size="sm" 
-            className="h-6 text-muted-foreground hover:text-destructive px-2 text-xs"
+            className="h-5 text-muted-foreground hover:text-destructive px-2 text-[10px]"
             onClick={onDelete}
             disabled={isDeleting}
           >
-            {isDeleting ? <Spinner className="size-3.5 mr-2" /> : <Trash2Icon className="size-3.5 mr-2" />}
+            {isDeleting ? <Spinner className="size-3 mr-2" /> : <Trash2Icon className="size-3 mr-2" />}
             Delete
           </Button>
 
           {showToggle && (
             <>
-              <Separator orientation="vertical" className="h-4" />
+              <Separator orientation="vertical" className="h-3" />
               <div className="flex items-center space-x-2">
                 <Switch
                   id="raw-view"
                   checked={isRawView}
                   onCheckedChange={setIsRawView}
-                  className="h-4 w-7 [&>span]:h-3 [&>span]:w-3 [&>span]:data-[state=checked]:translate-x-3"
+                  className="h-3.5 w-6.5 [&>span]:h-2.5 [&>span]:w-2.5 [&>span]:data-[state=checked]:translate-x-3"
                 />
                 <Label htmlFor="raw-view" className="text-[10px] font-medium cursor-pointer select-none">
                   Raw View
@@ -450,17 +452,18 @@ export function LogViewer({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-hidden flex flex-col">
+      <div className="min-h-0 flex-1 overflow-hidden flex flex-col bg-background">
         {showToggle && !isRawView ? (
-          <div className="flex-1 min-h-0 overflow-hidden relative">
+          <div className="flex-1 w-0 min-w-full overflow-hidden relative h-full">
             <DataTable
               data={parsedEntries}
               cols={(isLxcLog ? lxcColumns : qmpColumns) as any}
               containerClassName="h-full"
-              innerClassName="rounded-none border-0 h-full max-h-full"
+              innerClassName="rounded-none border-0 h-full overflow-auto"
               virtualizeRows
               disablePagination
               virtualScrollMaxHeightClassName="h-full"
+              virtualRowEstimatePx={30}
               onRowClick={(row) => row.toggleExpanded()}
               getRowClassName={(row) => cn(
                 row.getIsExpanded() && "bg-muted/50",
