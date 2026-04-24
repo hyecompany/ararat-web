@@ -1,10 +1,12 @@
 'use client';
 
 import * as React from 'react';
-import { LogsIcon } from 'lucide-react';
+import { Trash2Icon, LogsIcon } from 'lucide-react';
 import { useSWRConfig } from 'swr';
 
+import { Button } from 'ui-web/components/button';
 import { ScrollArea } from 'ui-web/components/scroll-area';
+import { Separator } from 'ui-web/components/separator';
 import { cn } from 'ui-web/lib/utils';
 
 import type { Instance } from '@/app/(main)/instances/_lib/instances.d';
@@ -161,31 +163,8 @@ export default function Logs({
         </div>
       </div>
 
-      <AlertDialog
-        open={!!logToDelete}
-        onOpenChange={(open) => {
-          if (!open && !isDeleting) {
-            setLogToDelete(null);
-          }
-        }}
-      >
-        <AlertDialogContent
-          onEscapeKeyDown={(e) => {
-            if (isDeleting) {
-              e.preventDefault();
-            }
-          }}
-          onPointerDownOutside={(e) => {
-            if (isDeleting) {
-              e.preventDefault();
-            }
-          }}
-          onInteractOutside={(e) => {
-            if (isDeleting) {
-              e.preventDefault();
-            }
-          }}
-        >
+      <AlertDialog open={!!logToDelete} onOpenChange={(open) => !open && setLogToDelete(null)}>
+        <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>

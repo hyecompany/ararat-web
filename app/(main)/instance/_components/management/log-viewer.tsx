@@ -21,7 +21,7 @@ import { cn } from 'ui-web/lib/utils';
 
 function formatTimestamp(date: Date, ms?: string) {
   try {
-    const formatted = new Intl.DateTimeFormat('en-US', {
+    const formatted = new Intl.DateTimeFormat(undefined, {
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
@@ -460,8 +460,10 @@ export function LogViewer({
               cols={(isLxcLog ? lxcColumns : qmpColumns) as any}
               containerClassName="h-full"
               innerClassName="rounded-none border-0 h-full overflow-auto"
-              virtualizeRows={false}
+              virtualizeRows={true}
               disablePagination
+              virtualScrollMaxHeightClassName="h-full"
+              virtualRowEstimatePx={30}
               onRowClick={(row) => row.toggleExpanded()}
               getRowClassName={(row) => cn(
                 row.getIsExpanded() && "bg-muted/50",

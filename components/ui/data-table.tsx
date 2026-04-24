@@ -255,6 +255,7 @@ export default function DataTable({
     getScrollElement: () => scrollParentRef.current,
     estimateSize: () => estimate,
     overscan: 10,
+    measureElement: (el) => el.getBoundingClientRect().height,
   });
 
   const virtualItems =
@@ -303,10 +304,12 @@ export default function DataTable({
     rowVirtualizer,
   ]);
 
-  const renderOneRow = (row: Row<object>) => {
+  const renderOneRow = (row: Row<object>, index?: number) => {
     const rowEl = (
       <TableRow
         key={row.id}
+        data-index={index}
+        ref={useVirtual && index !== undefined ? (node) => rowVirtualizer.measureElement(node) : undefined}
         data-state={row.getIsSelected() && 'selected'}
         className={cn(
           onRowClick ? 'cursor-pointer' : '',
@@ -411,7 +414,7 @@ export default function DataTable({
                     if (!row) return null;
                     return (
                       <React.Fragment key={row.id}>
-                        {renderOneRow(row)}
+                        {renderOneRow(row, vi.index)}
                       </React.Fragment>
                     );
                   })}
