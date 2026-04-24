@@ -6,7 +6,6 @@ import { useSWRConfig } from 'swr';
 
 import { Button } from 'ui-web/components/button';
 import { ScrollArea } from 'ui-web/components/scroll-area';
-import { Separator } from 'ui-web/components/separator';
 import { cn } from 'ui-web/lib/utils';
 
 import type { Instance } from '@/app/(main)/instances/_lib/instances.d';
