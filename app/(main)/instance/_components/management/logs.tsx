@@ -161,8 +161,31 @@ export default function Logs({
         </div>
       </div>
 
-      <AlertDialog open={!!logToDelete} onOpenChange={(open) => !open && setLogToDelete(null)}>
-        <AlertDialogContent>
+      <AlertDialog
+        open={!!logToDelete}
+        onOpenChange={(open) => {
+          if (!open && !isDeleting) {
+            setLogToDelete(null);
+          }
+        }}
+      >
+        <AlertDialogContent
+          onEscapeKeyDown={(e) => {
+            if (isDeleting) {
+              e.preventDefault();
+            }
+          }}
+          onPointerDownOutside={(e) => {
+            if (isDeleting) {
+              e.preventDefault();
+            }
+          }}
+          onInteractOutside={(e) => {
+            if (isDeleting) {
+              e.preventDefault();
+            }
+          }}
+        >
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
