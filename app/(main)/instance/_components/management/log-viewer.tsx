@@ -101,7 +101,7 @@ function parseLxcLog(content: string): LxcLogEntry[] {
     }
   }
 
-  return entries;
+  return entries.reverse();
 }
 
 // --- QMP Log Parsing ---
@@ -190,7 +190,7 @@ function parseQmpLog(content: string): QmpLogEntry[] {
     }
   }
 
-  return entries;
+  return entries.reverse();
 }
 
 // --- Table Components ---
