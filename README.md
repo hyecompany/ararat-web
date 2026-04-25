@@ -39,11 +39,11 @@ We aim to support all core primitives by July 24th. Our planned release schedule
   <tr>
     <td>
       <p align="center"><strong>Files</strong></p>
-      <img alt="image" src="https://github.com/user-attachments/assets/70ae8d74-6f6b-443f-b71e-0406051804cd" />
+      <img alt="image" src="https://github.com/user-attachments/assets/be7ba84e-e931-4671-bd08-eac80b2e27da" />
     </td>
     <td>
       <p align="center"><strong>Devices</strong></p>
-      <img alt="image" src="https://github.com/user-attachments/assets/a139e383-4362-461b-a97c-6a798a6d63b5" />
+      <img alt="image" src="https://github.com/user-attachments/assets/51afb82f-fd0f-45e8-aef3-e1648d1a1c40" />
     </td>
   </tr>
 </table>
