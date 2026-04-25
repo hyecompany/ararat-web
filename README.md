@@ -56,7 +56,7 @@ This guide is designed for the latest LTS release of Debian/Ubuntu.
 - A working Incus installation accessible over the network
 - Node.JS
 - Bun
-- A local clone of the repository on the beta branch (`git switch beta`)
+- A copy of the Ararat release wish to install (see available releases [here](http://github.com/hyecompany/ararat-web/releases))
 
 ### Installation Instructions
 1. Install Ararat's core dependencies: `bun install`
