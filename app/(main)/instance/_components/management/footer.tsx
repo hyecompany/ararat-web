@@ -27,7 +27,7 @@ export function ManagementFooter({
   primaryVariant?: 'default' | 'destructive';
 }) {
   return (
-    <DialogFooter className="mt-4 flex w-full flex-row items-center justify-between gap-3 border-t pt-4 sm:flex-row sm:justify-between">
+    <DialogFooter className="mt-4 flex w-full flex-row items-center justify-between gap-3 pt-4 sm:flex-row sm:justify-between">
       <div className="flex items-center">{left}</div>
       <div className="flex items-center gap-2">
         <Button variant="outline" onClick={onBack} disabled={backDisabled}>
