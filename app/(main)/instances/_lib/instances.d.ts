@@ -86,7 +86,7 @@ export interface CreateInstanceBody {
   description?: string;
   ephemeral?: boolean;
   source: {
-    type: 'image' | 'none';
+    type: 'image' | 'none' | 'backup';
     fingerprint?: string;
     alias?: string;
     server?: string;

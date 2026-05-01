@@ -26,6 +26,7 @@ import {
   joinAbsPath,
   normalizeAbsPath,
 } from '../../../_lib/files/path';
+import { buildApiPath } from '@/app/_lib/url';
 import { moveRemoteFile } from '../_lib/move-file-client';
 
 type DirectoryResponse = {
@@ -76,8 +77,15 @@ const directoryFetcher = async (url: string) => {
   throw new Error('NOT_A_DIRECTORY');
 };
 
-function buildFilesCacheKey(instanceName: string, path: string) {
-  return `/1.0/instances/${instanceName}/files?path=${encodeURIComponent(path)}`;
+function buildFilesCacheKey(
+  instanceName: string,
+  path: string,
+  project?: string | null,
+) {
+  return buildApiPath(`/1.0/instances/${encodeURIComponent(instanceName)}/files`, {
+    project: project ?? null,
+    params: { path },
+  });
 }
 
 /** Bounded parallelism for HEAD/metadata fan-out (large dirs + browser connection limits). */
@@ -85,12 +93,13 @@ const METADATA_FETCH_BATCH = 16;
 
 async function fetchEntryMetadata(
   instanceName: string,
+  project: string | null | undefined,
   listingParent: string,
   fileName: string,
 ): Promise<FileWithMetadata> {
   try {
     const filePath = joinAbsPath(listingParent, fileName);
-    const meta = await apiFetchFileMetadata(instanceName, filePath);
+    const meta = await apiFetchFileMetadata(instanceName, project, filePath);
     const type = meta.type ?? undefined;
     return {
       name: fileName,
@@ -108,10 +117,13 @@ async function fetchEntryMetadata(
 /** Directory listing + metadata for breadcrumb peek / one-off previews (not SWR-backed). */
 async function fetchDirectoryEntriesForInstance(
   instanceName: string,
+  project: string | null | undefined,
   dirPath: string,
 ): Promise<FileWithMetadata[]> {
   const normalizedPath = normalizeAbsPath(dirPath);
-  const data = await directoryFetcher(buildFilesCacheKey(instanceName, normalizedPath));
+  const data = await directoryFetcher(
+    buildFilesCacheKey(instanceName, normalizedPath, project),
+  );
   if (!data?.metadata?.length) return [];
   const names = data.metadata as string[];
   const entries: FileWithMetadata[] = names.map((name) => ({ name }));
@@ -119,7 +131,7 @@ async function fetchDirectoryEntriesForInstance(
     const slice = names.slice(i, i + METADATA_FETCH_BATCH);
     const batch = await Promise.all(
       slice.map((fileName) =>
-        fetchEntryMetadata(instanceName, normalizedPath, fileName),
+        fetchEntryMetadata(instanceName, project, normalizedPath, fileName),
       ),
     );
     batch.forEach((row, j) => {
@@ -129,7 +141,11 @@ async function fetchDirectoryEntriesForInstance(
   return entries;
 }
 
-export function useFiles(instanceName: string, path: string) {
+export function useFiles(
+  instanceName: string,
+  path: string,
+  project?: string | null,
+) {
   const { mutate } = useSWRConfig();
   // Ensure path starts with /
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
@@ -146,7 +162,7 @@ export function useFiles(instanceName: string, path: string) {
     isLoading: swrIsLoading,
     isValidating,
   } = useSWR(
-    buildFilesCacheKey(instanceName, normalizedPath),
+    buildFilesCacheKey(instanceName, normalizedPath, project),
     directoryFetcher,
     { keepPreviousData: false },
   );
@@ -204,7 +220,7 @@ export function useFiles(instanceName: string, path: string) {
           const slice = toFetch.slice(i, i + METADATA_FETCH_BATCH);
           const batch = await Promise.all(
             slice.map((fileName) =>
-              fetchEntryMetadata(instanceName, parent, fileName),
+              fetchEntryMetadata(instanceName, project, parent, fileName),
             ),
           );
           batch.forEach((row) =>
@@ -228,7 +244,7 @@ export function useFiles(instanceName: string, path: string) {
         }
       })();
     },
-    [instanceName],
+    [instanceName, project],
   );
 
   useEffect(() => {
@@ -281,40 +297,40 @@ export function useFiles(instanceName: string, path: string) {
     file: File,
     onProgress?: (percent: number | null) => void,
   ) => {
-    await apiUploadFile(instanceName, currentPath, file, onProgress);
-    await mutate(buildFilesCacheKey(instanceName, currentPath));
+    await apiUploadFile(instanceName, project, currentPath, file, onProgress);
+    await mutate(buildFilesCacheKey(instanceName, currentPath, project));
   };
 
   const createEmptyFile = async (currentPath: string, fileName: string) => {
-    await apiCreateEmptyFile(instanceName, currentPath, fileName);
-    await mutate(buildFilesCacheKey(instanceName, currentPath));
+    await apiCreateEmptyFile(instanceName, project, currentPath, fileName);
+    await mutate(buildFilesCacheKey(instanceName, currentPath, project));
   };
 
   const createDirectory = async (currentPath: string, dirName: string) => {
-    await apiCreateDirectory(instanceName, currentPath, dirName);
-    await mutate(buildFilesCacheKey(instanceName, currentPath));
+    await apiCreateDirectory(instanceName, project, currentPath, dirName);
+    await mutate(buildFilesCacheKey(instanceName, currentPath, project));
   };
 
   const deleteFile = async (filePath: string) => {
-    await apiDeleteFile(instanceName, filePath);
-    await mutate(buildFilesCacheKey(instanceName, absPathParent(filePath)));
+    await apiDeleteFile(instanceName, project, filePath);
+    await mutate(buildFilesCacheKey(instanceName, absPathParent(filePath), project));
   };
 
   const downloadFile = (filePath: string) => {
-    apiDownloadFile(instanceName, filePath);
+    apiDownloadFile(instanceName, project, filePath);
   };
 
   const fetchFileContent = async (filePath: string) => {
-    return apiFetchFileContent(instanceName, filePath);
+    return apiFetchFileContent(instanceName, project, filePath);
   };
 
   const fetchFileRaw = async (filePath: string) => {
-    return apiFetchFileRaw(instanceName, filePath);
+    return apiFetchFileRaw(instanceName, project, filePath);
   };
 
   const saveFileContent = async (filePath: string, content: string, mode?: string) => {
-    await apiSaveFileContent(instanceName, filePath, content, mode);
-    await mutate(buildFilesCacheKey(instanceName, absPathParent(filePath)));
+    await apiSaveFileContent(instanceName, project, filePath, content, mode);
+    await mutate(buildFilesCacheKey(instanceName, absPathParent(filePath), project));
   };
 
   const moveFiles = async (
@@ -333,13 +349,13 @@ export function useFiles(instanceName: string, path: string) {
       refresh.add(absPathParent(s.sourcePath));
       refresh.add(dest);
       await moveRemoteFile({
-        fetchFileBlob: (p) => apiFetchFileBlob(instanceName, p),
+        fetchFileBlob: (p) => apiFetchFileBlob(instanceName, project, p),
         sourcePath: s.sourcePath,
         destParentPath: dest,
         fileName: s.fileName,
         uploadToParent: (parent, file, prog) =>
-          apiUploadFile(instanceName, parent, file, prog),
-        deleteFile: (p) => apiDeleteFile(instanceName, p),
+          apiUploadFile(instanceName, project, parent, file, prog),
+        deleteFile: (p) => apiDeleteFile(instanceName, project, p),
         onProgress: (phase, pct) =>
           onProgress?.(phase, pct, {
             index: i + 1,
@@ -349,24 +365,25 @@ export function useFiles(instanceName: string, path: string) {
       });
     }
     for (const p of refresh) {
-      await mutate(buildFilesCacheKey(instanceName, p));
+      await mutate(buildFilesCacheKey(instanceName, p, project));
     }
   };
 
   const listChildDirectories = useCallback(
     async (parentPath: string) =>
-      apiListChildDirectoryPaths(instanceName, parentPath),
-    [instanceName],
+      apiListChildDirectoryPaths(instanceName, project, parentPath),
+    [instanceName, project],
   );
 
   const probeInstancePathKind = useCallback(
-    async (absPath: string) => apiProbeInstancePathKind(instanceName, absPath),
-    [instanceName],
+    async (absPath: string) => apiProbeInstancePathKind(instanceName, project, absPath),
+    [instanceName, project],
   );
 
   const fetchDirectoryEntries = useCallback(
-    (dirPath: string) => fetchDirectoryEntriesForInstance(instanceName, dirPath),
-    [instanceName],
+    (dirPath: string) =>
+      fetchDirectoryEntriesForInstance(instanceName, project, dirPath),
+    [instanceName, project],
   );
 
   const renameEntry = async (fullPath: string, newBaseName: string) => {

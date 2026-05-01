@@ -91,3 +91,92 @@ export async function createInstance(
     return { error: message };
   }
 }
+
+function importInstanceFromBackupXhr(
+  url: string,
+  backupFile: File,
+  headers: Record<string, string>,
+  onProgress?: (percent: number | null) => void,
+): Promise<{ operation?: string; error?: string }> {
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url);
+
+    for (const [key, value] of Object.entries(headers)) {
+      xhr.setRequestHeader(key, value);
+    }
+
+    xhr.responseType = 'text';
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && event.total > 0) {
+        onProgress?.(Math.round((event.loaded / event.total) * 100));
+      } else {
+        onProgress?.(null);
+      }
+    };
+    xhr.onerror = () => {
+      onProgress?.(null);
+      resolve({ error: 'Network error' });
+    };
+    xhr.onload = () => {
+      onProgress?.(100);
+
+      let data: Record<string, unknown> = {};
+      try {
+        data = xhr.responseText ? (JSON.parse(xhr.responseText) as Record<string, unknown>) : {};
+      } catch {
+        data = {};
+      }
+
+      if (xhr.status < 200 || xhr.status >= 300) {
+        resolve({
+          error:
+            (data.error as string) ||
+            `HTTP ${xhr.status}: ${xhr.statusText}`,
+        });
+        return;
+      }
+
+      if (data.type === 'error') {
+        resolve({
+          error: (data.error as string) || 'Failed to import backup archive',
+        });
+        return;
+      }
+
+      resolve({ operation: data.operation as string | undefined });
+    };
+
+    xhr.send(backupFile);
+  });
+}
+
+/**
+ * Import a new instance from a backup archive via POST /1.0/instances.
+ */
+export async function importInstanceFromBackup(
+  backupFile: File,
+  options: {
+    name: string;
+    pool: string;
+    project: string | null;
+    onProgress?: (percent: number | null) => void;
+  },
+): Promise<{ operation?: string; error?: string }> {
+  const params = new URLSearchParams();
+  if (options.project && options.project !== 'all') {
+    params.set('project', options.project);
+  }
+
+  const url = `/1.0/instances${params.toString() ? `?${params.toString()}` : ''}`;
+  return importInstanceFromBackupXhr(
+    url,
+    backupFile,
+    {
+      'Content-Type': 'application/octet-stream',
+      'X-Incus-name': options.name,
+      'X-Incus-pool': options.pool,
+    },
+    options.onProgress,
+  );
+}

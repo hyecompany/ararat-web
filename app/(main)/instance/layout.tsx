@@ -46,7 +46,7 @@ import Link from 'next/link';
 
 function InstanceLayoutContent({ children }: { children: React.ReactNode }) {
   const isClient = React.use(IsClientContext);
-  const { name, instance, isLoading, isError, mutate } = useInstanceContext();
+  const { name, project, instance, isLoading, isError, mutate } = useInstanceContext();
 
   const pathname = usePathname();
 
@@ -58,6 +58,15 @@ function InstanceLayoutContent({ children }: { children: React.ReactNode }) {
   };
 
   const { label: formattedTab } = getTabFromPathname(pathname);
+  const instanceQuery = React.useMemo(() => {
+    if (!name) return undefined;
+
+    const query: Record<string, string> = { name };
+    if (project) {
+      query.project = project;
+    }
+    return query;
+  }, [name, project]);
 
   const renderContent = () => {
     if (!name) {
@@ -121,7 +130,14 @@ function InstanceLayoutContent({ children }: { children: React.ReactNode }) {
                 <BreadcrumbSeparator />
                 <BreadcrumbItem>
                   <BreadcrumbLink asChild>
-                    <Link href={`/instance?name=${name}`}>{name}</Link>
+                    <Link
+                      href={{
+                        pathname: '/instance',
+                        query: instanceQuery,
+                      }}
+                    >
+                      {name}
+                    </Link>
                   </BreadcrumbLink>
                 </BreadcrumbItem>
                 <BreadcrumbSeparator />
@@ -300,7 +316,10 @@ function InstanceHeader({
         signal: abortController.signal,
       });
 
-      const nextKey = getInstanceCacheKey(updatedInstance.name);
+      const nextKey = getInstanceCacheKey(
+        updatedInstance.name,
+        updatedInstance.project ?? instance.project ?? null,
+      );
 
       if (nextKey) {
         await mutateCache(
@@ -531,7 +550,7 @@ const TABS = [
 
 function InstanceTabs() {
   const pathname = usePathname();
-  const { name: instanceName } = useInstanceContext();
+  const { name: instanceName, project } = useInstanceContext();
 
   // Determine current tab based on pathname
   // /instance -> dashboard
@@ -556,12 +575,20 @@ function InstanceTabs() {
             const targetPath =
               tab.value === 'dashboard' ? '/instance' : `/instance/${tab.value}`;
 
+            const query =
+              instanceName
+                ? {
+                    name: instanceName,
+                    ...(project ? { project } : {}),
+                  }
+                : undefined;
+
             return (
               <TabsTrigger key={tab.value} value={tab.value} asChild>
                 <Link
                   href={{
                     pathname: targetPath,
-                    query: instanceName ? { name: instanceName } : undefined,
+                    query,
                   }}
                 >
                   <tab.icon aria-hidden="true" className="mr-2 h-4 w-4" />

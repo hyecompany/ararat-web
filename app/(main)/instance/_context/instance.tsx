@@ -13,6 +13,7 @@ import InstanceClass from '../../_lib/instance';
 
 interface InstanceContextValue {
   name: string | null;
+  project: string | null;
   instance: Instance | undefined;
   isLoading: boolean;
   isError: any;
@@ -23,6 +24,7 @@ interface InstanceContextValue {
 
 const InstanceContext = createContext<InstanceContextValue>({
   name: null,
+  project: null,
   instance: undefined,
   isLoading: true,
   isError: null,
@@ -34,16 +36,21 @@ const InstanceContext = createContext<InstanceContextValue>({
 function InstanceProviderInner({ children }: { children: ReactNode }) {
   const searchParams = useSearchParams();
   const name = searchParams.get('name');
+  const project = searchParams.get('project');
   const { instance, isLoading, isError, mutate, isValidating } =
-    useInstance(name);
+    useInstance(name, project);
   const instanceClass = useMemo(
-    () => (instance ? new InstanceClass(instance.name) : null),
-    [instance]
+    () =>
+      instance
+        ? new InstanceClass(instance.name, instance.project ?? project ?? null)
+        : null,
+    [instance, project]
   );
 
   const value: InstanceContextValue = useMemo(
     () => ({
       name,
+      project,
       instance,
       isLoading,
       isError,
@@ -51,7 +58,7 @@ function InstanceProviderInner({ children }: { children: ReactNode }) {
       mutate,
       instanceClass,
     }),
-    [instance, instanceClass, isError, isLoading, isValidating, mutate, name],
+    [instance, instanceClass, isError, isLoading, isValidating, mutate, name, project],
   );
 
 

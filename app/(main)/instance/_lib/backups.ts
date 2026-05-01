@@ -1,10 +1,31 @@
+import { buildApiPath } from '@/app/_lib/url';
+
+function buildInstanceBackupsPath(
+  instanceName: string,
+  project?: string | null,
+  backupName?: string,
+  action?: 'export',
+) {
+  const encodedInstanceName = encodeURIComponent(instanceName);
+  const segments = [`/1.0/instances/${encodedInstanceName}/backups`];
+  if (backupName) {
+    segments.push(encodeURIComponent(backupName));
+  }
+  if (action) {
+    segments.push(action);
+  }
+
+  return buildApiPath(segments.join('/'), { project: project ?? null });
+}
+
 export async function createBackup(
   instanceName: string,
+  project?: string | null,
   name?: string,
   instanceOnly?: boolean,
   optimizedStorage?: boolean,
 ) {
-  const res = await fetch(`/1.0/instances/${instanceName}/backups`, {
+  const res = await fetch(buildInstanceBackupsPath(instanceName, project), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -20,15 +41,16 @@ export async function createBackup(
   }
 }
 
-export async function deleteBackup(instanceName: string, backupName: string) {
+export async function deleteBackup(
+  instanceName: string,
+  project: string | null | undefined,
+  backupName: string,
+) {
   const shortName = backupName.split('/').pop() || '';
 
-  const res = await fetch(
-    `/1.0/instances/${instanceName}/backups/${shortName}`,
-    {
-      method: 'DELETE',
-    },
-  );
+  const res = await fetch(buildInstanceBackupsPath(instanceName, project, shortName), {
+    method: 'DELETE',
+  });
 
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
@@ -38,18 +60,16 @@ export async function deleteBackup(instanceName: string, backupName: string) {
 
 export async function renameBackup(
   instanceName: string,
+  project: string | null | undefined,
   oldName: string,
   newName: string,
 ) {
   const shortOldName = oldName.split('/').pop() || '';
-  const res = await fetch(
-    `/1.0/instances/${instanceName}/backups/${shortOldName}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newName }),
-    },
-  );
+  const res = await fetch(buildInstanceBackupsPath(instanceName, project, shortOldName), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: newName }),
+  });
 
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
@@ -57,9 +77,13 @@ export async function renameBackup(
   }
 }
 
-export function downloadBackup(instanceName: string, backupName: string) {
+export function downloadBackup(
+  instanceName: string,
+  project: string | null | undefined,
+  backupName: string,
+) {
   const shortName = backupName.split('/').pop() || '';
-  const url = `/1.0/instances/${instanceName}/backups/${shortName}/export`;
+  const url = buildInstanceBackupsPath(instanceName, project, shortName, 'export');
   const link = document.createElement('a');
   link.href = url;
   link.download = `${shortName}.tar.gz`;
