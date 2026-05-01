@@ -6,10 +6,22 @@ import {
   absPathParent,
 } from '../../../_lib/files/path';
 import { errorMessageFromResponse } from '../../_lib/incus-fetch-error';
+import { buildApiPath } from '@/app/_lib/url';
 
 export function getApiUrl(path: string) {
   if (typeof window === 'undefined') return path;
   return `${window.location.origin}${path}`;
+}
+
+function buildInstanceFilesPath(
+  instanceName: string,
+  filePath: string,
+  project?: string | null,
+) {
+  return buildApiPath(`/1.0/instances/${encodeURIComponent(instanceName)}/files`, {
+    project: project ?? null,
+    params: { path: filePath },
+  });
 }
 
 function postFileXhr(
@@ -61,15 +73,14 @@ function postFileXhr(
 
 export async function uploadFile(
   instanceName: string,
+  project: string | null | undefined,
   currentPath: string,
   file: File,
   onProgress?: (percent: number | null) => void,
 ) {
   const parentDir = normalizeAbsPath(currentPath);
   const filePath = joinAbsPath(parentDir, file.name);
-  const url = getApiUrl(
-    `/1.0/instances/${instanceName}/files?path=${encodeURIComponent(filePath)}`,
-  );
+  const url = getApiUrl(buildInstanceFilesPath(instanceName, filePath, project));
   await postFileXhr(
     url,
     file,
@@ -93,49 +104,46 @@ export async function uploadFile(
 
 export async function createDirectory(
   instanceName: string,
+  project: string | null | undefined,
   currentPath: string,
   dirName: string,
 ) {
   const dirPath = joinAbsPath(currentPath, dirName);
-  const res = await fetch(
-    getApiUrl(
-      `/1.0/instances/${instanceName}/files?path=${encodeURIComponent(dirPath)}`,
-    ),
-    {
-      method: 'POST',
-      headers: {
-        'X-Incus-uid': '0',
-        'X-Incus-gid': '0',
-        'X-Incus-mode': '0644',
-        'X-Incus-type': 'directory',
-      },
+  const res = await fetch(getApiUrl(buildInstanceFilesPath(instanceName, dirPath, project)), {
+    method: 'POST',
+    headers: {
+      'X-Incus-uid': '0',
+      'X-Incus-gid': '0',
+      'X-Incus-mode': '0644',
+      'X-Incus-type': 'directory',
     },
-  );
+  });
 
   if (!res.ok) {
     throw new Error(await errorMessageFromResponse(res));
   }
 }
 
-export async function deleteFile(instanceName: string, filePath: string) {
-  const res = await fetch(
-    getApiUrl(
-      `/1.0/instances/${instanceName}/files?path=${encodeURIComponent(filePath)}`,
-    ),
-    {
-      method: 'DELETE',
-    },
-  );
+export async function deleteFile(
+  instanceName: string,
+  project: string | null | undefined,
+  filePath: string,
+) {
+  const res = await fetch(getApiUrl(buildInstanceFilesPath(instanceName, filePath, project)), {
+    method: 'DELETE',
+  });
 
   if (!res.ok) {
     throw new Error(await errorMessageFromResponse(res));
   }
 }
 
-export function downloadFile(instanceName: string, filePath: string) {
-  const url = getApiUrl(
-    `/1.0/instances/${instanceName}/files?path=${encodeURIComponent(filePath)}`,
-  );
+export function downloadFile(
+  instanceName: string,
+  project: string | null | undefined,
+  filePath: string,
+) {
+  const url = getApiUrl(buildInstanceFilesPath(instanceName, filePath, project));
   const link = document.createElement('a');
   link.href = url;
   link.download = filePath.split('/').pop() || 'download';
@@ -144,8 +152,12 @@ export function downloadFile(instanceName: string, filePath: string) {
   document.body.removeChild(link);
 }
 
-export async function fetchFileContent(instanceName: string, filePath: string) {
-  const raw = await fetchFileRaw(instanceName, filePath);
+export async function fetchFileContent(
+  instanceName: string,
+  project: string | null | undefined,
+  filePath: string,
+) {
+  const raw = await fetchFileRaw(instanceName, project, filePath);
   const content = new TextDecoder('utf-8', { fatal: false }).decode(raw.buffer);
   return { content, mode: raw.mode };
 }
@@ -153,13 +165,10 @@ export async function fetchFileContent(instanceName: string, filePath: string) {
 /** Full file bytes for classification / binary handling (single GET). */
 export async function fetchFileRaw(
   instanceName: string,
+  project: string | null | undefined,
   filePath: string,
 ): Promise<{ buffer: ArrayBuffer; mode?: string }> {
-  const res = await fetch(
-    getApiUrl(
-      `/1.0/instances/${instanceName}/files?path=${encodeURIComponent(filePath)}`,
-    ),
-  );
+  const res = await fetch(getApiUrl(buildInstanceFilesPath(instanceName, filePath, project)));
   if (!res.ok) {
     throw new Error(await errorMessageFromResponse(res));
   }
@@ -175,13 +184,10 @@ export async function fetchFileRaw(
 /** Same GET semantics as fetchFileRaw, but uses Blob (may reduce peak heap vs ArrayBuffer for large files). */
 export async function fetchFileBlob(
   instanceName: string,
+  project: string | null | undefined,
   filePath: string,
 ): Promise<{ blob: Blob; mode?: string }> {
-  const res = await fetch(
-    getApiUrl(
-      `/1.0/instances/${instanceName}/files?path=${encodeURIComponent(filePath)}`,
-    ),
-  );
+  const res = await fetch(getApiUrl(buildInstanceFilesPath(instanceName, filePath, project)));
   if (!res.ok) {
     throw new Error(await errorMessageFromResponse(res));
   }
@@ -199,14 +205,11 @@ export async function fetchFileBlob(
  */
 export async function fetchSymlinkTargetRawPath(
   instanceName: string,
+  project: string | null | undefined,
   absPath: string,
 ): Promise<string | null> {
   const p = normalizeAbsPath(absPath);
-  const res = await fetch(
-    getApiUrl(
-      `/1.0/instances/${instanceName}/files?path=${encodeURIComponent(p)}`,
-    ),
-  );
+  const res = await fetch(getApiUrl(buildInstanceFilesPath(instanceName, p, project)));
   if (!res.ok) return null;
   const ct = (res.headers.get('Content-Type') || '').toLowerCase();
   if (ct.includes('application/json')) return null;
@@ -220,20 +223,21 @@ const SYMLINK_PROBE_MAX_DEPTH = 12;
 /** Where to navigate after opening a symlink row: list this directory, optionally then open this file. */
 export async function getSymlinkResolvedNavTarget(
   instanceName: string,
+  project: string | null | undefined,
   linkAbsPath: string,
   depth = 0,
 ): Promise<{ directoryPath: string; fileBasename?: string }> {
   if (depth > SYMLINK_PROBE_MAX_DEPTH) {
     return { directoryPath: normalizeAbsPath(linkAbsPath) };
   }
-  const raw = await fetchSymlinkTargetRawPath(instanceName, linkAbsPath);
+  const raw = await fetchSymlinkTargetRawPath(instanceName, project, linkAbsPath);
   if (!raw) {
     return { directoryPath: normalizeAbsPath(linkAbsPath) };
   }
   const resolved = resolveSymlinkTarget(linkAbsPath, raw);
   let meta;
   try {
-    meta = await getFileMetadata(instanceName, resolved);
+    meta = await getFileMetadata(instanceName, project, resolved);
   } catch {
     return { directoryPath: resolved };
   }
@@ -242,7 +246,7 @@ export async function getSymlinkResolvedNavTarget(
     return { directoryPath: resolved };
   }
   if (t === 'symlink') {
-    return getSymlinkResolvedNavTarget(instanceName, resolved, depth + 1);
+    return getSymlinkResolvedNavTarget(instanceName, project, resolved, depth + 1);
   }
   if (t === 'file') {
     return {
@@ -255,27 +259,23 @@ export async function getSymlinkResolvedNavTarget(
 
 export async function saveFileContent(
   instanceName: string,
+  project: string | null | undefined,
   filePath: string,
   content: string,
   mode: string = '0644',
 ) {
-  const res = await fetch(
-    getApiUrl(
-      `/1.0/instances/${instanceName}/files?path=${encodeURIComponent(filePath)}`,
-    ),
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/octet-stream',
-        'X-Incus-uid': '0',
-        'X-Incus-gid': '0',
-        'X-Incus-mode': mode,
-        'X-Incus-type': 'file',
-        'X-Incus-write': 'overwrite',
-      },
-      body: content,
+  const res = await fetch(getApiUrl(buildInstanceFilesPath(instanceName, filePath, project)), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/octet-stream',
+      'X-Incus-uid': '0',
+      'X-Incus-gid': '0',
+      'X-Incus-mode': mode,
+      'X-Incus-type': 'file',
+      'X-Incus-write': 'overwrite',
     },
-  );
+    body: content,
+  });
 
   if (!res.ok) {
     throw new Error(await errorMessageFromResponse(res));
@@ -284,22 +284,22 @@ export async function saveFileContent(
 
 export async function createEmptyFile(
   instanceName: string,
+  project: string | null | undefined,
   currentPath: string,
   fileName: string,
 ) {
   const filePath = joinAbsPath(currentPath, fileName);
-  await saveFileContent(instanceName, filePath, '', '0644');
+  await saveFileContent(instanceName, project, filePath, '', '0644');
 }
 
-export async function getFileMetadata(instanceName: string, filePath: string) {
-  const res = await fetch(
-    getApiUrl(
-      `/1.0/instances/${instanceName}/files?path=${encodeURIComponent(filePath)}`,
-    ),
-    {
-      method: 'HEAD',
-    },
-  );
+export async function getFileMetadata(
+  instanceName: string,
+  project: string | null | undefined,
+  filePath: string,
+) {
+  const res = await fetch(getApiUrl(buildInstanceFilesPath(instanceName, filePath, project)), {
+    method: 'HEAD',
+  });
 
   if (!res.ok) {
     throw new Error(await errorMessageFromResponse(res));
@@ -317,11 +317,12 @@ export async function getFileMetadata(instanceName: string, filePath: string) {
 /** True if `path` exists on the instance and is a directory (HEAD + X-Incus-type). */
 export async function checkDirectoryExists(
   instanceName: string,
+  project: string | null | undefined,
   dirPath: string,
 ): Promise<boolean> {
   try {
     const p = normalizeAbsPath(dirPath);
-    const meta = await getFileMetadata(instanceName, p);
+    const meta = await getFileMetadata(instanceName, project, p);
     return (meta.type ?? '').toLowerCase() === 'directory';
   } catch {
     return false;
@@ -353,12 +354,11 @@ const DIRECTORY_HEAD_BATCH = 16;
 /** Immediate child directories of `parentDir` (HEAD each entry). */
 export async function listChildDirectoryPaths(
   instanceName: string,
+  project: string | null | undefined,
   parentDir: string,
 ): Promise<string[]> {
   const parent = normalizeAbsPath(parentDir);
-  const url = getApiUrl(
-    `/1.0/instances/${instanceName}/files?path=${encodeURIComponent(parent)}`,
-  );
+  const url = getApiUrl(buildInstanceFilesPath(instanceName, parent, project));
   const res = await fetch(url);
   if (!res.ok) return [];
   const names = parseSyncDirectoryListing(await res.text());
@@ -370,7 +370,7 @@ export async function listChildDirectoryPaths(
       slice.map(async (name) => {
         const full = joinAbsPath(parent, name);
         try {
-          const meta = await getFileMetadata(instanceName, full);
+          const meta = await getFileMetadata(instanceName, project, full);
           const mt = (meta.type ?? '').toLowerCase();
           if (mt === 'directory') return full;
           if (mt === 'symlink') return full;
@@ -391,27 +391,29 @@ export type InstancePathKind = 'directory' | 'file' | 'missing';
 
 export async function probeInstancePathKind(
   instanceName: string,
+  project: string | null | undefined,
   absPath: string,
 ): Promise<InstancePathKind> {
-  return probeInstancePathKindInner(instanceName, absPath, 0);
+  return probeInstancePathKindInner(instanceName, project, absPath, 0);
 }
 
 async function probeInstancePathKindInner(
   instanceName: string,
+  project: string | null | undefined,
   absPath: string,
   depth: number,
 ): Promise<InstancePathKind> {
   if (depth > SYMLINK_PROBE_MAX_DEPTH) return 'missing';
   try {
     const p = normalizeAbsPath(absPath);
-    const meta = await getFileMetadata(instanceName, p);
+    const meta = await getFileMetadata(instanceName, project, p);
     const t = (meta.type ?? '').toLowerCase();
     if (t === 'directory') return 'directory';
     if (t === 'symlink') {
-      const raw = await fetchSymlinkTargetRawPath(instanceName, p);
+      const raw = await fetchSymlinkTargetRawPath(instanceName, project, p);
       if (!raw) return 'directory';
       const resolved = resolveSymlinkTarget(p, raw);
-      return probeInstancePathKindInner(instanceName, resolved, depth + 1);
+      return probeInstancePathKindInner(instanceName, project, resolved, depth + 1);
     }
     if (t === 'file') return 'file';
     return 'missing';
