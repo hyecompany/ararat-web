@@ -27,6 +27,10 @@ export function formatDate(value?: string) {
   }).format(date);
 }
 
+export function getInstanceResourceShortName(name: string) {
+  return name.split('/').pop() || '';
+}
+
 export function getRootDiskUsage(state?: InstanceState) {
   if (!state?.disk) return undefined;
   const rootDisk =

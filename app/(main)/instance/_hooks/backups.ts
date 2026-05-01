@@ -1,6 +1,5 @@
 import useSWR, { useSWRConfig } from 'swr';
 import { jsonFetcher } from '../../../_lib/fetcher';
-import { Backup } from '../../_components/backups';
 import { StandardResponse } from '../../../_lib/response';
 import { buildApiPath } from '@/app/_lib/url';
 import {
@@ -8,6 +7,7 @@ import {
   deleteBackup as apiDeleteBackup,
   renameBackup as apiRenameBackup,
   downloadBackup as apiDownloadBackup,
+  type InstanceBackup,
 } from '../_lib/backups';
 
 function getBackupsCacheKey(instanceName: string, project?: string | null) {
@@ -20,15 +20,17 @@ function getBackupsCacheKey(instanceName: string, project?: string | null) {
 export function useBackups(instanceName: string, project?: string | null) {
   const { mutate } = useSWRConfig();
   const backupsCacheKey = getBackupsCacheKey(instanceName, project);
-  const { data, error, isLoading } = useSWR<StandardResponse<Backup[]>>(
+  const { data, error, isLoading } = useSWR<StandardResponse<InstanceBackup[]>>(
     backupsCacheKey,
-    (url: string) => jsonFetcher<Backup[]>(url),
+    (url: string) => jsonFetcher<InstanceBackup[]>(url),
   );
 
   const createBackup = async (
     name?: string,
     instanceOnly?: boolean,
     optimizedStorage?: boolean,
+    compressionAlgorithm?: string,
+    expiresAt?: string,
   ) => {
     await apiCreateBackup(
       instanceName,
@@ -36,6 +38,8 @@ export function useBackups(instanceName: string, project?: string | null) {
       name,
       instanceOnly,
       optimizedStorage,
+      compressionAlgorithm,
+      expiresAt,
     );
     await mutate(backupsCacheKey);
   };

@@ -44,6 +44,7 @@ export interface InstanceState {
 export interface InstanceSnapshot {
   name: string;
   created_at?: string;
+  expires_at?: string;
   stateful?: boolean;
   size?: number;
   description?: string;

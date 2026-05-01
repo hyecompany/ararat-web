@@ -1,38 +1,95 @@
 import { useSWRConfig } from 'swr';
 import {
   createSnapshot as apiCreateSnapshot,
+  createImageFromSnapshot as apiCreateImageFromSnapshot,
+  createInstanceFromSnapshot as apiCreateInstanceFromSnapshot,
   deleteSnapshot as apiDeleteSnapshot,
+  editSnapshot as apiEditSnapshot,
   restoreSnapshot as apiRestoreSnapshot,
-  renameSnapshot as apiRenameSnapshot,
 } from '../_lib/snapshots';
+import { getInstanceCacheKey } from './instance';
 
-export function useSnapshots(instanceName: string) {
+export function useSnapshots(instanceName: string, project?: string | null) {
   const { mutate } = useSWRConfig();
+  const instanceCacheKey = getInstanceCacheKey(instanceName, project);
 
-  const createSnapshot = async (name?: string, stateful?: boolean) => {
-    await apiCreateSnapshot(instanceName, name, stateful);
-    await mutate(`/1.0/instances/${instanceName}?recursion=1`);
+  const mutateInstance = async () => {
+    if (!instanceCacheKey) return;
+    await mutate(instanceCacheKey);
+  };
+
+  const createSnapshot = async (
+    name?: string,
+    stateful?: boolean,
+    expiresAt?: string,
+  ) => {
+    await apiCreateSnapshot({
+      instanceName,
+      project,
+      name,
+      stateful,
+      expiresAt,
+    });
+    await mutateInstance();
   };
 
   const deleteSnapshot = async (snapshotName: string) => {
-    await apiDeleteSnapshot(instanceName, snapshotName);
-    await mutate(`/1.0/instances/${instanceName}?recursion=1`);
+    await apiDeleteSnapshot(instanceName, project, snapshotName);
+    await mutateInstance();
   };
 
   const restoreSnapshot = async (snapshotName: string) => {
-    await apiRestoreSnapshot(instanceName, snapshotName);
-    await mutate(`/1.0/instances/${instanceName}?recursion=1`);
+    await apiRestoreSnapshot(instanceName, project, snapshotName);
+    await mutateInstance();
   };
 
-  const renameSnapshot = async (snapshotName: string, newName: string) => {
-    await apiRenameSnapshot(instanceName, snapshotName, newName);
-    await mutate(`/1.0/instances/${instanceName}?recursion=1`);
+  const editSnapshot = async (
+    snapshotName: string,
+    newName: string,
+    expiresAt?: string,
+  ) => {
+    await apiEditSnapshot({
+      instanceName,
+      project,
+      snapshotName,
+      newName,
+      expiresAt,
+    });
+    await mutateInstance();
+  };
+
+  const createInstanceFromSnapshot = async (
+    snapshotName: string,
+    targetName: string,
+    instanceType: string,
+  ) => {
+    await apiCreateInstanceFromSnapshot({
+      instanceName,
+      snapshotName,
+      targetName,
+      instanceType,
+      project,
+    });
+  };
+
+  const createImageFromSnapshot = async (
+    snapshotName: string,
+    alias?: string,
+  ) => {
+    await apiCreateImageFromSnapshot({
+      instanceName,
+      snapshotName,
+      project,
+      alias,
+    });
   };
 
   return {
     createSnapshot,
     deleteSnapshot,
     restoreSnapshot,
-    renameSnapshot,
+    editSnapshot,
+    createInstanceFromSnapshot,
+    createImageFromSnapshot,
   };
 }
