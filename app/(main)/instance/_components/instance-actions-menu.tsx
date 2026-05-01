@@ -207,7 +207,7 @@ export function InstanceActionsMenu({
               variant="ghost"
               size="icon"
               disabled={disabled}
-              className="group bg-muted hover:bg-muted/90 relative h-16 w-16 rounded-lg border p-0 shadow-sm transition-colors"
+              className="group bg-muted hover:bg-muted/90 focus-visible:scale-105 hover:scale-105 relative h-16 w-16 rounded-lg border p-0 shadow-sm transition-transform duration-200"
               aria-label={`Manage instance ${instance.name}`}
             >
               <OSLogo brand={getBaseImage(instance)} className="size-8" />
@@ -219,21 +219,21 @@ export function InstanceActionsMenu({
                     <span className="absolute inset-0 [animation:status-halo-pulse_2.8s_ease-out_infinite] rounded-full bg-emerald-500/35" />
                   </>
                 ) : null}
-                <span
-                  className={cn(
-                    'border-background absolute inset-0 rounded-full border-2 shadow-[0_0_0_1px_rgba(0,0,0,0.08)] transition-transform group-hover:scale-105',
-                    isRunning && 'bg-emerald-500',
-                    isStopped && 'bg-red-400',
-                    !isRunning && !isStopped && 'bg-amber-400',
-                  )}
-                />
-              </span>
-              <span className="bg-background/95 text-muted-foreground group-hover:text-foreground group-focus-visible:text-foreground absolute top-1 right-1 rounded-full border p-1 shadow-sm transition-colors">
-                <Settings2Icon className="size-3" />
-              </span>
-            </Button>
-          </DialogTrigger>
-        </TooltipTrigger>
+              <span
+                className={cn(
+                  'border-background absolute inset-0 rounded-full border-2 shadow-[0_0_0_1px_rgba(0,0,0,0.08)] transition-transform group-hover:scale-105',
+                  isRunning && 'bg-emerald-500',
+                  isStopped && 'bg-red-400',
+                  !isRunning && !isStopped && 'bg-amber-400',
+                )}
+              />
+            </span>
+            <span className="bg-background/95 text-muted-foreground group-hover:text-foreground group-focus-visible:text-foreground absolute top-1 right-1 rounded-full border p-1 shadow-sm transition-colors">
+              <Settings2Icon className="size-3" />
+            </span>
+          </Button>
+        </DialogTrigger>
+      </TooltipTrigger>
         <TooltipContent side="bottom" sideOffset={4}>
           Manage
         </TooltipContent>

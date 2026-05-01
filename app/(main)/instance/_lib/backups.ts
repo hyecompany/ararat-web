@@ -1,4 +1,14 @@
 import { buildApiPath } from '@/app/_lib/url';
+import { parseOperationResponse, waitForOperation } from './instance';
+
+export interface InstanceBackup {
+  name: string;
+  created_at: string;
+  expires_at?: string;
+  container_only?: boolean;
+  instance_only?: boolean;
+  optimized_storage?: boolean;
+}
 
 function buildInstanceBackupsPath(
   instanceName: string,
@@ -24,6 +34,8 @@ export async function createBackup(
   name?: string,
   instanceOnly?: boolean,
   optimizedStorage?: boolean,
+  compressionAlgorithm?: string,
+  expiresAt?: string,
 ) {
   const res = await fetch(buildInstanceBackupsPath(instanceName, project), {
     method: 'POST',
@@ -32,12 +44,21 @@ export async function createBackup(
       name: name || undefined,
       instance_only: instanceOnly,
       optimized_storage: optimizedStorage,
+      compression_algorithm: compressionAlgorithm || undefined,
+      expires_at: expiresAt,
     }),
   });
 
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || res.statusText);
+  const payload = await parseOperationResponse(
+    res,
+    `Unable to create a backup for ${instanceName}.`,
+  );
+
+  if (payload?.operation) {
+    await waitForOperation({
+      operation: payload.operation,
+      project: project ?? undefined,
+    });
   }
 }
 
@@ -52,9 +73,16 @@ export async function deleteBackup(
     method: 'DELETE',
   });
 
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || res.statusText);
+  const payload = await parseOperationResponse(
+    res,
+    `Unable to delete backup ${shortName}.`,
+  );
+
+  if (payload?.operation) {
+    await waitForOperation({
+      operation: payload.operation,
+      project: project ?? undefined,
+    });
   }
 }
 
@@ -71,9 +99,16 @@ export async function renameBackup(
     body: JSON.stringify({ name: newName }),
   });
 
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || res.statusText);
+  const payload = await parseOperationResponse(
+    res,
+    `Unable to rename backup ${shortOldName}.`,
+  );
+
+  if (payload?.operation) {
+    await waitForOperation({
+      operation: payload.operation,
+      project: project ?? undefined,
+    });
   }
 }
 

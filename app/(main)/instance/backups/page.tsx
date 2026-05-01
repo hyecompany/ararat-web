@@ -6,7 +6,7 @@ import { useBackups } from '../_hooks/backups';
 import { useStoragePools } from '../../_hooks/storagePools';
 import { getRootDiskPool } from '../_lib/utils';
 import { Spinner } from 'ui-web/components/spinner';
-import { BackupList } from '../../_components/backups';
+import { BackupList } from './_components/backup-list';
 
 export default function BackupsPage() {
   const {
