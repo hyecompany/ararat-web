@@ -62,7 +62,9 @@ function hasValidRootDisk(
 import GeneralConfiguration from '@/app/(main)/_components/general-configuration';
 import { useProfiles } from '@/app/(main)/_hooks/profiles';
 import { useStoragePools } from '@/app/(main)/_hooks/storagePools';
-import ProjectsContext from '@/app/(main)/_context/projects';
+import ProjectsContext, {
+  ALL_PROJECTS_VALUE,
+} from '@/app/(main)/_context/projects';
 import { useServerConfiguration } from '@/app/_hooks/server';
 import { Spinner } from 'ui-web/components/spinner';
 import { toast } from 'sonner';
@@ -116,7 +118,7 @@ const formSchema = z.object({
   source: sourceSchema,
 });
 export default function CreateInstance({ className }: { className?: string }) {
-  const { effectiveProject } = use(ProjectsContext);
+  const { currentProject, effectiveProject, projects } = use(ProjectsContext);
   const { resolvedTheme } = useTheme();
   const { data: server, isLoading: isLoadingServerConfiguration } =
     useServerConfiguration();
@@ -216,7 +218,18 @@ export default function CreateInstance({ className }: { className?: string }) {
   }, [server?.api_extensions]);
   const isBackupSupported =
     !isLoadingServerConfiguration && missingBackupExtensions.length === 0;
-  const resolvedTargetProject = effectiveProject ?? '';
+  const resolvedTargetProject = useMemo(() => {
+    if (effectiveProject) {
+      return effectiveProject;
+    }
+
+    if (currentProject !== ALL_PROJECTS_VALUE) {
+      return '';
+    }
+
+    const defaultProject = projects.find((project) => project.name === 'default');
+    return defaultProject?.name ?? projects[0]?.name ?? '';
+  }, [currentProject, effectiveProject, projects]);
 
   const resetSourceFields = () => {
     form.setValue('source.fingerprint', undefined, { shouldDirty: true });
@@ -696,8 +709,8 @@ export default function CreateInstance({ className }: { className?: string }) {
                         }}
                       />
                       <p className="text-muted-foreground text-sm">
-                        Upload an exported Incus backup archive to restore it as a
-                        new instance.
+                        Upload an exported backup archive to restore it as a new
+                        instance.
                       </p>
                       {backupFile ? (
                         <p className="text-sm font-medium">{backupFile.name}</p>
