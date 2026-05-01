@@ -1,7 +1,4 @@
-export function toDateTimeLocalValue(value?: string | null) {
-  if (!value) return '';
-
-  const date = new Date(value);
+function formatDateTimeLocalValue(date: Date) {
   if (Number.isNaN(date.getTime())) return '';
 
   const year = date.getFullYear();
@@ -11,6 +8,17 @@ export function toDateTimeLocalValue(value?: string | null) {
   const minutes = String(date.getMinutes()).padStart(2, '0');
 
   return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+export function toDateTimeLocalValue(value?: string | null) {
+  if (!value) return '';
+
+  const date = new Date(value);
+  return formatDateTimeLocalValue(date);
+}
+
+export function fromDateToLocalDateTimeValue(value: Date) {
+  return formatDateTimeLocalValue(value);
 }
 
 export function toOptionalIsoDateTime(value?: string | null) {

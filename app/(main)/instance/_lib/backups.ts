@@ -1,5 +1,6 @@
 import { buildApiPath } from '@/app/_lib/url';
 import { parseOperationResponse, waitForOperation } from './instance';
+import { getInstanceResourceShortName } from './utils';
 
 export interface InstanceBackup {
   name: string;
@@ -45,7 +46,7 @@ export async function createBackup(
       instance_only: instanceOnly,
       optimized_storage: optimizedStorage,
       compression_algorithm: compressionAlgorithm || undefined,
-      expires_at: expiresAt,
+      expires_at: expiresAt ?? null,
     }),
   });
 
@@ -67,7 +68,7 @@ export async function deleteBackup(
   project: string | null | undefined,
   backupName: string,
 ) {
-  const shortName = backupName.split('/').pop() || '';
+  const shortName = getInstanceResourceShortName(backupName);
 
   const res = await fetch(buildInstanceBackupsPath(instanceName, project, shortName), {
     method: 'DELETE',
@@ -92,7 +93,7 @@ export async function renameBackup(
   oldName: string,
   newName: string,
 ) {
-  const shortOldName = oldName.split('/').pop() || '';
+  const shortOldName = getInstanceResourceShortName(oldName);
   const res = await fetch(buildInstanceBackupsPath(instanceName, project, shortOldName), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -117,7 +118,7 @@ export function downloadBackup(
   project: string | null | undefined,
   backupName: string,
 ) {
-  const shortName = backupName.split('/').pop() || '';
+  const shortName = getInstanceResourceShortName(backupName);
   const url = buildInstanceBackupsPath(instanceName, project, shortName, 'export');
   const link = document.createElement('a');
   link.href = url;

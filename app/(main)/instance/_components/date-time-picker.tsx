@@ -6,6 +6,7 @@ import { CalendarIcon } from 'lucide-react';
 
 import { Calendar } from '@/components/ui/calendar';
 import { Separator } from '@/components/ui/separator';
+import { fromDateToLocalDateTimeValue } from '../_lib/date-time';
 import { Button } from 'ui-web/components/button';
 import { Input } from 'ui-web/components/input';
 import { Label } from 'ui-web/components/label';
@@ -15,16 +16,6 @@ import {
   PopoverTrigger,
 } from 'ui-web/components/popover';
 import { cn } from 'ui-web/lib/utils';
-
-function formatLocalDateTimeValue(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
-}
 
 function toDateAndTimeParts(value?: string | null) {
   if (!value) {
@@ -68,7 +59,7 @@ export function DateTimePicker({
     const [hours, minutes] = (time || '00:00').split(':').map((part) => Number(part));
     const merged = new Date(nextDate);
     merged.setHours(hours || 0, minutes || 0, 0, 0);
-    onChange(formatLocalDateTimeValue(merged));
+    onChange(fromDateToLocalDateTimeValue(merged));
   };
 
   const updateTime = (nextTime: string) => {
@@ -82,7 +73,7 @@ export function DateTimePicker({
       .split(':')
       .map((part) => Number(part));
     base.setHours(hours || 0, minutes || 0, 0, 0);
-    onChange(formatLocalDateTimeValue(base));
+    onChange(fromDateToLocalDateTimeValue(base));
   };
 
   return (

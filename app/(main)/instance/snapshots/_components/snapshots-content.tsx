@@ -16,7 +16,7 @@ import type { InstanceSnapshot } from '@/app/(main)/instances/_lib/instances.d';
 import { useSnapshots } from '../../_hooks/snapshots';
 import { DateTimePicker } from '../../_components/date-time-picker';
 import { toDateTimeLocalValue, toOptionalIsoDateTime } from '../../_lib/date-time';
-import { formatBytes, formatDate } from '../../_lib/utils';
+import { formatBytes, formatDate, getInstanceResourceShortName } from '../../_lib/utils';
 import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
 import { Button } from 'ui-web/components/button';
 import { Checkbox } from 'ui-web/components/checkbox';
@@ -49,10 +49,6 @@ type SuccessMessage =
     }
   | null;
 
-function getShortSnapshotName(snapshotName: string) {
-  return snapshotName.split('/').pop() || '';
-}
-
 export function SnapshotsContent({
   instanceName,
   instanceProject,
@@ -81,7 +77,7 @@ export function SnapshotsContent({
       header: 'Name',
       cell: ({ row }) => (
         <span className="font-medium">
-          {getShortSnapshotName(row.original.name)}
+          {getInstanceResourceShortName(row.original.name)}
         </span>
       ),
     },
@@ -105,7 +101,7 @@ export function SnapshotsContent({
       accessorKey: 'size',
       header: 'Size',
       cell: ({ row }) =>
-        row.original.size ? formatBytes(row.original.size) : '—',
+        row.original.size != null ? formatBytes(row.original.size) : '—',
     },
     {
       id: 'actions',
@@ -247,7 +243,7 @@ export function SnapshotsContent({
           onSuccess={(targetName) =>
             setSuccessMessage({
               title: 'Instance Created',
-              description: `Created instance ${targetName} from snapshot ${getShortSnapshotName(
+              description: `Created instance ${targetName} from snapshot ${getInstanceResourceShortName(
                 createInstanceSnapshot.name,
               )}.`,
             })
@@ -267,10 +263,10 @@ export function SnapshotsContent({
             setSuccessMessage({
               title: 'Image Created',
               description: alias
-                ? `Created image alias ${alias} from snapshot ${getShortSnapshotName(
+                ? `Created image alias ${alias} from snapshot ${getInstanceResourceShortName(
                     createImageSnapshot.name,
                   )}.`
-                : `Created an image from snapshot ${getShortSnapshotName(
+                : `Created an image from snapshot ${getInstanceResourceShortName(
                     createImageSnapshot.name,
                   )}.`,
             })
@@ -390,7 +386,7 @@ function EditSnapshotDialog({
   onOpenChange: (open: boolean) => void;
   onError: (error: string | null) => void;
 }) {
-  const [newName, setNewName] = React.useState(getShortSnapshotName(snapshot.name));
+  const [newName, setNewName] = React.useState(getInstanceResourceShortName(snapshot.name));
   const [expiresAt, setExpiresAt] = React.useState(
     toDateTimeLocalValue(snapshot.expires_at),
   );
@@ -398,7 +394,7 @@ function EditSnapshotDialog({
   const { editSnapshot } = useSnapshots(instanceName, instanceProject);
 
   React.useEffect(() => {
-    setNewName(getShortSnapshotName(snapshot.name));
+    setNewName(getInstanceResourceShortName(snapshot.name));
     setExpiresAt(toDateTimeLocalValue(snapshot.expires_at));
   }, [snapshot]);
 
@@ -427,7 +423,7 @@ function EditSnapshotDialog({
         <DialogHeader>
           <DialogTitle>Edit Snapshot</DialogTitle>
           <DialogDescription>
-            Update the name and expiry for {getShortSnapshotName(snapshot.name)}.
+            Update the name and expiry for {getInstanceResourceShortName(snapshot.name)}.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -472,7 +468,7 @@ function RestoreSnapshotDialog({
   onError: (error: string | null) => void;
 }) {
   const [isLoading, setIsLoading] = React.useState(false);
-  const shortName = getShortSnapshotName(snapshotName);
+  const shortName = getInstanceResourceShortName(snapshotName);
   const { restoreSnapshot } = useSnapshots(instanceName, instanceProject);
 
   const handleRestore = async () => {
@@ -530,7 +526,7 @@ function DeleteSnapshotDialog({
   onError: (error: string | null) => void;
 }) {
   const [isLoading, setIsLoading] = React.useState(false);
-  const shortName = getShortSnapshotName(snapshotName);
+  const shortName = getInstanceResourceShortName(snapshotName);
   const { deleteSnapshot } = useSnapshots(instanceName, instanceProject);
 
   const handleDelete = async () => {
@@ -633,7 +629,7 @@ function CreateInstanceFromSnapshotDialog({
         <DialogHeader>
           <DialogTitle>Create Instance</DialogTitle>
           <DialogDescription>
-            Create a new instance from snapshot {getShortSnapshotName(snapshotName)}.
+            Create a new instance from snapshot {getInstanceResourceShortName(snapshotName)}.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -712,7 +708,7 @@ function CreateImageFromSnapshotDialog({
         <DialogHeader>
           <DialogTitle>Create Image</DialogTitle>
           <DialogDescription>
-            Publish snapshot {getShortSnapshotName(snapshotName)} as an image.
+            Publish snapshot {getInstanceResourceShortName(snapshotName)} as an image.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">

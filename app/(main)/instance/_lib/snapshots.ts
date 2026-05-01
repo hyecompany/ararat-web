@@ -1,5 +1,6 @@
 import { buildApiPath } from '@/app/_lib/url';
 import { parseOperationResponse, waitForOperation } from './instance';
+import { getInstanceResourceShortName } from './utils';
 
 type CreateSnapshotInput = {
   instanceName: string;
@@ -46,12 +47,8 @@ function buildInstanceSnapshotsPath(
   return buildApiPath(path, { project: project ?? null });
 }
 
-function getShortSnapshotName(snapshotName: string) {
-  return snapshotName.split('/').pop() || '';
-}
-
 function getSnapshotSourceName(instanceName: string, snapshotName: string) {
-  return `${instanceName}/${getShortSnapshotName(snapshotName)}`;
+  return `${instanceName}/${getInstanceResourceShortName(snapshotName)}`;
 }
 
 export async function createSnapshot({
@@ -89,7 +86,7 @@ export async function deleteSnapshot(
   project: string | null | undefined,
   snapshotName: string,
 ) {
-  const shortName = getShortSnapshotName(snapshotName);
+  const shortName = getInstanceResourceShortName(snapshotName);
   const res = await fetch(buildInstanceSnapshotsPath(instanceName, project, shortName), {
     method: 'DELETE',
   });
@@ -112,7 +109,7 @@ export async function restoreSnapshot(
   project: string | null | undefined,
   snapshotName: string,
 ) {
-  const shortName = getShortSnapshotName(snapshotName);
+  const shortName = getInstanceResourceShortName(snapshotName);
   const res = await fetch(
     buildApiPath(`/1.0/instances/${encodeURIComponent(instanceName)}`, {
       project: project ?? null,
@@ -143,7 +140,7 @@ export async function renameSnapshot(
   snapshotName: string,
   newName: string,
 ) {
-  const shortName = getShortSnapshotName(snapshotName);
+  const shortName = getInstanceResourceShortName(snapshotName);
   const res = await fetch(buildInstanceSnapshotsPath(instanceName, project, shortName), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -169,11 +166,11 @@ export async function updateSnapshotExpiry(
   snapshotName: string,
   expiresAt?: string,
 ) {
-  const shortName = getShortSnapshotName(snapshotName);
+  const shortName = getInstanceResourceShortName(snapshotName);
   const res = await fetch(buildInstanceSnapshotsPath(instanceName, project, shortName), {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ expires_at: expiresAt }),
+    body: JSON.stringify({ expires_at: expiresAt ?? null }),
   });
 
   const payload = await parseOperationResponse(
@@ -196,7 +193,7 @@ export async function editSnapshot({
   newName,
   expiresAt,
 }: EditSnapshotInput) {
-  const shortName = getShortSnapshotName(snapshotName);
+  const shortName = getInstanceResourceShortName(snapshotName);
   const normalizedName = newName.trim();
 
   if (!normalizedName) {
@@ -275,7 +272,7 @@ export async function createImageFromSnapshot({
 
   const payload = await parseOperationResponse(
     res,
-    `Unable to create an image from snapshot ${getShortSnapshotName(snapshotName)}.`,
+    `Unable to create an image from snapshot ${getInstanceResourceShortName(snapshotName)}.`,
   );
 
   if (payload?.operation) {

@@ -14,7 +14,7 @@ import { useConfigurableOptions } from '@/app/_hooks/server';
 import type { InstanceBackup } from '../../_lib/backups';
 import { DateTimePicker } from '../../_components/date-time-picker';
 import { toOptionalIsoDateTime } from '../../_lib/date-time';
-import { formatDate } from '../../_lib/utils';
+import { formatDate, getInstanceResourceShortName } from '../../_lib/utils';
 import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
 import { Button } from 'ui-web/components/button';
 import { Checkbox } from 'ui-web/components/checkbox';
@@ -62,10 +62,6 @@ interface BackupListProps {
   onRename: (oldName: string, newName: string) => Promise<void>;
   onDownload: (name: string) => void;
   canUseOptimizedStorage?: boolean;
-}
-
-function getShortBackupName(backupName: string) {
-  return backupName.split('/').pop() || '';
 }
 
 const DEFAULT_COMPRESSION_VALUE = '__default__';
@@ -133,7 +129,7 @@ export function BackupList({
       header: 'Name',
       cell: ({ row }) => (
         <span className="font-medium">
-          {getShortBackupName(row.original.name)}
+          {getInstanceResourceShortName(row.original.name)}
         </span>
       ),
     },
@@ -256,7 +252,7 @@ export function BackupList({
 
       {renameBackup ? (
         <RenameBackupDialog
-          currentName={getShortBackupName(renameBackup.name)}
+          currentName={getInstanceResourceShortName(renameBackup.name)}
           open={!!renameBackup}
           onOpenChange={(open) => !open && setRenameBackup(null)}
           onRename={(newName) =>
@@ -273,7 +269,7 @@ export function BackupList({
 
       {deleteBackup ? (
         <DeleteBackupDialog
-          name={getShortBackupName(deleteBackup.name)}
+          name={getInstanceResourceShortName(deleteBackup.name)}
           open={!!deleteBackup}
           onOpenChange={(open) => !open && setDeleteBackup(null)}
           onConfirm={() =>
