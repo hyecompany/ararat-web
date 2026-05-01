@@ -433,6 +433,9 @@ export default function CreateInstance({ className }: { className?: string }) {
             source.type === 'backup'
           ) {
             form.setValue('source.type', source.type, { shouldValidate: true });
+            if (source.type === 'backup') {
+              setShowYamlEditor(false);
+            }
             if (source.type === 'image') {
               if (typeof source.fingerprint === 'string') {
                 form.setValue('source.fingerprint', source.fingerprint, {
@@ -559,9 +562,7 @@ export default function CreateInstance({ className }: { className?: string }) {
       );
     } finally {
       setIsSubmitting(false);
-      if (!isBackupMode) {
-        setImportProgress(null);
-      }
+      setImportProgress(null);
     }
   };
 
