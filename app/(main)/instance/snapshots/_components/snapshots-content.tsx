@@ -8,7 +8,6 @@ import {
   PackageIcon,
   PencilIcon,
   PlusIcon,
-  RotateCcwIcon,
   TrashIcon,
 } from 'lucide-react';
 
