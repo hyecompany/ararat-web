@@ -68,7 +68,9 @@ function ConsoleWindowInner({
 }) {
   const { name, instance, instanceClass, isLoading, isError } =
     use(InstanceContext);
-  const [forceTakeoverToken, setForceTakeoverToken] = useState(0);
+  const [forceTakeoverToken, setForceTakeoverToken] = useState(() =>
+    shouldAutoTakeover ? 1 : 0,
+  );
   const [consoleInUseMessage, setConsoleInUseMessage] = useState<string | null>(
     null,
   );
@@ -79,13 +81,13 @@ function ConsoleWindowInner({
 
   const handleConsoleInUse = useCallback(
     (message: string) => {
-      if (shouldAutoTakeover) {
+      if (shouldAutoTakeover && forceTakeoverToken === 0) {
         setForceTakeoverToken((current) => current + 1);
         return;
       }
       setConsoleInUseMessage(message);
     },
-    [shouldAutoTakeover],
+    [forceTakeoverToken, shouldAutoTakeover],
   );
 
   return (

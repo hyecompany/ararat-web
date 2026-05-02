@@ -463,7 +463,6 @@ export function useSpiceSession({
     Promise<Awaited<ReturnType<InstanceClass['createConsoleConnection']>>> | null
   >(null);
   const latestDiagnosticsRef = useRef<SpiceRuntimeDiagnostics | null>(null);
-  const lastForceTakeoverTokenRef = useRef(0);
   const [connectNonce, setConnectNonce] = useState(0);
   const [status, setStatus] = useState<GraphicalStatus>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -645,11 +644,7 @@ export function useSpiceSession({
 
       try {
         if (!connectionPromiseRef.current) {
-          const force =
-            forceTakeoverToken > lastForceTakeoverTokenRef.current;
-          if (force) {
-            lastForceTakeoverTokenRef.current = forceTakeoverToken;
-          }
+          const force = forceTakeoverToken > 0;
           connectionPromiseRef.current = instanceClass.createConsoleConnection(
             'vga',
             force ? { force: true } : undefined,
@@ -868,7 +863,7 @@ export function useSpiceSession({
         window.clearTimeout(timeoutId);
       }
     };
-  }, [autoResize, connectNonce, enabled, status, viewportRef]);
+  }, [autoResize, canvasRef, connectNonce, enabled, status, viewportRef]);
 
   const controller = useMemo<ConsoleSessionController>(() => {
     if (!enabled) {

@@ -39,14 +39,11 @@ function useInstanceContextValue(
 ): InstanceContextValue {
   const { instance, isLoading, isError, mutate, isValidating } =
     useInstance(name, project);
+  const instanceName = instance?.name ?? name;
+  const instanceProject = instance?.project ?? project ?? null;
   const instanceClass = useMemo(
-    () =>
-      instance
-        ? new InstanceClass(instance.name, instance.project ?? project ?? null)
-        : name
-          ? new InstanceClass(name, project)
-        : null,
-    [instance, name, project],
+    () => (instanceName ? new InstanceClass(instanceName, instanceProject) : null),
+    [instanceName, instanceProject],
   );
 
   return useMemo(
