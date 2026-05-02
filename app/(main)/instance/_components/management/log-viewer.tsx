@@ -69,7 +69,7 @@ function parseLxcLog(content: string): LxcLogEntry[] {
         file,
         message,
       ] = match;
-      
+
       const date = new Date(
         parseInt(year),
         parseInt(month) - 1,
@@ -422,11 +422,11 @@ export function LogViewer({
             {filename}
           </span>
         </div>
-        
+
         <div className="flex items-center gap-4 shrink-0">
-          <Button 
-            variant="ghost" 
-            size="sm" 
+          <Button
+            variant="ghost"
+            size="sm"
             className="h-5 text-muted-foreground hover:text-destructive px-2 text-[10px]"
             onClick={onDelete}
             disabled={isDeleting}
@@ -487,7 +487,7 @@ export function LogViewer({
             />
           </div>
         ) : (
-          <div 
+          <div
             className="h-full"
             onKeyDownCapture={(e) => {
               if (e.key === 'Escape') {

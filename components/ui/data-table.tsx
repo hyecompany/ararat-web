@@ -330,7 +330,7 @@ export default function DataTable({
           const isFixedSize = cell.column.columnDef.size != null;
           const shouldFixWidth = !fixedLayout || isFixedSize;
           const cellSizePx = `${size}px`;
-          
+
           return (
             <TableCell
               key={cell.id}

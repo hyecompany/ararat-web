@@ -16,6 +16,7 @@ export function useTerminal() {
   const socketAttachedRef = useRef(false);
   const socketAttachingRef = useRef(false);
   const textEncoderRef = useRef(new TextEncoder());
+  const [isReady, setIsReady] = useState(false);
 
   // Callback ref so terminal init fires exactly when the DOM element mounts,
   // which is critical for dialogs where the element may not exist at hook init.
@@ -49,6 +50,103 @@ export function useTerminal() {
     if (process.env.NODE_ENV === 'production') return;
     console.error(`[console] ${context}`, err);
   }, []);
+
+  const sendResizeMetadata = useCallback(() => {
+    const ctrl = controlSocketRef.current;
+    if (ctrl && ctrl.readyState === WebSocket.OPEN && termRef.current) {
+      try {
+        ctrl.send(
+          JSON.stringify({
+            type: 'window-resize',
+            metadata: { width: termRef.current.cols, height: termRef.current.rows },
+          }),
+        );
+      } catch (err) {
+        logError(err, 'send resize metadata');
+      }
+    }
+  }, [logError]);
+
+  const fitTerminal = useCallback(() => {
+    const fit = fitRef.current;
+    const terminalEl = termRef.current?.element?.parentElement;
+
+    if (!fit || !terminalEl) {
+      return;
+    }
+
+    try {
+      if (terminalEl.clientWidth > 0 && terminalEl.clientHeight > 0) {
+        fit.fit();
+        sendResizeMetadata();
+      }
+    } catch (err) {
+      logError(err, 'fit terminal');
+    }
+  }, [logError, sendResizeMetadata]);
+
+  const focusTerminal = useCallback(() => {
+    try {
+      termRef.current?.focus();
+    } catch (err) {
+      logError(err, 'focus terminal');
+    }
+  }, [logError]);
+
+  const clearTerminal = useCallback(() => {
+    try {
+      termRef.current?.reset();
+    } catch (err) {
+      logError(err, 'clear terminal');
+    }
+  }, [logError]);
+
+  const resetSocketState = useCallback(() => {
+    socketAttachedRef.current = false;
+    socketAttachingRef.current = false;
+    try {
+      inputDisposableRef.current?.dispose();
+    } catch (err) {
+      logError(err, 'dispose terminal input');
+    }
+    inputDisposableRef.current = null;
+  }, [logError]);
+
+  const closeSockets = useCallback(() => {
+    try {
+      dataSocketRef.current?.close();
+    } catch (err) {
+      logError(err, 'close data socket');
+    }
+    try {
+      controlSocketRef.current?.close();
+    } catch (err) {
+      logError(err, 'close control socket');
+    }
+    dataSocketRef.current = null;
+    controlSocketRef.current = null;
+  }, [logError]);
+
+  const setSockets = useCallback((data: WebSocket | null, control: WebSocket | null) => {
+    dataSocketRef.current = data;
+    controlSocketRef.current = control;
+  }, []);
+
+  const sendInput = useCallback(
+    (data: string | Uint8Array) => {
+      const sock = dataSocketRef.current;
+      if (!sock || sock.readyState !== WebSocket.OPEN) {
+        return;
+      }
+
+      try {
+        sock.send(typeof data === 'string' ? textEncoderRef.current.encode(data) : data);
+      } catch (err) {
+        logError(err, 'send terminal data');
+      }
+    },
+    [logError],
+  );
 
   const attachToSocket = useCallback(() => {
     const sock = dataSocketRef.current;
@@ -88,7 +186,7 @@ export function useTerminal() {
       sock.onerror = (err) => {
         socketAttachedRef.current = false;
         try {
-          term.writeln("\r\n[console] Data socket error. Try clicking 'Retry attach' below.");
+          term.writeln("\r\n[console] Data socket error. Try clicking 'Reconnect' above.");
         } catch (writeErr) {
           logError(writeErr, 'write data socket error message');
         }
@@ -99,7 +197,7 @@ export function useTerminal() {
         socketAttachedRef.current = false;
         socketAttachingRef.current = false;
         try {
-          term.writeln("[console] Connection closed. Click 'Retry attach' to reconnect.");
+          term.writeln("[console] Connection closed. Click 'Reconnect' above to reconnect.");
         } catch (err) {
           logError(err, 'write data socket closed');
         }
@@ -107,16 +205,10 @@ export function useTerminal() {
 
       inputDisposableRef.current?.dispose();
       inputDisposableRef.current = term.onData((data: string) => {
-        try {
-          if (sock.readyState === WebSocket.OPEN) {
-            sock.send(textEncoderRef.current.encode(data));
-          }
-        } catch (err) {
-          logError(err, 'send terminal data');
-        }
+        sendInput(data);
       });
 
-      term.focus();
+      focusTerminal();
     };
 
     if (readyState === WebSocket.OPEN) {
@@ -135,7 +227,7 @@ export function useTerminal() {
       sock.addEventListener('error', clearInFlight);
       sock.addEventListener('open', onOpen);
     }
-  }, [logError]);
+  }, [focusTerminal, logError, sendInput]);
 
   // Create and wire the terminal when the DOM element becomes available
   useEffect(() => {
@@ -153,39 +245,21 @@ export function useTerminal() {
     const fit = new FitAddon();
     termRef.current = term;
     fitRef.current = fit;
+    setIsReady(true);
 
     term.loadAddon(fit);
     term.loadAddon(new WebLinksAddon());
     term.open(terminalEl);
 
-    const fitIfReady = () => {
-      try {
-        if (terminalEl.clientWidth > 0 && terminalEl.clientHeight > 0) {
-          fit.fit();
-        }
-      } catch (err) {
-        logError(err, 'fit terminal');
-      }
-    };
     const handleResize = () => {
-      fitIfReady();
-      const ctrl = controlSocketRef.current;
-      if (ctrl && ctrl.readyState === WebSocket.OPEN && termRef.current) {
-        try {
-          ctrl.send(
-            JSON.stringify({
-              type: 'window-resize',
-              metadata: { width: termRef.current.cols, height: termRef.current.rows },
-            }),
-          );
-        } catch (err) {
-          logError(err, 'send resize metadata');
-        }
-      }
+      fitTerminal();
     };
+    const resizeObserver = new ResizeObserver(handleResize);
+    resizeObserver.observe(terminalEl);
     window.addEventListener('resize', handleResize);
+    document.addEventListener('fullscreenchange', handleResize);
 
-    fitIfReady();
+    fitTerminal();
     requestAnimationFrame(() => requestAnimationFrame(handleResize));
 
     attachToSocket();
@@ -203,13 +277,10 @@ export function useTerminal() {
 
     return () => {
       clearTimeout(retryTimer);
+      resizeObserver.disconnect();
       window.removeEventListener('resize', handleResize);
-      socketAttachedRef.current = false;
-      try {
-        inputDisposableRef.current?.dispose();
-      } catch (err) {
-        logError(err, 'dispose input on unmount');
-      }
+      document.removeEventListener('fullscreenchange', handleResize);
+      resetSocketState();
       try {
         termRef.current?.dispose();
       } catch (err) {
@@ -217,10 +288,11 @@ export function useTerminal() {
       }
       termRef.current = null;
       fitRef.current = null;
+      setIsReady(false);
     };
     // terminalTheme intentionally omitted — updated separately to avoid full recreation
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [terminalEl, attachToSocket, logError]);
+  }, [terminalEl, attachToSocket, fitTerminal, logError, resetSocketState]);
 
   // Update theme without recreating the terminal
   useEffect(() => {
@@ -232,20 +304,12 @@ export function useTerminal() {
   // Close sockets on unmount
   useEffect(() => {
     return () => {
-      try {
-        dataSocketRef.current?.close();
-      } catch (err) {
-        logError(err, 'close data socket on unmount');
-      }
-      try {
-        controlSocketRef.current?.close();
-      } catch (err) {
-        logError(err, 'close control socket on unmount');
-      }
+      closeSockets();
     };
-  }, [logError]);
+  }, [closeSockets]);
 
   return {
+    isReady,
     terminalRef,
     termRef,
     fitRef,
@@ -255,6 +319,13 @@ export function useTerminal() {
     socketAttachedRef,
     socketAttachingRef,
     attachToSocket,
+    closeSockets,
+    setSockets,
+    resetSocketState,
+    sendInput,
+    focusTerminal,
+    fitTerminal,
+    clearTerminal,
     logError,
   };
 }

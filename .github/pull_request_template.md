@@ -7,4 +7,3 @@
 - [ ] My changes do not introduce any new linting or type-checking errors.
 
 *(You can delete this checklist once you have confirmed all items)*
-

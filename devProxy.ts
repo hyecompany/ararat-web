@@ -1,3 +1,11 @@
+/*
+ * Copyright (C) 2026 Hye Hosting LLC & Hye Ararat contributors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+ */
+
 /// <reference types="bun-types" />
 /**
  * @file Development server that somewhat simulates how Ararat is served in production by the Incus web server (does not simulate SPA serving behavior)
@@ -5,6 +13,13 @@
  */
 import { existsSync, readFileSync } from 'node:fs';
 import forge from 'node-forge';
+import {
+  INCUS_SPICE_WEB_TRANSPORT_HEADER,
+  INCUS_SPICE_WEB_TRANSPORT_SHARED_MEMORY,
+  SHARED_MEMORY_FAST_PATH_COOKIE,
+  sharedMemoryFastPathCookieValue,
+  sharedMemoryFastPathFromSearchParams,
+} from './app/(main)/instance/console/_lib/spice-client/runtime/shared-memory-policy.js';
 
 const LISTEN_PORT = 3001;
 
@@ -23,6 +38,8 @@ const API_WS_TARGET = getWsTargetUrl(API_TARGET).toString();
 
 const APP_HTTP_TARGET = 'http://localhost:3000';
 const APP_WS_TARGET = 'ws://localhost:3000';
+const CROSS_ORIGIN_ISOLATION_ENABLED =
+  process.env.DEV_PROXY_CROSS_ORIGIN_ISOLATION === '1';
 
 // Development only: allow proxying to self-signed TLS upstreams (e.g. localhost:8443).
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
@@ -81,6 +98,57 @@ function getWsTargetUrl(value: string): URL {
 function parseTargetUrl(value: string, defaultProtocol: 'http:' | 'https:'): URL {
   const hasProtocol = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(value);
   return new URL(hasProtocol ? value : `${defaultProtocol}//${value}`);
+}
+
+function cookieValue(req: Request, name: string) {
+  const cookieHeader = req.headers.get('cookie');
+  if (!cookieHeader) {
+    return null;
+  }
+
+  for (const part of cookieHeader.split(';')) {
+    const [rawKey, ...rawValue] = part.trim().split('=');
+    if (rawKey === name) {
+      return rawValue.join('=');
+    }
+  }
+
+  return null;
+}
+
+function sharedMemoryIsolationPreference(req: Request, url: URL) {
+  const explicit = sharedMemoryFastPathFromSearchParams(url.searchParams);
+  const cookieEnabled = cookieValue(req, SHARED_MEMORY_FAST_PATH_COOKIE) === '1';
+  const enabled =
+    explicit === false
+      ? false
+      : CROSS_ORIGIN_ISOLATION_ENABLED || explicit === true || cookieEnabled;
+  const setCookie =
+    explicit === null
+      ? null
+      : sharedMemoryFastPathCookieValue(explicit);
+
+  return { enabled, setCookie };
+}
+
+function applyCrossOriginIsolationHeaders(headers: Headers) {
+  headers.set('Cross-Origin-Opener-Policy', 'same-origin');
+  headers.set('Cross-Origin-Embedder-Policy', 'require-corp');
+  headers.set('Cross-Origin-Resource-Policy', 'same-origin');
+  headers.set('Origin-Agent-Cluster', '?1');
+}
+
+function applyIncusSharedMemoryTransportHeader(headers: Headers | Record<string, string>) {
+  if (headers instanceof Headers) {
+    headers.set(
+      INCUS_SPICE_WEB_TRANSPORT_HEADER,
+      INCUS_SPICE_WEB_TRANSPORT_SHARED_MEMORY,
+    );
+    return;
+  }
+
+  headers[INCUS_SPICE_WEB_TRANSPORT_HEADER] =
+    INCUS_SPICE_WEB_TRANSPORT_SHARED_MEMORY;
 }
 
 function parsePfxToTlsMaterial(
@@ -143,11 +211,34 @@ type ProxySocketData = {
 };
 
 function toWebSocketSendPayload(message: string | ArrayBuffer | Uint8Array | Blob): string | Blob | BufferSource {
+  if (message instanceof ArrayBuffer) {
+    return message.slice(0);
+  }
+
   if (message instanceof Uint8Array) {
-    return new Uint8Array(message);
+    return message.slice();
   }
 
   return message;
+}
+
+function toServerWebSocketPayload(message: string | ArrayBuffer | Uint8Array): string | ArrayBuffer | Uint8Array {
+  if (typeof message === 'string') {
+    return message;
+  }
+
+  if (message instanceof ArrayBuffer) {
+    return message.slice(0);
+  }
+
+  return message.slice();
+}
+
+function sendToBrowserClient(client: Bun.ServerWebSocket<ProxySocketData>, message: string | ArrayBuffer | Uint8Array) {
+  const result = client.send(toServerWebSocketPayload(message));
+  if (result === 0) {
+    client.close(1011, 'Downstream WebSocket send failed');
+  }
 }
 
 function isApiPath(pathname: string): boolean {
@@ -173,6 +264,10 @@ async function proxyHttpRequest(req: Request): Promise<Response> {
   const isAppRoute = !isApiPath(incomingUrl.pathname);
 
   const headers = new Headers(req.headers);
+  const sharedMemoryTransport = sharedMemoryIsolationPreference(req, incomingUrl);
+  if (!isAppRoute && sharedMemoryTransport.enabled) {
+    applyIncusSharedMemoryTransportHeader(headers);
+  }
 
   const init: RequestInit & { tls?: Bun.TLSOptions } = {
     method: req.method,
@@ -207,6 +302,17 @@ async function proxyHttpRequest(req: Request): Promise<Response> {
     const upstreamResponse = await fetch(targetUrl, init);
 
     const responseHeaders = new Headers(upstreamResponse.headers);
+    const isolation = isAppRoute
+      ? sharedMemoryTransport
+      : { enabled: false, setCookie: null };
+
+    if (isolation.enabled) {
+      applyCrossOriginIsolationHeaders(responseHeaders);
+    }
+
+    if (isolation.setCookie) {
+      responseHeaders.append('set-cookie', isolation.setCookie);
+    }
 
     const location = responseHeaders.get('location');
     if (location) {
@@ -272,6 +378,9 @@ const serverOptions: Parameters<typeof Bun.serve<ProxySocketData>>[0] = {
       const isApiWs = isApiPath(requestUrl.pathname);
       const upstreamHeaders: Record<string, string> = {};
       if (isApiWs) {
+        if (sharedMemoryIsolationPreference(req, requestUrl).enabled) {
+          applyIncusSharedMemoryTransportHeader(upstreamHeaders);
+        }
         for (const name of [
           'cookie',
           'authorization',
@@ -349,23 +458,23 @@ const serverOptions: Parameters<typeof Bun.serve<ProxySocketData>>[0] = {
 
       upstream.onmessage = (event) => {
         if (typeof event.data === 'string') {
-          client.send(event.data);
+          sendToBrowserClient(client, event.data);
           return;
         }
 
         if (event.data instanceof ArrayBuffer) {
-          client.send(event.data);
+          sendToBrowserClient(client, event.data);
           return;
         }
 
         if (event.data instanceof Uint8Array) {
-          client.send(event.data);
+          sendToBrowserClient(client, event.data);
           return;
         }
 
         if (event.data instanceof Blob) {
           void event.data.arrayBuffer().then((buffer) => {
-            client.send(buffer);
+            sendToBrowserClient(client, buffer);
           });
         }
       };
@@ -407,6 +516,10 @@ const serverOptions: Parameters<typeof Bun.serve<ProxySocketData>>[0] = {
         upstream.close(code, reason);
       }
     },
+    maxPayloadLength: 64 * 1024 * 1024,
+    backpressureLimit: 256 * 1024 * 1024,
+    closeOnBackpressureLimit: false,
+    idleTimeout: 0,
   },
 };
 
@@ -422,6 +535,11 @@ const server = Bun.serve<ProxySocketData>(serverOptions);
 console.log(
   `Hye Ararat listening on ${getListenerScheme()}://localhost:${server.port} (listener mode: ${LISTENER_MODE}${UPSTREAM_CLIENT_PFX_ENABLED ? ', upstream TLS client auth enabled' : ''})`,
 );
+if (CROSS_ORIGIN_ISOLATION_ENABLED) {
+  console.log(
+    'Cross-origin isolation headers are enabled for /ui responses via DEV_PROXY_CROSS_ORIGIN_ISOLATION=1.',
+  );
+}
 if (UPSTREAM_CLIENT_PFX_ENABLED) {
   console.log(
     `Development server PFX auto-authentication (TLS) enabled for API target using ${UPSTREAM_CLIENT_PFX_PATH}`,

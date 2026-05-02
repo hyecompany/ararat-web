@@ -65,9 +65,9 @@ export default function Logs({
       setDeleteError(null);
       setIsDeleting(true);
       await deleteInstanceLog(instance, logToDelete);
-      
+
       await mutate(buildInstanceLogsKey(instance));
-      
+
       if (selectedLog === logToDelete) {
         setSelectedLog(null);
       }
@@ -147,9 +147,9 @@ export default function Logs({
         {/* Right Pane: Log Viewer */}
         <div className="flex flex-1 flex-col overflow-hidden bg-background">
           {selectedLog ? (
-            <LogViewer 
-              instance={instance} 
-              filename={selectedLog} 
+            <LogViewer
+              instance={instance}
+              filename={selectedLog}
               onDelete={() => setLogToDelete(selectedLog)}
               isDeleting={isDeleting && logToDelete === selectedLog}
             />
@@ -166,13 +166,13 @@ export default function Logs({
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the log file <span className="font-mono font-bold text-foreground">{logToDelete}</span>. 
+              This will permanently delete the log file <span className="font-mono font-bold text-foreground">{logToDelete}</span>.
               This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault();
                 confirmDelete();

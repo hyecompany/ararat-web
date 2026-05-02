@@ -13,21 +13,39 @@ export default class Instance {
     return buildApiPath(path, { project: this.project });
   }
 
-  async openConsoleSocket(
+  private buildConsoleWebSocketUrl(operation: string, secret: string) {
+    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    return `${protocol}://${window.location.host}${operation}/websocket?secret=${secret}`;
+  }
+
+  async createConsoleConnection(
     type: 'vga' | 'console' = 'console',
-    options?: { width?: number; height?: number },
+    options?: { width?: number; height?: number; force?: boolean },
   ) {
+    const body: Record<string, boolean | number | string> = {
+      type,
+      'wait-for-websocket': true,
+    };
+
+    if (options?.force) {
+      body.force = true;
+    }
+
+    if (type === 'console') {
+      if (options?.width) {
+        body.width = options.width;
+      }
+
+      if (options?.height) {
+        body.height = options.height;
+      }
+    }
+
     const response = await fetch(
       this.buildPath(`/1.0/instances/${encodeURIComponent(this.name)}/console`),
       {
         method: 'POST',
-        body: JSON.stringify({
-          type: type,
-          'wait-for-websocket': true,
-          force: true,
-          width: options?.width,
-          height: options?.height,
-        }),
+        body: JSON.stringify(body),
       },
     );
     if (!response.ok) {
@@ -35,20 +53,50 @@ export default class Instance {
       try {
         const errorData = await response.json();
         errorMessage += ` - ${JSON.stringify(errorData)}`;
-      } catch (e) {
+      } catch {
         // Ignore JSON parse errors, use default message
       }
       throw new Error(errorMessage);
     }
-    const data = await response.json();
-    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+
+    const data = (await response.json()) as {
+      operation: string;
+      metadata?: {
+        metadata?: {
+          fds?: Record<string, string>;
+        };
+      };
+    };
+
+    const fds = data.metadata?.metadata?.fds ?? {};
+    const websockets = Object.fromEntries(
+      Object.entries(fds).map(([key, secret]) => [
+        key,
+        this.buildConsoleWebSocketUrl(data.operation, secret),
+      ]),
+    );
+
     return {
-      data: new WebSocket(
-        `${protocol}://${window.location.host}${data.operation}/websocket?secret=${data.metadata.metadata.fds['0']}`,
-      ),
-      control: new WebSocket(
-        `${protocol}://${window.location.host}${data.operation}/websocket?secret=${data.metadata.metadata.fds['control']}`,
-      ),
+      operation: data.operation,
+      websockets,
+    };
+  }
+
+  async openConsoleSocket(
+    type: 'vga' | 'console' = 'console',
+    options?: { width?: number; height?: number; force?: boolean },
+  ) {
+    const connection = await this.createConsoleConnection(type, options);
+    const dataUrl = connection.websockets['0'];
+    const controlUrl = connection.websockets.control;
+
+    if (!dataUrl || !controlUrl) {
+      throw new Error('Console connection did not return the expected websocket endpoints.');
+    }
+
+    return {
+      data: new WebSocket(dataUrl),
+      control: new WebSocket(controlUrl),
     };
   }
 
@@ -69,7 +117,7 @@ export default class Instance {
       try {
         const errorData = await response.json();
         errorMessage += ` - ${JSON.stringify(errorData)}`;
-      } catch (e) {
+      } catch {
         // Ignore JSON parse errors, use default message
       }
       throw new Error(errorMessage);
