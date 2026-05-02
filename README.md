@@ -25,6 +25,7 @@ We are actively working on completing the UI implementation for all Incus primit
 We aim to support all core primitives by July 24th. Our planned release schedule is available on our [GitHub Milestones](https://github.com/hyecompany/ararat-web/milestones).
 
 ## Some Instance Screenshots
+
 <table>
   <tr>
     <td>
@@ -52,57 +53,93 @@ We aim to support all core primitives by July 24th. Our planned release schedule
 
 This guide is designed for the latest LTS release of Debian/Ubuntu.
 
-### Prerequisites
+### Prebuilt Archive
+
+Use this path if you want to install a ready-made Ararat UI build.
+
+#### Prerequisites
+
+- A working Incus installation accessible over the network
+- A copy of `ararat.tar.gz` from either the latest official release or the bleeding-edge `yerek` build artifact
+
+#### Installation Instructions
+
+1. Download an Ararat UI archive:
+   - **Latest official release:** download `ararat.tar.gz` from the [latest GitHub Release](https://github.com/hyecompany/ararat-web/releases/latest). This is the recommended path for most users.
+   - **Bleeding edge:** download the `ararat.tar.gz` artifact from a successful `yerek` branch run of the [Build UI workflow](https://github.com/hyecompany/ararat-web/actions/workflows/ui-build.yml). GitHub Actions downloads artifacts as zip files, so unzip the download first to get `ararat.tar.gz`.
+
+2. Extract the archive into Incus's UI directory. Zabbly package users can use `/opt/incus/ui`:
+
+   ```bash
+   sudo mkdir -p /opt/incus/ui
+   sudo tar -xzf ararat.tar.gz -C /opt/incus/ui
+   ```
+
+   Users of other packages can extract Ararat anywhere they prefer, then set `INCUS_UI` in the `incusd` environment to that path.
+
+3. Restart Incus:
+
+   ```bash
+   sudo systemctl restart incus
+   ```
+
+### Accessing the UI
+
+Simply visit `https://{host}:{port}` (default `8443`) that you set Incus to listen on in your browser, and Hye Ararat will be served! If it is not, restart Incus with `systemctl restart incus` and try visiting again.
+
+### Building From Source
+
+Use this Debian/Ubuntu path if you are developing Ararat or want to build the UI and SPICE console runtime locally.
+
+#### Prerequisites
+
 - A working Incus installation accessible over the network
 - Node.js
 - Bun
 - Rust and Cargo
 - `wasm-pack`, used to build the native SPICE console runtime
-- A copy of the Ararat release you wish to install (see available releases [here](http://github.com/hyecompany/ararat-web/releases))
 
-### Installation Instructions
-1. Install the system packages needed for the JavaScript and SPICE console builds:
+#### Installation Instructions
 
-   ```bash
-   sudo apt update
-   sudo apt install -y build-essential curl nodejs
-   ```
+Install the system packages needed for the JavaScript and SPICE console builds:
 
-2. Install Bun:
+```bash
+sudo apt update
+sudo apt install -y build-essential curl nodejs
+```
 
-   ```bash
-   curl -fsSL https://bun.sh/install | bash
-   ```
+Install Bun:
 
-3. Install Rust and Cargo:
+```bash
+curl -fsSL https://bun.sh/install | bash
+```
 
-   ```bash
-   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-   ```
+Install Rust and Cargo:
 
-4. Reload your shell so the new `bun` and `cargo` commands are available, then install `wasm-pack`:
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
 
-   ```bash
-   cargo install wasm-pack
-   ```
+Reload your shell so the new `bun` and `cargo` commands are available, then install `wasm-pack`:
 
-5. Install Ararat's project dependencies:
+```bash
+cargo install wasm-pack
+```
 
-   ```bash
-   bun install
-   ```
+Install Ararat's project dependencies:
 
-6. Build the SPICE console runtime, build the web UI, and copy Ararat to Incus's UI directory:
+```bash
+bun install
+```
 
-   ```bash
-   bun run build-install
-   ```
+Build the SPICE console runtime, build the web UI, and copy Ararat to Incus's UI directory:
 
-
-### Accessing the UI
-Simply visit `https://{host}:{port}` (default `8443`) that you set Incus to listen on in your browser, and Hye Ararat will be served! If it is not, restart Incus with `systemctl restart incus` and try visiting again.
+```bash
+bun run build-install
+```
 
 ## License
+
 Copyright (C) 2026 Hye Hosting LLC & Hye Ararat contributors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
