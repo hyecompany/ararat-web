@@ -148,11 +148,15 @@ export default function Instances() {
         accessorKey: 'name',
         cell: ({ row }: { row: Row<object> }) => {
           const instance = row.original as Instance;
+          const query: Record<string, string> = {
+            name: instance.name,
+            project: instance.project ?? 'default',
+          };
           return (
             <Link
               href={{
                 pathname: '/instance',
-                query: { name: instance.name },
+                query,
               }}
               className="text-left font-medium text-primary underline focus:outline-none cursor-pointer"
               onClick={(event) => {

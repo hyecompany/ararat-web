@@ -62,7 +62,7 @@ interface UpdateInstanceBody {
   profiles: string[];
 }
 
-interface OperationResponseBody {
+export interface OperationResponseBody {
   type?: string;
   error?: string;
   operation?: string;
@@ -80,12 +80,14 @@ function getProjectParam(instance: Instance) {
   return getProjectSuffix(instance);
 }
 
-async function getErrorMessage(res: Response, fallback: string) {
+export async function getOperationErrorMessage(res: Response, fallback: string) {
   const payload = await res.json().catch(() => ({ error: res.statusText }));
   return payload?.error || fallback;
 }
 
-async function parseOperationResponse(
+const getErrorMessage = getOperationErrorMessage;
+
+export async function parseOperationResponse(
   res: Response,
   fallback: string,
 ): Promise<OperationResponseBody | null> {
@@ -442,7 +444,7 @@ async function renameInstance({
   return (await res.json().catch(() => null)) as BackgroundOperationResponse | null;
 }
 
-async function waitForOperation({
+export async function waitForOperation({
   operation,
   project,
   signal,

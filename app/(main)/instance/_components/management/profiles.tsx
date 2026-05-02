@@ -3,12 +3,7 @@
 import * as React from 'react';
 import stableStringify from 'fast-json-stable-stringify';
 
-import {
-  Combobox,
-  ComboboxContent,
-  ComboboxItem,
-  ComboboxTrigger,
-} from '@/components/ui/combobox';
+import { Combobox, ComboboxContent, ComboboxItem, ComboboxTrigger } from '@/components/ui/combobox';
 import { useProfiles } from '@/app/(main)/_hooks/profiles';
 import type { Instance } from '@/app/(main)/instances/_lib/instances.d';
 import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
@@ -97,9 +92,7 @@ export default function Profiles({
         return;
       }
 
-      setSaveError(
-        error instanceof Error ? error.message : 'Unable to update instance profiles.',
-      );
+      setSaveError(error instanceof Error ? error.message : 'Unable to update instance profiles.');
     } finally {
       saveAbortControllerRef.current = null;
       setIsSaving(false);
@@ -107,7 +100,7 @@ export default function Profiles({
   };
 
   return (
-    <div className="flex min-h-0 flex-col">
+    <div className="space-y-4">
       {saveError ? (
         <Alert variant="destructive" className="mb-4">
           <AlertTitle>Save failed</AlertTitle>
@@ -116,31 +109,33 @@ export default function Profiles({
       ) : null}
 
       <div className="space-y-2">
-        <p className="text-sm font-medium">Profiles</p>
-        <Combobox
-          multiple
-          values={draftProfiles}
-          onValuesChange={setDraftProfiles}
-          validating={isValidating}
-          disabled={isSaving}
-        >
-          <ComboboxTrigger placeholder="Profiles" id="instance-profiles" />
-          <ComboboxContent
-            searchPlaceholder="Search profiles..."
-            loading={isLoading}
-            emptyLabel="No profiles found."
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Profiles</p>
+          <Combobox
+            multiple
+            values={draftProfiles}
+            onValuesChange={setDraftProfiles}
+            validating={isValidating}
+            disabled={isSaving}
           >
-            {profiles?.map((profile) => (
-              <ComboboxItem
-                key={profile.name}
-                value={profile.name}
-                description={profile.description}
-              >
-                {profile.name}
-              </ComboboxItem>
-            ))}
-          </ComboboxContent>
-        </Combobox>
+            <ComboboxTrigger placeholder="Profiles" id="instance-profiles" />
+            <ComboboxContent
+              searchPlaceholder="Search profiles..."
+              loading={isLoading}
+              emptyLabel="No profiles found."
+            >
+              {profiles?.map((profile) => (
+                <ComboboxItem
+                  key={profile.name}
+                  value={profile.name}
+                  description={profile.description}
+                >
+                  {profile.name}
+                </ComboboxItem>
+              ))}
+            </ComboboxContent>
+          </Combobox>
+        </div>
       </div>
 
       <ManagementFooter

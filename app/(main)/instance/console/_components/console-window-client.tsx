@@ -52,6 +52,7 @@ export default function ConsoleWindowClient() {
     <ConsoleWindowContent
       autoResize={searchParams.get('resize') !== '0'}
       instanceName={searchParams.get('name')}
+      project={searchParams.get('project')}
       sharedMemoryFastPath={sharedMemoryFastPath}
       webUsbRedirection={webUsbRedirection}
       diagnosticsOverlay={diagnosticsOverlay}

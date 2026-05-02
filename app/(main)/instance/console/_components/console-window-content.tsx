@@ -26,6 +26,7 @@ const GraphicalConsoleView = dynamic(
 export default function ConsoleWindowContent({
   autoResize,
   instanceName,
+  project,
   sharedMemoryFastPath,
   webUsbRedirection,
   diagnosticsOverlay,
@@ -33,13 +34,14 @@ export default function ConsoleWindowContent({
 }: {
   autoResize: boolean;
   instanceName: string | null;
+  project: string | null;
   sharedMemoryFastPath: boolean;
   webUsbRedirection: boolean;
   diagnosticsOverlay: boolean;
   shouldAutoTakeover: boolean;
 }) {
   return (
-    <InstanceProviderForName name={instanceName}>
+    <InstanceProviderForName name={instanceName} project={project}>
       <ConsoleWindowInner
         autoResize={autoResize}
         sharedMemoryFastPath={sharedMemoryFastPath}

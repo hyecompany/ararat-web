@@ -44,6 +44,7 @@ export interface InstanceState {
 export interface InstanceSnapshot {
   name: string;
   created_at?: string;
+  expires_at?: string;
   stateful?: boolean;
   size?: number;
   description?: string;
@@ -87,7 +88,7 @@ export interface CreateInstanceBody {
   description?: string;
   ephemeral?: boolean;
   source: {
-    type: 'image' | 'none';
+    type: 'image' | 'none' | 'backup';
     fingerprint?: string;
     alias?: string;
     server?: string;

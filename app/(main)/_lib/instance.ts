@@ -1,7 +1,16 @@
+import { buildApiPath } from '@/app/_lib/url';
+
 export default class Instance {
   name: string;
-  constructor(name: string) {
+  project: string | null;
+
+  constructor(name: string, project?: string | null) {
     this.name = name;
+    this.project = project ?? null;
+  }
+
+  private buildPath(path: string) {
+    return buildApiPath(path, { project: this.project });
   }
 
   private buildConsoleWebSocketUrl(operation: string, secret: string) {
@@ -15,6 +24,7 @@ export default class Instance {
   ) {
     const body: Record<string, boolean | number | string> = {
       type,
+      'wait-for-websocket': true,
     };
 
     if (options?.force) {
@@ -31,11 +41,13 @@ export default class Instance {
       }
     }
 
-    const response = await fetch(`/1.0/instances/${encodeURIComponent(this.name)}/console`, {
-      method: 'POST',
-      body: JSON.stringify(body),
-    });
-
+    const response = await fetch(
+      this.buildPath(`/1.0/instances/${encodeURIComponent(this.name)}/console`),
+      {
+        method: 'POST',
+        body: JSON.stringify(body),
+      },
+    );
     if (!response.ok) {
       let errorMessage = `Failed to open console socket: ${response.status} ${response.statusText}`;
       try {
@@ -90,7 +102,7 @@ export default class Instance {
 
   async openExecSocket(command: string[]) {
     const response = await fetch(
-      `/1.0/instances/${encodeURIComponent(this.name)}/exec`,
+      this.buildPath(`/1.0/instances/${encodeURIComponent(this.name)}/exec`),
       {
         method: 'POST',
         body: JSON.stringify({
@@ -124,7 +136,7 @@ export default class Instance {
 
   async getConsoleOutput() {
     const response = await fetch(
-      `/1.0/instances/${encodeURIComponent(this.name)}/console`,
+      this.buildPath(`/1.0/instances/${encodeURIComponent(this.name)}/console`),
     );
     if (!response.ok) {
       const errorText = await response.text();

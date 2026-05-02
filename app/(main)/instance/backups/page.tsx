@@ -6,10 +6,14 @@ import { useBackups } from '../_hooks/backups';
 import { useStoragePools } from '../../_hooks/storagePools';
 import { getRootDiskPool } from '../_lib/utils';
 import { Spinner } from 'ui-web/components/spinner';
-import { BackupList } from '../../_components/backups';
+import { BackupList } from './_components/backup-list';
 
 export default function BackupsPage() {
-  const { instance, isLoading: isInstanceLoading } = useInstanceContext();
+  const {
+    instance,
+    project,
+    isLoading: isInstanceLoading,
+  } = useInstanceContext();
   const { data: storagePools, isLoading: isStorageLoading } = useStoragePools();
 
   const isLoading = isInstanceLoading || isStorageLoading;
@@ -22,14 +26,22 @@ export default function BackupsPage() {
     return null;
   }
 
-  return <Backups instance={instance} storagePools={storagePools || []} />;
+  return (
+    <Backups
+      instance={instance}
+      project={project}
+      storagePools={storagePools || []}
+    />
+  );
 }
 
 function Backups({
   instance,
+  project,
   storagePools,
 }: {
   instance: any;
+  project: string | null;
   storagePools: any[];
 }) {
   const rootDiskPoolName = getRootDiskPool(instance);
@@ -45,7 +57,7 @@ function Backups({
     deleteBackup,
     renameBackup,
     downloadBackup,
-  } = useBackups(instance.name);
+  } = useBackups(instance.name, instance.project ?? project ?? null);
 
   return (
     <BackupList

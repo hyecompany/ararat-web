@@ -1,6 +1,8 @@
 'use client';
 
+import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
 import { Button } from 'ui-web/components/button';
+import { Progress } from 'ui-web/components/progress';
 import {
   Dialog,
   DialogContent,
@@ -26,6 +28,7 @@ import {
   SelectValue,
 } from 'ui-web/components/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from 'ui-web/components/tabs';
+import { Input } from 'ui-web/components/input';
 import { useState, useMemo, use, useCallback, useRef } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -36,7 +39,10 @@ import ImageSelector, {
 import InstanceProperties from '@/app/(main)/instances/_components/properties';
 import InstanceDevices from './devices';
 import type { Device } from '@/app/(main)/instances/_lib/instances.d';
-import { createInstance } from '@/app/(main)/instances/_lib/instances';
+import {
+  createInstance,
+  importInstanceFromBackup,
+} from '@/app/(main)/instances/_lib/instances';
 import { toYaml, fromYaml } from '@/app/(main)/_lib/yaml';
 
 /**
@@ -55,19 +61,23 @@ function hasValidRootDisk(
 
 import GeneralConfiguration from '@/app/(main)/_components/general-configuration';
 import { useProfiles } from '@/app/(main)/_hooks/profiles';
-import ProjectsContext from '@/app/(main)/_context/projects';
+import { useStoragePools } from '@/app/(main)/_hooks/storagePools';
+import ProjectsContext, {
+  ALL_PROJECTS_VALUE,
+} from '@/app/(main)/_context/projects';
+import { useServerConfiguration } from '@/app/_hooks/server';
 import { Spinner } from 'ui-web/components/spinner';
 import { toast } from 'sonner';
 import Editor, { OnMount } from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
 import { mutate } from 'swr';
 import type * as Monaco from 'monaco-editor';
-import { CodeXmlIcon } from 'lucide-react';
+import { AlertCircleIcon, CodeXmlIcon, UploadIcon } from 'lucide-react';
 import { cn } from 'ui-web/lib/utils';
 
 const sourceSchema = z
   .object({
-    type: z.enum(['image', 'none']),
+    type: z.enum(['image', 'none', 'backup']),
     fingerprint: z.string().optional(),
     alias: z.string().optional(),
     server: z.string().optional(),
@@ -77,6 +87,9 @@ const sourceSchema = z
   .refine(
     (data) => {
       if (data.type === 'none') {
+        return true;
+      }
+      if (data.type === 'backup') {
         return true;
       }
       if (data.fingerprint) {
@@ -105,12 +118,20 @@ const formSchema = z.object({
   source: sourceSchema,
 });
 export default function CreateInstance({ className }: { className?: string }) {
-  const { effectiveProject } = use(ProjectsContext);
+  const { currentProject, effectiveProject, projects } = use(ProjectsContext);
   const { resolvedTheme } = useTheme();
+  const { data: server, isLoading: isLoadingServerConfiguration } =
+    useServerConfiguration();
+  const { data: storagePools, isLoading: isLoadingStoragePools } =
+    useStoragePools();
   const [profilesSelected, setProfilesSelected] = useState<string[]>(['default']);
   const [instanceType, setInstanceType] = useState<'virtual-machine' | 'container'>('container');
   const [devices, setDevices] = useState<Record<string, Device>>({});
   const [config, setConfig] = useState<Record<string, string>>({});
+  const [backupFile, setBackupFile] = useState<File | null>(null);
+  const [backupFileInputKey, setBackupFileInputKey] = useState(0);
+  const [backupPoolName, setBackupPoolName] = useState('');
+  const [importProgress, setImportProgress] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [yamlError, setYamlError] = useState<string | null>(null);
@@ -177,8 +198,38 @@ export default function CreateInstance({ className }: { className?: string }) {
     control: form.control,
     name: 'source.type',
   });
+  const isBackupMode = sourceType === 'backup';
   const selectingImage = sourceType === 'image' && currentTab === 'source';
   const [selectedImage, setSelectedImage] = useState<SelectableImage | null>(null);
+  const missingBackupExtensions = useMemo(() => {
+    const requiredExtensions = [
+      'container_backup',
+      'container_backup_override_pool',
+      'backup_override_name',
+    ];
+
+    if (!server?.api_extensions) {
+      return [];
+    }
+
+    return requiredExtensions.filter(
+      (extension) => !server.api_extensions.includes(extension),
+    );
+  }, [server?.api_extensions]);
+  const isBackupSupported =
+    !isLoadingServerConfiguration && missingBackupExtensions.length === 0;
+  const resolvedTargetProject = useMemo(() => {
+    if (effectiveProject) {
+      return effectiveProject;
+    }
+
+    if (currentProject !== ALL_PROJECTS_VALUE) {
+      return '';
+    }
+
+    const defaultProject = projects.find((project) => project.name === 'default');
+    return defaultProject?.name ?? projects[0]?.name ?? '';
+  }, [currentProject, effectiveProject, projects]);
 
   const resetSourceFields = () => {
     form.setValue('source.fingerprint', undefined, { shouldDirty: true });
@@ -186,6 +237,12 @@ export default function CreateInstance({ className }: { className?: string }) {
     form.setValue('source.server', undefined, { shouldDirty: true });
     form.setValue('source.alias', undefined, { shouldDirty: true });
     form.setValue('source.protocol', undefined, { shouldDirty: true });
+  };
+  const resetBackupFields = () => {
+    setBackupFile(null);
+    setBackupFileInputKey((current) => current + 1);
+    setBackupPoolName('');
+    setImportProgress(null);
   };
 
   const handleImageSelect = (image: SelectableImage) => {
@@ -218,8 +275,11 @@ export default function CreateInstance({ className }: { className?: string }) {
   // Watch form changes to re-evaluate validity
   useWatch({ control: form.control });
   const rootDiskValid = useMemo(
-    () => hasValidRootDisk(devices, inheritedDevices),
-    [devices, inheritedDevices],
+    () =>
+      isBackupMode
+        ? backupPoolName.trim().length > 0
+        : hasValidRootDisk(devices, inheritedDevices),
+    [backupPoolName, devices, inheritedDevices, isBackupMode],
   );
 
   const isFormValid = useMemo(() => {
@@ -227,14 +287,33 @@ export default function CreateInstance({ className }: { className?: string }) {
     const formState = form.formState;
     if (!formState.isValid) return false;
 
+    if (!resolvedTargetProject) return false;
+
     // Check root disk
     if (!rootDiskValid) return false;
 
     // Check YAML error
     if (yamlError) return false;
 
+    if (isBackupMode) {
+      if (!backupFile) return false;
+      if (!backupPoolName.trim()) return false;
+      if (isLoadingServerConfiguration) return false;
+      if (!isBackupSupported) return false;
+    }
+
     return true;
-  }, [form.formState, rootDiskValid, yamlError]);
+  }, [
+    backupFile,
+    backupPoolName,
+    form.formState,
+    isBackupMode,
+    isBackupSupported,
+    resolvedTargetProject,
+    rootDiskValid,
+    yamlError,
+    isLoadingServerConfiguration,
+  ]);
 
   // Build the instance payload
   const buildPayload = useCallback(() => {
@@ -299,13 +378,15 @@ export default function CreateInstance({ className }: { className?: string }) {
   const getDialogContentClassName = useCallback(() => {
     return cn(
       'flex max-h-[90vh] w-full flex-col transition-all duration-200',
-      selectingImage
+      isBackupMode
+        ? 'sm:max-w-xl'
+        : selectingImage
         ? 'sm:max-w-5xl'
         : currentTab === 'devices' || currentTab === 'general' || showYamlEditor
           ? 'h-[90vh] sm:max-w-6xl'
           : 'sm:max-w-xl',
     );
-  }, [currentTab, selectingImage, showYamlEditor]);
+  }, [currentTab, isBackupMode, selectingImage, showYamlEditor]);
 
   // Handle Monaco editor mount
   const handleEditorMount: OnMount = useCallback((editor) => {
@@ -346,8 +427,15 @@ export default function CreateInstance({ className }: { className?: string }) {
         }
         if (parsed.source && typeof parsed.source === 'object') {
           const source = parsed.source as Record<string, unknown>;
-          if (source.type === 'none' || source.type === 'image') {
+          if (
+            source.type === 'none' ||
+            source.type === 'image' ||
+            source.type === 'backup'
+          ) {
             form.setValue('source.type', source.type, { shouldValidate: true });
+            if (source.type === 'backup') {
+              setShowYamlEditor(false);
+            }
             if (source.type === 'image') {
               if (typeof source.fingerprint === 'string') {
                 form.setValue('source.fingerprint', source.fingerprint, {
@@ -388,21 +476,66 @@ export default function CreateInstance({ className }: { className?: string }) {
       return;
     }
 
+    if (!resolvedTargetProject) {
+      toast.error('Select a target project before creating or importing an instance');
+      return;
+    }
+
+    if (isBackupMode) {
+      if (!backupFile) {
+        toast.error('Select a backup archive to continue');
+        return;
+      }
+
+      if (!backupPoolName.trim()) {
+        toast.error('Select a storage pool to continue');
+        return;
+      }
+
+      if (isLoadingServerConfiguration) {
+        toast.error('Checking server backup import support');
+        return;
+      }
+
+      if (!isBackupSupported) {
+        toast.error('Backup import is not supported by this server');
+        return;
+      }
+    }
+
+    const selectedBackupFile = backupFile;
+
     if (!rootDiskValid) {
-      toast.error('A valid root disk with a storage pool is required');
-      setCurrentTab('devices');
+      toast.error(
+        isBackupMode
+          ? 'A target storage pool is required'
+          : 'A valid root disk with a storage pool is required',
+      );
+      if (!isBackupMode) {
+        setCurrentTab('devices');
+      }
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const payload = buildPayload();
-      const result = await createInstance(payload, effectiveProject);
+      const result = isBackupMode
+        ? await importInstanceFromBackup(selectedBackupFile as File, {
+            name: form.getValues().name,
+            pool: backupPoolName,
+            project: resolvedTargetProject,
+            onProgress: setImportProgress,
+          })
+        : await createInstance(buildPayload(), resolvedTargetProject);
 
       if (result.error) {
         toast.error(result.error);
       } else {
-        toast.success(`Instance "${form.getValues().name}" creation started`);
+        toast.success(
+          isBackupMode
+            ? `Backup import for "${form.getValues().name}" started`
+            : `Instance "${form.getValues().name}" creation started`,
+        );
         // Invalidate the instances list
         mutate((key) => typeof key === 'string' && key.startsWith('/1.0/instances'));
         setDialogOpen(false);
@@ -411,6 +544,7 @@ export default function CreateInstance({ className }: { className?: string }) {
         setDevices({});
         setConfig({});
         setSelectedImage(null);
+        resetBackupFields();
         setProfilesSelected(['default']);
         setInstanceType('container');
         setYamlContent('');
@@ -419,9 +553,16 @@ export default function CreateInstance({ className }: { className?: string }) {
         setShowYamlEditor(false);
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to create instance');
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : isBackupMode
+            ? 'Failed to import backup archive'
+            : 'Failed to create instance',
+      );
     } finally {
       setIsSubmitting(false);
+      setImportProgress(null);
     }
   };
 
@@ -431,6 +572,9 @@ export default function CreateInstance({ className }: { className?: string }) {
         open={dialogOpen}
         onOpenChange={(open) => {
           if (!isSubmitting) {
+            if (!open) {
+              resetBackupFields();
+            }
             setDialogOpen(open);
           }
         }}
@@ -484,43 +628,12 @@ export default function CreateInstance({ className }: { className?: string }) {
                     />
                   </div>
                 </div>
-                <Tabs
-                  className={`flex min-h-0 w-full flex-1 flex-col ${
-                    showYamlEditor ? 'absolute inset-0 pointer-events-none invisible' : ''
-                  }`}
-                  value={currentTab}
-                  onValueChange={handleTabChange}
-                  aria-hidden={showYamlEditor}
-                >
-                  <TabsList className="w-full shrink-0" defaultValue="properties">
-                    <TabsTrigger type="button" value="properties">
-                      Properties
-                    </TabsTrigger>
-                    <TabsTrigger type="button" value="source">
-                      Source
-                    </TabsTrigger>
-                    <TabsTrigger type="button" value="devices">
-                      Devices
-                    </TabsTrigger>
-                    <TabsTrigger type="button" value="general">
-                      Configuration
-                    </TabsTrigger>
-                  </TabsList>
-                  <TabsContent
-                    value="properties"
-                    className="mt-0 min-h-0 flex-1 overflow-auto px-1 data-[state=active]:flex data-[state=active]:flex-col"
-                  >
-                    <InstanceProperties
-                      form={form}
-                      profilesSelected={profilesSelected}
-                      setProfilesSelected={setProfilesSelected}
-                      instanceType={instanceType}
-                      setInstanceType={setInstanceType}
-                    />
-                  </TabsContent>
-                  <TabsContent
-                    value="source"
-                    className="mt-0 min-h-0 flex-1 overflow-auto data-[state=active]:flex data-[state=active]:flex-col"
+                {isBackupMode ? (
+                  <div
+                    className={`flex min-h-0 w-full flex-1 flex-col gap-4 overflow-auto ${
+                      showYamlEditor ? 'absolute inset-0 pointer-events-none invisible' : ''
+                    }`}
+                    aria-hidden={showYamlEditor}
                   >
                     <FormField
                       control={form.control}
@@ -532,6 +645,15 @@ export default function CreateInstance({ className }: { className?: string }) {
                             <Select
                               onValueChange={(value) => {
                                 field.onChange(value);
+                                if (value === 'backup') {
+                                  setSelectedImage(null);
+                                  resetSourceFields();
+                                  setShowYamlEditor(false);
+                                  setCurrentTab('source');
+                                  return;
+                                }
+
+                                resetBackupFields();
                                 if (value === 'none') {
                                   setSelectedImage(null);
                                   resetSourceFields();
@@ -545,6 +667,7 @@ export default function CreateInstance({ className }: { className?: string }) {
                               <SelectContent>
                                 <SelectItem value="image">Image</SelectItem>
                                 <SelectItem value="none">None</SelectItem>
+                                <SelectItem value="backup">Backup Archive</SelectItem>
                               </SelectContent>
                             </Select>
                           </FormControl>
@@ -552,39 +675,202 @@ export default function CreateInstance({ className }: { className?: string }) {
                         </FormItem>
                       )}
                     />
-                    {selectingImage ? (
-                      <ImageSelector
-                        selectedImage={selectedImage}
-                        onSelect={handleImageSelect}
-                        instanceType={instanceType}
-                      />
+                    {!isLoadingServerConfiguration && !isBackupSupported ? (
+                      <Alert variant="destructive">
+                        <AlertCircleIcon className="size-4" />
+                        <AlertTitle>Backup import is unavailable</AlertTitle>
+                        <AlertDescription>
+                          This server is missing the required Incus API extensions:{' '}
+                          {missingBackupExtensions.join(', ')}.
+                        </AlertDescription>
+                      </Alert>
                     ) : null}
-                  </TabsContent>
-                  <TabsContent
-                    value="devices"
-                    className="mt-0 min-h-0 flex-1 overflow-hidden data-[state=active]:flex data-[state=active]:flex-col"
-                  >
-                    <InstanceDevices
-                      profiles={profilesSelected}
-                      devices={devices}
-                      onDevicesChange={setDevices}
-                      instanceType={instanceType}
+                    <FormField
+                      control={form.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Instance Name</FormLabel>
+                          <FormControl>
+                            <Input placeholder="my-instance" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
                     />
-                  </TabsContent>
-                  <TabsContent
-                    value="general"
-                    className="mt-0 min-h-0 flex-1 overflow-hidden data-[state=active]:flex data-[state=active]:flex-col"
+                    <div className="grid gap-2">
+                      <FormLabel htmlFor="backup-file">Backup Archive</FormLabel>
+                      <Input
+                        key={backupFileInputKey}
+                        id="backup-file"
+                        type="file"
+                        accept=".tar.gz,.tgz,.tar,.tar.xz,.tar.zst,.tar.bz2,application/gzip,application/x-gzip,application/x-tar"
+                        onChange={(event) => {
+                          setBackupFile(event.target.files?.[0] ?? null);
+                        }}
+                      />
+                      <p className="text-muted-foreground text-sm">
+                        Upload an exported backup archive to restore it as a new
+                        instance.
+                      </p>
+                      {backupFile ? (
+                        <p className="text-sm font-medium">{backupFile.name}</p>
+                      ) : null}
+                      {isSubmitting && backupFile ? (
+                        <div className="mt-2 grid gap-1.5">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">
+                              Uploading backup archive
+                            </span>
+                            <span className="font-medium">
+                              {importProgress !== null ? `${importProgress}%` : 'Starting...'}
+                            </span>
+                          </div>
+                          <Progress value={importProgress ?? 0} />
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="grid gap-2">
+                      <FormLabel>Root Storage Pool</FormLabel>
+                      <Select
+                        value={backupPoolName}
+                        onValueChange={setBackupPoolName}
+                        disabled={isLoadingStoragePools || !storagePools?.length}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue
+                            placeholder={
+                              isLoadingStoragePools
+                                ? 'Loading storage pools...'
+                                : 'Select a storage pool'
+                            }
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {storagePools?.map((pool) => (
+                            <SelectItem key={pool.name} value={pool.name}>
+                              {pool.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-muted-foreground text-sm">
+                        Choose the target pool for the restored instance root disk.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <Tabs
+                    className={`flex min-h-0 w-full flex-1 flex-col ${
+                      showYamlEditor ? 'absolute inset-0 pointer-events-none invisible' : ''
+                    }`}
+                    value={currentTab}
+                    onValueChange={handleTabChange}
+                    aria-hidden={showYamlEditor}
                   >
-                    <div className="min-h-0 min-w-0 flex-1">
-                      <GeneralConfiguration
-                        config={config}
-                        expandedConfig={memoizedExpandedConfig}
-                        onConfigChange={setConfig}
+                    <TabsList className="w-full shrink-0" defaultValue="properties">
+                      <TabsTrigger type="button" value="properties">
+                        Properties
+                      </TabsTrigger>
+                      <TabsTrigger type="button" value="source">
+                        Source
+                      </TabsTrigger>
+                      <TabsTrigger type="button" value="devices">
+                        Devices
+                      </TabsTrigger>
+                      <TabsTrigger type="button" value="general">
+                        Configuration
+                      </TabsTrigger>
+                    </TabsList>
+                    <TabsContent
+                      value="properties"
+                      className="mt-0 min-h-0 flex-1 overflow-auto px-1 data-[state=active]:flex data-[state=active]:flex-col"
+                    >
+                      <InstanceProperties
+                        form={form}
+                        profilesSelected={profilesSelected}
+                        setProfilesSelected={setProfilesSelected}
+                        instanceType={instanceType}
+                        setInstanceType={setInstanceType}
+                      />
+                    </TabsContent>
+                    <TabsContent
+                      value="source"
+                      className="mt-0 min-h-0 flex-1 overflow-auto data-[state=active]:flex data-[state=active]:flex-col"
+                    >
+                      <FormField
+                        control={form.control}
+                        name="source.type"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Source Type</FormLabel>
+                            <FormControl>
+                              <Select
+                                onValueChange={(value) => {
+                                  field.onChange(value);
+                                  if (value === 'none') {
+                                    setSelectedImage(null);
+                                    resetSourceFields();
+                                    resetBackupFields();
+                                  } else if (value === 'backup') {
+                                    setSelectedImage(null);
+                                    resetSourceFields();
+                                    setShowYamlEditor(false);
+                                    setCurrentTab('source');
+                                  } else {
+                                    resetBackupFields();
+                                  }
+                                }}
+                                value={field.value}
+                              >
+                                <SelectTrigger className="w-full">
+                                  <SelectValue placeholder="Select source type" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="image">Image</SelectItem>
+                                  <SelectItem value="none">None</SelectItem>
+                                  <SelectItem value="backup">Backup Archive</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      {selectingImage ? (
+                        <ImageSelector
+                          selectedImage={selectedImage}
+                          onSelect={handleImageSelect}
+                          instanceType={instanceType}
+                        />
+                      ) : null}
+                    </TabsContent>
+                    <TabsContent
+                      value="devices"
+                      className="mt-0 min-h-0 flex-1 overflow-hidden data-[state=active]:flex data-[state=active]:flex-col"
+                    >
+                      <InstanceDevices
+                        profiles={profilesSelected}
+                        devices={devices}
+                        onDevicesChange={setDevices}
                         instanceType={instanceType}
                       />
-                    </div>
-                  </TabsContent>
-                </Tabs>
+                    </TabsContent>
+                    <TabsContent
+                      value="general"
+                      className="mt-0 min-h-0 flex-1 overflow-hidden data-[state=active]:flex data-[state=active]:flex-col"
+                    >
+                      <div className="min-h-0 min-w-0 flex-1">
+                        <GeneralConfiguration
+                          config={config}
+                          expandedConfig={memoizedExpandedConfig}
+                          onConfigChange={setConfig}
+                          instanceType={instanceType}
+                        />
+                      </div>
+                    </TabsContent>
+                  </Tabs>
+                )}
               </div>
               <DialogFooter className="shrink-0">
                 <div className="flex w-full items-center justify-between">
@@ -592,6 +878,7 @@ export default function CreateInstance({ className }: { className?: string }) {
                     type="button"
                     variant="outline"
                     onClick={toggleYamlEditor}
+                    disabled={isBackupMode}
                   >
                     <CodeXmlIcon className="mr-2 size-4" />
                     {showYamlEditor ? 'Back to Wizard' : 'Edit YAML'}
@@ -604,10 +891,13 @@ export default function CreateInstance({ className }: { className?: string }) {
                     {isSubmitting ? (
                       <>
                         <Spinner className="mr-2 h-4 w-4" />
-                        Creating...
+                        {isBackupMode ? 'Importing...' : 'Creating...'}
                       </>
                     ) : (
-                      'Create Instance'
+                      <>
+                        {isBackupMode ? <UploadIcon className="mr-2 size-4" /> : null}
+                        {isBackupMode ? 'Import Backup' : 'Create Instance'}
+                      </>
                     )}
                   </Button>
                 </div>

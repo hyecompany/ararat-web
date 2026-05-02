@@ -26,7 +26,7 @@ function getInstanceFilesHomePath(instance: Instance): string {
 export default function FilesPage() {
   const searchParams = useSearchParams();
   const urlName = searchParams.get('name');
-  const { instance, isLoading } = useInstanceContext();
+  const { instance, project, isLoading } = useInstanceContext();
 
   if (isLoading) {
     return <Spinner />;
@@ -41,19 +41,29 @@ export default function FilesPage() {
     return <Spinner />;
   }
 
-  return <Files key={urlName} instance={instance} instanceName={urlName} />;
+  return (
+    <Files
+      key={urlName}
+      instance={instance}
+      instanceName={urlName}
+      project={project}
+    />
+  );
 }
 
 function Files({
   instance,
   instanceName,
+  project,
 }: {
   instance: Instance;
   instanceName: string;
+  project: string | null;
 }) {
   const searchParams = useSearchParams();
   const [isRoutePending, startRouteTransition] = React.useTransition();
   const homePath = React.useMemo(() => getInstanceFilesHomePath(instance), [instance]);
+  const instanceProject = instance.project ?? project ?? null;
   const pathParam = searchParams.get('path');
   const currentPath = React.useMemo(() => {
     const raw = pathParam ?? homePath;
@@ -71,6 +81,9 @@ function Files({
 
       const params = new URLSearchParams();
       params.set('name', instanceName);
+      if (instanceProject) {
+        params.set('project', instanceProject);
+      }
       if (path === '/') {
         params.set('path', '/');
       } else if (path === homePath && homePath !== '/') {
@@ -84,7 +97,7 @@ function Files({
       const target = query ? `${currentPathname}?${query}` : currentPathname;
       window.history.pushState(null, '', target);
     });
-  }, [homePath, instanceName, startRouteTransition]);
+  }, [homePath, instanceName, instanceProject, startRouteTransition]);
 
   const {
     files,
@@ -106,7 +119,7 @@ function Files({
     probeInstancePathKind,
     fetchDirectoryEntries,
     requestMetadataForNames,
-  } = useFiles(instanceName, currentPath);
+  } = useFiles(instanceName, currentPath, instanceProject);
 
   return (
     <FileBrowser
@@ -128,7 +141,7 @@ function Files({
       fetchDirectoryEntries={fetchDirectoryEntries}
       requestMetadataForNames={requestMetadataForNames}
       resolveSymlinkNavTarget={(path) =>
-        getSymlinkResolvedNavTarget(instanceName, path)
+        getSymlinkResolvedNavTarget(instanceName, instanceProject, path)
       }
       onCreateEmptyFile={(name) => createEmptyFile(currentPath, name)}
       onCreateDirectory={(name) => createDirectory(currentPath, name)}

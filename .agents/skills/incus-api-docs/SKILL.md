@@ -7,6 +7,10 @@ description: Provides access to the dynamically generated Incus OpenAPI specific
 
 This skill allows you to efficiently query the Incus REST API specification, which is served dynamically by the development proxy at `http://localhost:3001/documentation/rest-api.yaml`.
 
+## ⚠️ MANDATORY: Check Before Implementation
+
+**You MUST use this skill BEFORE implementing any new API integration or modifying existing ones.** Never assume the shape of an API response or request body. The Incus API has specific behaviors (e.g., sync vs async responses, specific metadata structures) that must be verified first.
+
 ## Core Workflow (Progressive Disclosure)
 
 The API specification is very large. To keep your context lean and avoid token bloat, do not read the entire spec. Instead, follow this modular workflow:
