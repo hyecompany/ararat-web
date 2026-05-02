@@ -13,6 +13,7 @@ package-lock.json
 
 # testing
 /coverage
+/artifacts/
 
 # next.js
 /.next/
@@ -33,6 +34,11 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+
+# generated SPICE runtime/native artifacts
+/public/spice-client/
+/spice-native/target/
+/snapshots/**/spice-native/target/
 
 # env files (can opt-in for committing if needed)
 .env*

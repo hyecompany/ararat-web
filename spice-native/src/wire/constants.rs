@@ -1,0 +1,108 @@
+/*
+ * Copyright (C) 2026 Hye Hosting LLC & Hye Ararat contributors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+ */
+
+pub const SPICE_CHANNEL_MAIN: u8 = 1;
+pub const SPICE_CHANNEL_DISPLAY: u8 = 2;
+pub const SPICE_CHANNEL_INPUTS: u8 = 3;
+pub const SPICE_CHANNEL_CURSOR: u8 = 4;
+pub const SPICE_CHANNEL_PLAYBACK: u8 = 5;
+pub const SPICE_CHANNEL_RECORD: u8 = 6;
+pub const SPICE_CHANNEL_USBREDIR: u8 = 9;
+pub const SPICE_CHANNEL_PORT: u8 = 10;
+pub const SPICE_CHANNEL_WEBDAV: u8 = 11;
+
+pub const SPICE_MSG_WAIT_FOR_CHANNELS: u16 = 5;
+pub const SPICE_MSG_NOTIFY: u16 = 7;
+
+pub const SPICE_MSG_MAIN_INIT: u16 = 103;
+pub const SPICE_MSG_MAIN_CHANNELS_LIST: u16 = 104;
+pub const SPICE_MSG_MAIN_MOUSE_MODE: u16 = 105;
+pub const SPICE_MSG_MAIN_MULTI_MEDIA_TIME: u16 = 106;
+pub const SPICE_MSG_MAIN_AGENT_CONNECTED: u16 = 107;
+pub const SPICE_MSG_MAIN_AGENT_DISCONNECTED: u16 = 108;
+pub const SPICE_MSG_MAIN_AGENT_DATA: u16 = 109;
+pub const SPICE_MSG_MAIN_AGENT_TOKEN: u16 = 110;
+pub const SPICE_MSG_MAIN_AGENT_CONNECTED_TOKENS: u16 = 115;
+
+pub const SPICE_MSG_DISPLAY_MODE: u16 = 101;
+pub const SPICE_MSG_DISPLAY_MARK: u16 = 102;
+pub const SPICE_MSG_DISPLAY_RESET: u16 = 103;
+pub const SPICE_MSG_DISPLAY_COPY_BITS: u16 = 104;
+pub const SPICE_MSG_DISPLAY_INVAL_LIST: u16 = 105;
+pub const SPICE_MSG_DISPLAY_INVAL_ALL_PIXMAPS: u16 = 106;
+pub const SPICE_MSG_DISPLAY_INVAL_PALETTE: u16 = 107;
+pub const SPICE_MSG_DISPLAY_INVAL_ALL_PALETTES: u16 = 108;
+pub const SPICE_MSG_DISPLAY_STREAM_CREATE: u16 = 122;
+pub const SPICE_MSG_DISPLAY_STREAM_DATA: u16 = 123;
+pub const SPICE_MSG_DISPLAY_STREAM_CLIP: u16 = 124;
+pub const SPICE_MSG_DISPLAY_STREAM_DESTROY: u16 = 125;
+pub const SPICE_MSG_DISPLAY_STREAM_DESTROY_ALL: u16 = 126;
+pub const SPICE_MSG_DISPLAY_DRAW_FILL: u16 = 302;
+pub const SPICE_MSG_DISPLAY_DRAW_OPAQUE: u16 = 303;
+pub const SPICE_MSG_DISPLAY_DRAW_COPY: u16 = 304;
+pub const SPICE_MSG_DISPLAY_DRAW_BLEND: u16 = 305;
+pub const SPICE_MSG_DISPLAY_DRAW_BLACKNESS: u16 = 306;
+pub const SPICE_MSG_DISPLAY_DRAW_WHITENESS: u16 = 307;
+pub const SPICE_MSG_DISPLAY_DRAW_INVERS: u16 = 308;
+pub const SPICE_MSG_DISPLAY_DRAW_ROP3: u16 = 309;
+pub const SPICE_MSG_DISPLAY_DRAW_STROKE: u16 = 310;
+pub const SPICE_MSG_DISPLAY_DRAW_TEXT: u16 = 311;
+pub const SPICE_MSG_DISPLAY_DRAW_TRANSPARENT: u16 = 312;
+pub const SPICE_MSG_DISPLAY_DRAW_ALPHA_BLEND: u16 = 313;
+pub const SPICE_MSG_DISPLAY_SURFACE_CREATE: u16 = 314;
+pub const SPICE_MSG_DISPLAY_SURFACE_DESTROY: u16 = 315;
+pub const SPICE_MSG_DISPLAY_STREAM_DATA_SIZED: u16 = 316;
+pub const SPICE_MSG_DISPLAY_MONITORS_CONFIG: u16 = 317;
+pub const SPICE_MSG_DISPLAY_DRAW_COMPOSITE: u16 = 318;
+pub const SPICE_MSG_DISPLAY_STREAM_ACTIVATE_REPORT: u16 = 319;
+pub const SPICE_MSG_DISPLAY_GL_DRAW: u16 = 321;
+
+pub const SPICE_MSG_INPUTS_INIT: u16 = 101;
+pub const SPICE_MSG_INPUTS_KEY_MODIFIERS: u16 = 102;
+pub const SPICE_MSG_INPUTS_MOUSE_MOTION_ACK: u16 = 111;
+
+pub const SPICE_MSG_CURSOR_INIT: u16 = 101;
+pub const SPICE_MSG_CURSOR_RESET: u16 = 102;
+pub const SPICE_MSG_CURSOR_SET: u16 = 103;
+pub const SPICE_MSG_CURSOR_MOVE: u16 = 104;
+pub const SPICE_MSG_CURSOR_HIDE: u16 = 105;
+pub const SPICE_MSG_CURSOR_TRAIL: u16 = 106;
+pub const SPICE_MSG_CURSOR_INVAL_ONE: u16 = 107;
+pub const SPICE_MSG_CURSOR_INVAL_ALL: u16 = 108;
+
+pub const SPICE_MSG_PLAYBACK_DATA: u16 = 101;
+pub const SPICE_MSG_PLAYBACK_MODE: u16 = 102;
+pub const SPICE_MSG_PLAYBACK_START: u16 = 103;
+pub const SPICE_MSG_PLAYBACK_STOP: u16 = 104;
+pub const SPICE_MSG_PLAYBACK_VOLUME: u16 = 105;
+pub const SPICE_MSG_PLAYBACK_MUTE: u16 = 106;
+pub const SPICE_MSG_PLAYBACK_LATENCY: u16 = 107;
+pub const SPICE_MSG_RECORD_START: u16 = 101;
+pub const SPICE_MSG_RECORD_STOP: u16 = 102;
+pub const SPICE_MSG_RECORD_VOLUME: u16 = 103;
+pub const SPICE_MSG_RECORD_MUTE: u16 = 104;
+pub const SPICE_MSGC_RECORD_DATA: u16 = 101;
+pub const SPICE_MSGC_RECORD_MODE: u16 = 102;
+pub const SPICE_MSGC_RECORD_START_MARK: u16 = 103;
+pub const SPICE_AUDIO_FMT_S16: u16 = 1;
+pub const SPICE_AUDIO_DATA_MODE_RAW: u16 = 1;
+
+pub const SPICE_MSG_PORT_INIT: u16 = 201;
+pub const SPICE_MSG_PORT_EVENT: u16 = 202;
+pub const SPICE_MSGC_PORT_EVENT: u16 = 201;
+pub const SPICE_MSG_SPICEVMC_DATA: u16 = 101;
+pub const SPICE_MSGC_SPICEVMC_DATA: u16 = 101;
+pub const SPICE_MSG_SPICEVMC_COMPRESSED_DATA: u16 = 102;
+
+pub const SPICE_DISPLAY_RESOURCE_TYPE_PIXMAP: u8 = 1;
+
+pub const SPICE_CLIP_TYPE_NONE: u8 = 0;
+pub const SPICE_CLIP_TYPE_RECTS: u8 = 1;
+pub const SPICE_CURSOR_FLAGS_NONE: u16 = 1 << 0;
+pub const SPICE_CURSOR_FLAGS_CACHE_ME: u16 = 1 << 1;
+pub const SPICE_CURSOR_FLAGS_FROM_CACHE: u16 = 1 << 2;

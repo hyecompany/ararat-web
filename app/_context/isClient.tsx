@@ -8,15 +8,14 @@ export function IsClientProvider({ children }: { children: ReactNode }) {
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
-    const animationFrame =
-      typeof window !== 'undefined'
-        ? window.requestAnimationFrame(() => setIsClient(true))
-        : null;
-
-    return () => {
-      if (animationFrame !== null && typeof window !== 'undefined') {
-        window.cancelAnimationFrame(animationFrame);
+    let canceled = false;
+    queueMicrotask(() => {
+      if (!canceled) {
+        setIsClient(true);
       }
+    });
+    return () => {
+      canceled = true;
     };
   }, []);
 

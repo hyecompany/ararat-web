@@ -1,18 +1,25 @@
 'use client';
 
-import { use, useState, type FormEvent } from 'react';
+import { use, useState, type FormEvent, type ReactNode } from 'react';
 import { InstanceContext } from '../_context/instance';
 import { useTerminal } from './useTerminal';
 import { Button } from 'ui-web/components/button';
 import { Input } from 'ui-web/components/input';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from 'ui-web/components/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from 'ui-web/components/dialog';
 
-export default function InstanceExec() {
+interface InstanceExecProps {
+  hideTrigger?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  trigger?: (open: () => void) => ReactNode;
+}
+
+export default function InstanceExec({
+  hideTrigger = false,
+  open: controlledOpen,
+  onOpenChange,
+  trigger,
+}: InstanceExecProps = {}) {
   const { instanceClass } = use(InstanceContext);
   const {
     terminalRef,
@@ -25,7 +32,9 @@ export default function InstanceExec() {
     logError,
   } = useTerminal();
 
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = onOpenChange ?? setInternalOpen;
   const [command, setCommand] = useState('');
   const [phase, setPhase] = useState<'input' | 'running'>('input');
   const [isConnecting, setIsConnecting] = useState(false);
@@ -38,7 +47,11 @@ export default function InstanceExec() {
     setIsConnecting(true);
     setError(null);
     try {
-      const args = command.trim().match(/(".*?"|'.*?'|[^"'\s]+)+/g)?.map(arg => arg.replace(/^[\"']|[\"']$/g, '')) || [];
+      const args =
+        command
+          .trim()
+          .match(/(".*?"|'.*?'|[^"'\s]+)+/g)
+          ?.map((arg) => arg.replace(/^[\"']|[\"']$/g, '')) || [];
       const { data, control } = await instanceClass.openExecSocket(args);
 
       // Detect session end. Incus sends a text WebSocket frame (string, not Blob)
@@ -97,11 +110,16 @@ export default function InstanceExec() {
 
   return (
     <>
-      <Button variant="outline" onClick={() => setOpen(true)}>
-        Execute Command
-      </Button>
+      {!hideTrigger &&
+        (trigger ? (
+          trigger(() => setOpen(true))
+        ) : (
+          <Button variant="outline" onClick={() => setOpen(true)}>
+            Execute Command
+          </Button>
+        ))}
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="sm:max-w-3xl w-full">
+        <DialogContent className="w-full sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Execute Command</DialogTitle>
           </DialogHeader>
@@ -119,7 +137,7 @@ export default function InstanceExec() {
                 autoCapitalize="off"
                 autoComplete="off"
               />
-              {error && <p className="text-sm text-destructive">{error}</p>}
+              {error && <p className="text-destructive text-sm">{error}</p>}
               <div className="flex justify-end">
                 <Button type="submit" disabled={isConnecting || !command.trim()}>
                   {isConnecting ? 'Connecting...' : 'Run'}
@@ -128,8 +146,8 @@ export default function InstanceExec() {
             </form>
           ) : (
             <div className="flex flex-col gap-2">
-              <div className="w-full flex flex-col" style={{ height: '400px' }}>
-                <div className="flex-1 min-h-0 rounded-lg border bg-card shadow-sm font-mono overflow-hidden relative">
+              <div className="flex w-full flex-col" style={{ height: '400px' }}>
+                <div className="bg-card relative min-h-0 flex-1 overflow-hidden rounded-lg border font-mono shadow-sm">
                   <div
                     ref={terminalRef}
                     className="absolute inset-3"
@@ -147,13 +165,9 @@ export default function InstanceExec() {
                 </div>
               </div>
               {sessionEnded && (
-                <div className="flex items-center justify-between rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground">
+                <div className="bg-muted text-muted-foreground flex items-center justify-between rounded-md border px-3 py-2 text-sm">
                   <span>Session ended</span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleOpenChange(false)}
-                  >
+                  <Button variant="outline" size="sm" onClick={() => handleOpenChange(false)}>
                     Close
                   </Button>
                 </div>

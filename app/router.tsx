@@ -50,6 +50,10 @@ function stripBasePath(pathname: string, basePath: string): string {
 }
 
 async function loadRouteMap(): Promise<RouteMap | null> {
+  if (process.env.NODE_ENV === 'development') {
+    return null;
+  }
+
   if (!routeMapPromise) {
     routeMapPromise = fetch(ROUTE_MAP_URL)
       .then(async (response) => {

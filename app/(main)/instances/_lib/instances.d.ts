@@ -60,6 +60,7 @@ export interface Instance {
   type: 'container' | 'virtual-machine' | string;
   status: string;
   status_code: StatusCode;
+  stateful?: boolean;
   architecture?: string;
   config: Record<string, string>;
   expanded_config: Record<string, string>;

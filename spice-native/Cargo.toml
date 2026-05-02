@@ -1,0 +1,42 @@
+# Copyright (C) 2026 Hye Hosting LLC & Hye Ararat contributors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+
+[package]
+name = "spice-native"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen = "0.2"
+serde = { version = "1.0", features = ["derive"] }
+serde-wasm-bindgen = "0.6"
+miniz_oxide = "0.8"
+rustc-hash = "2.1"
+shakenfist-spice-compression = { version = "0.1.4", default-features = false, features = ["quic"] }
+
+[features]
+default = []
+parallel-decode = ["dep:rayon"]
+wasm-thread-pool = ["parallel-decode", "dep:wasm-bindgen-rayon"]
+webgpu-wgpu = ["dep:js-sys", "dep:wasm-bindgen-futures", "dep:web-sys", "dep:wgpu"]
+
+[dependencies.rayon]
+version = "1.11"
+optional = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+js-sys = { version = "0.3", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+wasm-bindgen-rayon = { version = "1.3", features = ["no-bundler"], optional = true }
+web-sys = { version = "0.3", features = ["ImageBitmap", "OffscreenCanvas"], optional = true }
+wgpu = { version = "29.0.1", default-features = false, features = ["std", "webgpu", "wgsl"], optional = true }
+
+[profile.release]
+opt-level = 3
+lto = true

@@ -20,6 +20,9 @@ const eslintConfig = defineConfig([
     '.cursor/**',
     '.github/**',
     '.kiro/**',
+    'public/spice-client/**',
+    'public/vendor/**',
+    'app/(main)/instance/console/_runtime/source/**',
   ]),
 ]);
 

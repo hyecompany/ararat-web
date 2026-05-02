@@ -15,9 +15,9 @@ interface InstanceContextValue {
   name: string | null;
   instance: Instance | undefined;
   isLoading: boolean;
-  isError: any;
+  isError: Error | null;
   isValidating: boolean;
-  mutate: () => Promise<any>;
+  mutate: () => Promise<void>;
   instanceClass: InstanceClass | null;
 }
 
@@ -31,30 +31,49 @@ const InstanceContext = createContext<InstanceContextValue>({
   instanceClass: null,
 });
 
-function InstanceProviderInner({ children }: { children: ReactNode }) {
-  const searchParams = useSearchParams();
-  const name = searchParams.get('name');
+function useInstanceContextValue(name: string | null): InstanceContextValue {
   const { instance, isLoading, isError, mutate, isValidating } =
     useInstance(name);
   const instanceClass = useMemo(
-    () => (instance ? new InstanceClass(instance.name) : null),
-    [instance]
+    () => (name ? new InstanceClass(name) : null),
+    [name]
   );
 
-  const value: InstanceContextValue = useMemo(
+  return useMemo(
     () => ({
       name,
       instance,
       isLoading,
-      isError,
+      isError: isError instanceof Error ? isError : null,
       isValidating,
-      mutate,
+      mutate: async () => {
+        await mutate();
+      },
       instanceClass,
     }),
     [instance, instanceClass, isError, isLoading, isValidating, mutate, name],
   );
+}
 
+function InstanceProviderInner({ children }: { children: ReactNode }) {
+  const searchParams = useSearchParams();
+  const value = useInstanceContextValue(searchParams.get('name'));
 
+  return (
+    <InstanceContext.Provider value={value}>
+      {children}
+    </InstanceContext.Provider>
+  );
+}
+
+export function InstanceProviderForName({
+  children,
+  name,
+}: {
+  children: ReactNode;
+  name: string | null;
+}) {
+  const value = useInstanceContextValue(name);
 
   return (
     <InstanceContext.Provider value={value}>
