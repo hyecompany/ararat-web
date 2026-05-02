@@ -54,13 +54,49 @@ This guide is designed for the latest LTS release of Debian/Ubuntu.
 
 ### Prerequisites
 - A working Incus installation accessible over the network
-- Node.JS
+- Node.js
 - Bun
-- A copy of the Ararat release wish to install (see available releases [here](http://github.com/hyecompany/ararat-web/releases))
+- Rust and Cargo
+- `wasm-pack`, used to build the native SPICE console runtime
+- A copy of the Ararat release you wish to install (see available releases [here](http://github.com/hyecompany/ararat-web/releases))
 
 ### Installation Instructions
-1. Install Ararat's core dependencies: `bun install`
-2. Build and copy Ararat to Incus's UI directory: `bun run build-install`
+1. Install the system packages needed for the JavaScript and SPICE console builds:
+
+   ```bash
+   sudo apt update
+   sudo apt install -y build-essential curl nodejs
+   ```
+
+2. Install Bun:
+
+   ```bash
+   curl -fsSL https://bun.sh/install | bash
+   ```
+
+3. Install Rust and Cargo:
+
+   ```bash
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   ```
+
+4. Reload your shell so the new `bun` and `cargo` commands are available, then install `wasm-pack`:
+
+   ```bash
+   cargo install wasm-pack
+   ```
+
+5. Install Ararat's project dependencies:
+
+   ```bash
+   bun install
+   ```
+
+6. Build the SPICE console runtime, build the web UI, and copy Ararat to Incus's UI directory:
+
+   ```bash
+   bun run build-install
+   ```
 
 
 ### Accessing the UI
