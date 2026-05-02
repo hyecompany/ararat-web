@@ -4,7 +4,7 @@
 
 Hye Ararat provides a clean, intuitive dashboard for managing your Incus deployment. Whether you are running an old iMac in your closet or building a hyperscaler, Ararat gives you the unified comprehensive control plane you need to take your infrastructure to its peak.
 
-**Current Release:** v3.0.0-beta.1
+**Current Release:** v3.0.0-beta.2
 
 ## Roadmap
 
