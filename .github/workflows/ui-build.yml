@@ -1,0 +1,53 @@
+name: Build UI
+
+on:
+  push:
+    branches:
+      - yerek
+
+permissions:
+  contents: read
+
+jobs:
+  build-ui:
+    name: Build static UI
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential curl pkg-config
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Set up Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable --target wasm32-unknown-unknown
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - name: Install wasm-pack
+        run: cargo install wasm-pack
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build static UI
+        run: bun run build
+
+      - name: Generate route map
+        run: bun run build:route-map
+
+      - name: Pack static UI
+        run: tar -C out -czf ararat.tar.gz .
+
+      - name: Upload static UI archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ararat.tar.gz
+          path: ararat.tar.gz
+          if-no-files-found: error
