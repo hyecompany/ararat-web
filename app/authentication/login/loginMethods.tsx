@@ -18,7 +18,7 @@ function OIDCButton(props: React.ComponentProps<typeof Button>) {
 }
 
 export default function LoginMethodsComponent() {
-  const { isLoading, data, isValidating } = useServerConfiguration();
+  const { isLoading, isRefreshing, data } = useServerConfiguration();
   const [authenticating, setAuthenticating] = React.useState(false);
   const router = useRouter();
   const pathname = usePathname();
@@ -52,7 +52,7 @@ export default function LoginMethodsComponent() {
   // Auto-redirect when only one auth method is available
   // Uses replace() to prevent user from navigating back to this intermediate state
   useEffect(() => {
-    if (!isValidating) {
+    if (!isLoading && !isRefreshing) {
       if (data?.auth_methods.length === 1) {
         startTransition(() => {
           setAuthenticating(true);
@@ -63,7 +63,9 @@ export default function LoginMethodsComponent() {
           // Clear any existing timer first
           if (autoRedirectTimerRef.current) clearTimeout(autoRedirectTimerRef.current);
           autoRedirectTimerRef.current = setTimeout(() => {
-            router.replace("/authentication/login/tls");
+            router.replace("/authentication/login/tls", {
+              transitionTypes: ['nav-forward'],
+            });
           }, 1);
         } else if (data.auth_methods[0] === "oidc") {
           console.log("Redirecting to OIDC auth");
@@ -71,7 +73,9 @@ export default function LoginMethodsComponent() {
           // Clear any existing timer first
           if (autoRedirectTimerRef.current) clearTimeout(autoRedirectTimerRef.current);
           autoRedirectTimerRef.current = setTimeout(() => {
-            router.replace("/authentication/login/oidc");
+            router.replace("/authentication/login/oidc", {
+              transitionTypes: ['nav-forward'],
+            });
           }, 1);
         }
       }
@@ -82,7 +86,7 @@ export default function LoginMethodsComponent() {
         clearTimeout(autoRedirectTimerRef.current);
       }
     };
-  }, [data, isValidating, router]);
+  }, [data, isLoading, isRefreshing, router]);
 
   // Reset loading state if user navigates back to this page (e.g., after a failed navigation)
   useEffect(() => {
@@ -100,9 +104,13 @@ export default function LoginMethodsComponent() {
               if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
               clickTimerRef.current = setTimeout(() => {
                 if (method === "tls") {
-                  router.push("/authentication/login/tls");
+                  router.push("/authentication/login/tls", {
+                    transitionTypes: ['nav-forward'],
+                  });
                 } else if (method === "oidc") {
-                  router.push("/authentication/login/oidc");
+                  router.push("/authentication/login/oidc", {
+                    transitionTypes: ['nav-forward'],
+                  });
                 }
               }, 1);
             },
@@ -111,7 +119,7 @@ export default function LoginMethodsComponent() {
           if (method === "tls")
             return (
               <TLSButton
-                className={isValidating ? 'animate-pulse' : ''}
+                className={isRefreshing ? 'freshness-shimmer' : ''}
                 key={method}
                 {...props}
               />
@@ -119,14 +127,14 @@ export default function LoginMethodsComponent() {
           if (method === "oidc")
             return (
               <OIDCButton
-                className={isValidating ? "animate-pulse" : ""}
+                className={isRefreshing ? "freshness-shimmer" : ""}
                 key={method}
                 {...props}
               />
             );
           return (
             <Button
-              className={isValidating ? 'animate-pulse' : ''}
+              className={isRefreshing ? 'freshness-shimmer' : ''}
               key={method}
               {...props}
             >
@@ -135,7 +143,10 @@ export default function LoginMethodsComponent() {
           );
         })
       ) : (
-        <Skeleton className="h-8 w-full" />
+        <>
+          <Skeleton className="h-9 w-16" />
+          <Skeleton className="h-9 w-32" />
+        </>
       )}
     </div>
   );

@@ -1,7 +1,5 @@
-import useSWR from 'swr';
-
-import { getNetworkZones } from '@/app/(main)/_lib/networkZones';
+import { useNetworkZonesResource } from '@/app/_incus/resources/network-zones/hooks';
 
 export function useNetworkZones() {
-  return useSWR('/1.0/network-zones?recursion=1', getNetworkZones);
+  return useNetworkZonesResource();
 }

@@ -2,16 +2,18 @@
 
 import {
   createContext,
-  useCallback,
   useEffect,
+  useCallback,
   useMemo,
   useState,
   use,
 } from 'react';
+import type { ReactNode } from 'react';
 import { useProjects } from '@/app/(main)/_hooks/projects';
 import type { Project } from '@/app/(main)/_lib/projects.d';
-import { mutate } from 'swr';
 import IsClientContext from '@/app/_context/isClient';
+import { IncusProjectScopeSync } from '@/app/_incus/provider';
+import type { ResourceStatus } from '@/app/_incus/types';
 
 export const ALL_PROJECTS_VALUE = 'all';
 const STORAGE_KEY = 'ararat-selected-project';
@@ -21,8 +23,10 @@ interface ProjectsContextValue {
   currentProject: string;
   effectiveProject: string | null;
   setProject: (projectName: string) => void;
+  status: ResourceStatus;
   isLoading: boolean;
-  isValidating: boolean;
+  isStale: boolean;
+  isRefreshing: boolean;
   error: Error | null;
 }
 
@@ -31,23 +35,17 @@ const ProjectsContext = createContext<ProjectsContextValue>({
   currentProject: ALL_PROJECTS_VALUE,
   effectiveProject: null,
   setProject: () => {},
+  status: 'loading',
   isLoading: true,
-  isValidating: true,
+  isStale: false,
+  isRefreshing: false,
   error: null,
 });
 export default ProjectsContext;
-export function ProjectsProvider({ children }: { children: React.ReactNode }) {
+export function ProjectsProvider({ children }: { children: ReactNode }) {
   const isClient = use(IsClientContext);
-  const { data, isLoading, isValidating, error } = useProjects();
-  useEffect(() => {
-    if (data && !isValidating) {
-      for (const project of data) {
-        mutate(`/1.0/projects/${project.name}`, project, {
-          revalidate: false,
-        });
-      }
-    }
-  }, [data, isValidating]);
+  const { data, status, isLoading, isStale, isRefreshing, error } =
+    useProjects();
   const [storedProject, setStoredProject] = useState<string>(() => {
     if (typeof window === 'undefined') return ALL_PROJECTS_VALUE;
     return window.localStorage.getItem(STORAGE_KEY) ?? ALL_PROJECTS_VALUE;
@@ -80,8 +78,10 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
       currentProject,
       effectiveProject,
       setProject,
+      status: !isClient ? 'loading' : status,
       isLoading: !isClient || isLoading,
-      isValidating: !isClient || isValidating,
+      isStale,
+      isRefreshing,
       error: error ?? null,
     };
   }, [
@@ -89,10 +89,17 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
     data,
     error,
     isLoading,
-    isValidating,
+    isRefreshing,
+    isStale,
+    status,
     setProject,
     isClient,
   ]);
 
-  return <ProjectsContext value={value}>{children}</ProjectsContext>;
+  return (
+    <ProjectsContext value={value}>
+      <IncusProjectScopeSync project={currentProject} />
+      {children}
+    </ProjectsContext>
+  );
 }

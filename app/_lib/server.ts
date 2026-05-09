@@ -1,19 +1,6 @@
-import { jsonFetcher } from './fetcher';
 import type { ConfigurableOptions, Server, ConfigOption } from './server.d';
 
-export async function getServerConfiguration() {
-  return jsonFetcher<Server>('/1.0').then((data) => data.metadata);
-}
-
-export async function getConfigurableOptions() {
-  return jsonFetcher<ConfigurableOptions>('/1.0/metadata/configuration').then((data) => {
-    const config = data.metadata;
-    processConfigurableOptions(config);
-    return config;
-  });
-}
-
-function processConfigurableOptions(config: ConfigurableOptions) {
+export function processConfigurableOptions(config: ConfigurableOptions) {
   type OptionKeyGroup = Record<string, ConfigOption>;
   type OptionCategory = { keys?: OptionKeyGroup[] };
   type ConfigsShape = {

@@ -1,9 +1,11 @@
-import useSWR from 'swr';
-import { getConfigurableOptions, getServerConfiguration } from '../_lib/server';
+import {
+  useConfigurableOptionsResource,
+  useServerConfigurationResource,
+} from '@/app/_incus/resources/server/hooks';
 
 export function useServerConfiguration() {
-  return useSWR('/1.0', getServerConfiguration);
+  return useServerConfigurationResource();
 }
 export function useConfigurableOptions() {
-  return useSWR('/1.0/metadata/configuration', getConfigurableOptions);
+  return useConfigurableOptionsResource();
 }

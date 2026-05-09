@@ -4,7 +4,6 @@ import * as React from 'react';
 import { use, useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { mutate } from 'swr';
 import z from 'zod';
 import Editor from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
@@ -19,6 +18,8 @@ import type { CreateProjectBody, Project, UpdateProjectBody } from '@/app/(main)
 import { fromYaml, toYaml } from '@/app/(main)/_lib/yaml';
 import ProjectsContext from '@/app/(main)/_context/projects';
 import GeneralConfiguration from '@/app/(main)/_components/general-configuration';
+import { useIncusClient } from '@/app/_incus/provider';
+import { resourceKeys } from '@/app/_incus/resources';
 
 import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
 import { Button } from 'ui-web/components/button';
@@ -81,6 +82,7 @@ function isAbortError(error: unknown) {
 
 export default function ProjectDialog({ open, onOpenChange, mode, project }: ProjectDialogProps) {
   const { setProject } = use(ProjectsContext);
+  const incusClient = useIncusClient();
   const { resolvedTheme } = useTheme();
   const [config, setConfig] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -110,6 +112,31 @@ export default function ProjectDialog({ open, onOpenChange, mode, project }: Pro
     if (yamlError) return false;
     return projectName.trim().length > 0;
   }, [copy.successButtonDisabledWithoutProject, isSubmitting, project, projectName, yamlError]);
+
+  const seedProjectCache = useCallback(
+    (nextProject: Project) => {
+      incusClient.store.update((state) => {
+        state.projects.collection.status = 'stale';
+        state.projects.items[nextProject.name] = {
+          metadata: { status: 'ready', data: nextProject },
+        };
+      }, [
+        resourceKeys.projectsCollection,
+        resourceKeys.projectMetadata(nextProject.name),
+      ]);
+    },
+    [incusClient],
+  );
+
+  const removeProjectCache = useCallback(
+    (name: string) => {
+      incusClient.store.update((state) => {
+        state.projects.collection.status = 'stale';
+        delete state.projects.items[name];
+      }, [resourceKeys.projectsCollection, resourceKeys.projectMetadata(name)]);
+    },
+    [incusClient],
+  );
 
   useEffect(() => {
     if (projectName.trim().length > 0 && form.formState.errors.name) {
@@ -234,10 +261,7 @@ export default function ProjectDialog({ open, onOpenChange, mode, project }: Pro
       config: payload.config ?? {},
     };
 
-    mutate(`/1.0/projects/${payload.name}`, seededProject, {
-      revalidate: false,
-    });
-    await mutate('/1.0/projects?recursion=1');
+    seedProjectCache(seededProject);
     setProject(payload.name);
   };
 
@@ -257,15 +281,10 @@ export default function ProjectDialog({ open, onOpenChange, mode, project }: Pro
     const nextName = result.project.name;
 
     if (result.renamedFrom) {
-      mutate(`/1.0/projects/${result.renamedFrom}`, undefined, {
-        revalidate: false,
-      });
+      removeProjectCache(result.renamedFrom);
     }
 
-    mutate(`/1.0/projects/${nextName}`, result.project, {
-      revalidate: false,
-    });
-    await mutate('/1.0/projects?recursion=1');
+    seedProjectCache(result.project);
     setProject(nextName);
   };
 
@@ -290,10 +309,7 @@ export default function ProjectDialog({ open, onOpenChange, mode, project }: Pro
       onOpenChange(false);
     } catch (error) {
       if (error instanceof ProjectRenamePartialFailureError && project) {
-        mutate(`/1.0/projects/${project.name}`, error.project, {
-          revalidate: false,
-        });
-        await mutate('/1.0/projects?recursion=1');
+        seedProjectCache(error.project);
         setProject(project.name);
       }
       if (!isAbortError(error)) {

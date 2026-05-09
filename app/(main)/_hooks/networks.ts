@@ -1,8 +1,6 @@
-import useSWR from 'swr';
-import { jsonFetcher } from '@/app/_lib/fetcher';
 import { useContext, useMemo } from 'react';
 import ProjectsContext from '@/app/(main)/_context/projects';
-import { buildApiPath } from '@/app/_lib/url';
+import { useNetworksResource } from '@/app/_incus/resources/networks/hooks';
 
 export interface NetworkAddress {
   family: string;
@@ -21,11 +19,6 @@ export interface Network {
   used_by?: string[];
 }
 
-async function fetchNetworks(url: string): Promise<Network[]> {
-  const res = await jsonFetcher<Network[]>(url);
-  return res.metadata;
-}
-
 export function useNetworks(project?: string | null) {
   // Default to globally selected project when not explicitly provided
   const { effectiveProject } = useContext(ProjectsContext);
@@ -34,29 +27,9 @@ export function useNetworks(project?: string | null) {
     [project, effectiveProject],
   );
 
-  const url = useMemo(
-    () =>
-      buildApiPath('/1.0/networks', {
-        project: scopedProject ?? null,
-        params: { recursion: 1 },
-      }),
-    [scopedProject],
-  );
-
-  const { data, error, isLoading, isValidating, mutate } = useSWR<Network[]>(
-    url,
-    fetchNetworks,
-  );
-
-  return {
-    data,
-    error,
-    isLoading,
-    isValidating,
-    mutate,
-  };
+  return useNetworksResource(scopedProject);
 }
 
 export function useAllNetworks() {
-  return useSWR<Network[]>('/1.0/networks?recursion=1', fetchNetworks);
+  return useNetworksResource('default');
 }
