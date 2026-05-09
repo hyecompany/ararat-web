@@ -9,7 +9,7 @@ import type { UserContextData } from "@/app/(main)/_context/user";
 interface UseUserReturn {
   data: UserContextData | null;
   isLoading: boolean;
-  isValidating: boolean;
+  isRefreshing: boolean;
 }
 
 /**
@@ -18,14 +18,14 @@ interface UseUserReturn {
  */
 export function useUser(): UseUserReturn {
   const {
-    isValidating: authIsValidating,
+    isRefreshing: authIsRefreshing,
     isLoading: authIsLoading,
     data: authData,
   } = use(AuthenticationContext);
 
   const {
     data: tlsData,
-    isValidating: tlsIsValidating,
+    isRefreshing: tlsIsRefreshing,
     isLoading: tlsIsLoading,
   } = useClientCertificate(
     authData?.method === "tls" ? authData?.identifier : undefined
@@ -33,18 +33,18 @@ export function useUser(): UseUserReturn {
 
   const {
     data: oidcData,
-    isValidating: oidcIsValidating,
+    isRefreshing: oidcIsRefreshing,
     isLoading: oidcIsLoading,
   } = useOidcUser(authData?.method === "oidc");
 
   // Determine user data based on authentication method
   let userData: UserContextData | null = null;
   let isLoading = authIsLoading;
-  let isValidating = authIsValidating;
+  let isRefreshing = authIsRefreshing;
 
   if (authData?.method === "tls") {
     isLoading = authIsLoading || tlsIsLoading;
-    isValidating = authIsValidating || tlsIsValidating;
+    isRefreshing = authIsRefreshing || tlsIsRefreshing;
 
     if (tlsData) {
       userData = {
@@ -54,7 +54,7 @@ export function useUser(): UseUserReturn {
     }
   } else if (authData?.method === "oidc") {
     isLoading = authIsLoading || oidcIsLoading;
-    isValidating = authIsValidating || oidcIsValidating;
+    isRefreshing = authIsRefreshing || oidcIsRefreshing;
 
     if (oidcData) {
       userData = {
@@ -69,6 +69,6 @@ export function useUser(): UseUserReturn {
   return {
     data: userData,
     isLoading,
-    isValidating,
+    isRefreshing,
   };
 }

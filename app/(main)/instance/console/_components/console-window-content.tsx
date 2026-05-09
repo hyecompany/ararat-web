@@ -8,11 +8,13 @@
 
 'use client';
 
-import { use, useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
-import { Spinner } from 'ui-web/components/spinner';
-import { InstanceContext, InstanceProviderForName } from '../../_context/instance';
+import { Skeleton } from 'ui-web/components/skeleton';
+import { InstanceProviderForName, useInstanceContext } from '../../_context/instance';
+import { useInstance } from '../../_hooks/instance';
+import InstanceClass from '../../../_lib/instance';
 import {
   getSpiceStreamingTuningStatus,
   instanceHasQxlGraphics,
@@ -66,8 +68,15 @@ function ConsoleWindowInner({
   diagnosticsOverlay: boolean;
   shouldAutoTakeover: boolean;
 }) {
-  const { name, instance, instanceClass, isLoading, isError } =
-    use(InstanceContext);
+  const { name, project } = useInstanceContext();
+  const { instance, isLoading, isError } = useInstance(name, project, {
+    metadata: true,
+    state: true,
+  });
+  const instanceClass = useMemo(
+    () => (name ? new InstanceClass(name, project) : null),
+    [name, project],
+  );
   const [forceTakeoverToken, setForceTakeoverToken] = useState(() =>
     shouldAutoTakeover ? 1 : 0,
   );
@@ -103,14 +112,14 @@ function ConsoleWindowInner({
           message="The name query parameter is required."
         />
       ) : isLoading && !instance ? (
-        <div className="flex h-svh items-center justify-center">
-          <Spinner className="size-8" />
-        </div>
-      ) : isError || !instance ? (
+        <ConsoleWindowSkeleton />
+      ) : isError ? (
         <ConsoleWindowMessage
           title="Instance unavailable"
-          message={isError?.message ?? 'Instance not found.'}
+          message={isError.message}
         />
+      ) : !instance ? (
+        <ConsoleWindowSkeleton />
       ) : !isVirtualMachine ? (
         <ConsoleWindowMessage
           title="Graphical console unavailable"
@@ -154,6 +163,28 @@ function ConsoleWindowInner({
         </>
       )}
     </main>
+  );
+}
+
+function ConsoleWindowSkeleton() {
+  return (
+    <div className="flex h-svh flex-col bg-black text-white" aria-busy="true">
+      <div className="flex h-10 items-center gap-3 border-b border-white/10 px-4">
+        <Skeleton className="h-4 w-40 bg-white/15" />
+        <div className="ml-auto flex gap-2">
+          <Skeleton className="h-7 w-20 bg-white/15" />
+          <Skeleton className="h-7 w-24 bg-white/15" />
+        </div>
+      </div>
+      <div className="flex min-h-0 flex-1 items-center justify-center p-6">
+        <div className="w-full max-w-3xl space-y-3 rounded-md border border-white/10 bg-zinc-950 p-5 font-mono">
+          <Skeleton className="h-3 w-44 bg-white/15" />
+          <Skeleton className="h-3 w-3/4 bg-white/15" />
+          <Skeleton className="h-3 w-1/2 bg-white/15" />
+          <Skeleton className="h-3 w-5/6 bg-white/15" />
+        </div>
+      </div>
+    </div>
   );
 }
 

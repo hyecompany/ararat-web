@@ -45,6 +45,10 @@
 
 :root {
   --radius: 0.625rem;
+  --duration-exit: 150ms;
+  --duration-enter: 210ms;
+  --duration-move: 400ms;
+  --loadable-transition-ms: 140ms;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -139,5 +143,219 @@
   100% {
     transform: scale(2.35);
     opacity: 0;
+  }
+}
+
+@keyframes freshness-shimmer {
+  0% {
+    transform: translateX(-125%);
+  }
+  100% {
+    transform: translateX(125%);
+  }
+}
+
+@keyframes loadable-surface-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes loadable-surface-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes view-transition-fade {
+  from {
+    filter: blur(3px);
+    opacity: 0;
+  }
+  to {
+    filter: blur(0);
+    opacity: 1;
+  }
+}
+
+@keyframes view-transition-slide-x {
+  from {
+    translate: var(--slide-offset) 0;
+  }
+  to {
+    translate: 0 0;
+  }
+}
+
+@keyframes view-transition-slide-y {
+  from {
+    translate: 0 10px;
+  }
+  to {
+    translate: 0 0;
+  }
+}
+
+::view-transition-old(.nav-forward) {
+  --slide-offset: -48px;
+  animation:
+    var(--duration-exit) ease-in both view-transition-fade reverse,
+    var(--duration-move) ease-in-out both view-transition-slide-x reverse;
+}
+
+::view-transition-new(.nav-forward) {
+  --slide-offset: 48px;
+  animation:
+    var(--duration-enter) ease-out var(--duration-exit) both
+      view-transition-fade,
+    var(--duration-move) ease-in-out both view-transition-slide-x;
+}
+
+::view-transition-old(.nav-back) {
+  --slide-offset: 48px;
+  animation:
+    var(--duration-exit) ease-in both view-transition-fade reverse,
+    var(--duration-move) ease-in-out both view-transition-slide-x reverse;
+}
+
+::view-transition-new(.nav-back) {
+  --slide-offset: -48px;
+  animation:
+    var(--duration-enter) ease-out var(--duration-exit) both
+      view-transition-fade,
+    var(--duration-move) ease-in-out both view-transition-slide-x;
+}
+
+::view-transition-old(.nav-lateral) {
+  animation: var(--duration-exit) ease-in both view-transition-fade reverse;
+}
+
+::view-transition-new(.nav-lateral) {
+  animation:
+    var(--duration-enter) ease-out var(--duration-exit) both
+    view-transition-fade;
+}
+
+::view-transition-old(.slide-down) {
+  animation:
+    var(--duration-exit) ease-out both view-transition-fade reverse,
+    var(--duration-exit) ease-out both view-transition-slide-y reverse;
+}
+
+::view-transition-new(.slide-up) {
+  animation:
+    var(--duration-enter) ease-in var(--duration-exit) both
+      view-transition-fade,
+    var(--duration-move) ease-in both view-transition-slide-y;
+}
+
+::view-transition-group(ararat-sidebar),
+::view-transition-group(ararat-site-header) {
+  animation: none;
+  z-index: 100;
+}
+
+::view-transition-old(ararat-sidebar),
+::view-transition-old(ararat-site-header) {
+  display: none;
+}
+
+::view-transition-new(ararat-sidebar),
+::view-transition-new(ararat-site-header) {
+  animation: none;
+}
+
+.loadable-surface {
+  --loadable-transition-ms: 140ms;
+  min-width: 0;
+}
+
+.loadable-surface__stage {
+  min-width: 0;
+}
+
+::view-transition-old(.loadable-exit) {
+  animation: var(--loadable-transition-ms) ease-out both
+    loadable-surface-fade-out;
+}
+
+::view-transition-new(.loadable-reveal) {
+  animation: var(--loadable-transition-ms) ease-out both
+    loadable-surface-fade-in;
+}
+
+.freshness-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.freshness-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    110deg,
+    transparent 0%,
+    color-mix(in oklch, var(--foreground) 10%, transparent) 42%,
+    color-mix(in oklch, var(--foreground) 18%, transparent) 50%,
+    color-mix(in oklch, var(--foreground) 10%, transparent) 58%,
+    transparent 100%
+  );
+  transform: translateX(-125%);
+  animation: freshness-shimmer 1.8s ease-in-out infinite;
+}
+
+.freshness-surface {
+  position: relative;
+}
+
+.freshness-surface[data-freshness='stale'],
+.freshness-surface[data-freshness='refreshing'] {
+  overflow: hidden;
+}
+
+.freshness-surface[data-freshness='stale']::after,
+.freshness-surface[data-freshness='refreshing']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    110deg,
+    transparent 0%,
+    color-mix(in oklch, var(--foreground) 5%, transparent) 44%,
+    color-mix(in oklch, var(--foreground) 10%, transparent) 50%,
+    color-mix(in oklch, var(--foreground) 5%, transparent) 56%,
+    transparent 100%
+  );
+  transform: translateX(-125%);
+  animation: freshness-shimmer 2.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loadable-surface__stage {
+    animation-duration: 1ms !important;
+  }
+
+  ::view-transition-old(.loadable-exit),
+  ::view-transition-new(.loadable-reveal),
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation-duration: 1ms !important;
+    animation-delay: 0s !important;
+  }
+
+  .freshness-shimmer::after,
+  .freshness-surface::after {
+    animation: none;
+    transform: none;
   }
 }

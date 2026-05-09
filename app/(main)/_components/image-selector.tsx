@@ -1,11 +1,21 @@
 'use client';
 
-import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type ComponentProps,
+  use,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Row } from '@tanstack/react-table';
 
 import { Badge } from 'ui-web/components/badge';
 import { Button } from 'ui-web/components/button';
 import DataTable from 'ui-web/components/data-table';
+import { FreshnessSurface } from 'ui-web/components/freshness';
+import { LoadableSurface } from 'ui-web/components/loadable-surface';
 import {
   Dialog,
   DialogContent,
@@ -24,7 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from 'ui-web/components/select';
-import { Spinner } from 'ui-web/components/spinner';
+import { Skeleton } from 'ui-web/components/skeleton';
 import { useImages } from '@/app/(main)/images/_hooks/images';
 import { Image } from '@/app/(main)/images/_lib/images';
 import ProjectsContext from '@/app/(main)/_context/projects';
@@ -109,7 +119,8 @@ export default function ImageSelector({
   const {
     data: localImagesData,
     isLoading,
-    isValidating,
+    isStale: isImagesStale,
+    isRefreshing: isImagesRefreshing,
   } = useImages(resolvedProject);
   const [userAddedRemoteServers, setUserAddedRemoteServers] = useState<
     RemoteServer[]
@@ -127,8 +138,11 @@ export default function ImageSelector({
 
   const localImages = useMemo<SelectableImage[]>(() => {
     if (!localImagesData) return [];
-    return localImagesData.map((image: Image) => ({
-      id: `local-${image.fingerprint}`,
+    return localImagesData.map((image: Image, index) => ({
+      // Incus can expose multiple local image rows that share a fingerprint
+      // through aliases. The table uses `id` as the React row key, so include
+      // the source index to keep rendering stable even when fingerprints repeat.
+      id: `local-${image.fingerprint}-${index}`,
       local: true,
       label:
         image.aliases?.[0]?.name ?? image.properties.os ?? image.fingerprint,
@@ -366,9 +380,13 @@ export default function ImageSelector({
   );
 
   return (
-    <div className="mt-2 flex h-full min-h-0 flex-col space-y-4 overflow-hidden">
-      {isLoading ? <Spinner className="mx-auto my-6" /> : null}
-      {!isLoading ? (
+    <div className="mt-2 flex min-h-0 flex-1 flex-col space-y-4 overflow-hidden">
+      <LoadableSurface
+        className="min-h-0 flex flex-1 flex-col"
+        status={isLoading ? 'loading' : 'ready'}
+        hasData={!isLoading}
+        skeleton={<ImageSelectorSkeleton columns={columns} />}
+      >
         <>
           <div className="shrink-0 rounded-md border bg-muted/30 p-3 text-sm">
             {displayedImage ? (
@@ -472,17 +490,19 @@ export default function ImageSelector({
               </Dialog>
             </div>
           </div>
-          <div
-            className={`mt-2 min-h-0 flex-1 overflow-hidden ${
-              isValidating || loadingRemotes ? 'animate-pulse' : ''
-            }`}
+          <FreshnessSurface
+            active={isImagesStale || isImagesRefreshing || loadingRemotes}
+            className="mt-2 min-h-0 flex-1 overflow-hidden"
           >
             <DataTable
-              className="h-full [&>div]:h-full [&>div]:overflow-auto [&>div>div]:h-full"
+              className="[&>div]:overflow-auto"
               stringFilter={stringFilter}
               cols={columns}
               data={images}
               disablePagination
+              virtualizeRows
+              virtualScrollMaxHeightClassName="max-h-[min(52vh,520px)]"
+              virtualRowEstimatePx={58}
               onRowClick={handleRowClick}
               getRowClassName={(row) =>
                 (row.original as SelectableImage).id === selectedImageId
@@ -490,11 +510,63 @@ export default function ImageSelector({
                   : ''
               }
             />
-          </div>
+          </FreshnessSurface>
         </>
-      ) : null}
+      </LoadableSurface>
     </div>
   );
+}
+
+function ImageSelectorSkeleton({
+  columns,
+}: {
+  columns: ComponentProps<typeof DataTable>['cols'];
+}) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col space-y-4" aria-busy="true">
+      <div className="shrink-0 rounded-md border bg-muted/30 p-3">
+        <Skeleton className="h-4 w-40" />
+        <Skeleton className="mt-2 h-3 w-64 max-w-full" />
+        <Skeleton className="mt-2 h-3 w-32" />
+      </div>
+      <div className="shrink-0 flex flex-wrap items-center gap-3">
+        <div className="space-y-2">
+          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-3 w-24" />
+        </div>
+        <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-fit">
+          <Skeleton className="h-9 w-40 sm:w-64" />
+          <Skeleton className="ml-auto h-9 w-28" />
+        </div>
+      </div>
+      <DataTable
+        className="[&>div]:overflow-auto"
+        cols={columns}
+        data={[]}
+        disablePagination
+        loading
+        skeletonRows={7}
+        virtualRowEstimatePx={58}
+        renderSkeletonCell={renderImageSelectorSkeletonCell}
+      />
+    </div>
+  );
+}
+
+function renderImageSelectorSkeletonCell(columnId: string) {
+  if (columnId === 'label') {
+    return (
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-5 w-14 rounded-full" />
+        </div>
+        <Skeleton className="h-3 w-48 max-w-full" />
+      </div>
+    );
+  }
+  if (columnId === 'types') return <Skeleton className="h-4 w-28" />;
+  return <Skeleton className="h-4 w-20" />;
 }
 
 function normalizeRemoteURL(url: string) {

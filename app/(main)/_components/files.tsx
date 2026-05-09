@@ -74,6 +74,9 @@ import {
 import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
 import Editor from '@monaco-editor/react';
 import DataTable from 'ui-web/components/data-table';
+import { FreshnessSurface } from 'ui-web/components/freshness';
+import { LoadableSurface } from 'ui-web/components/loadable-surface';
+import { Skeleton } from 'ui-web/components/skeleton';
 import { ColumnDef, Row } from '@tanstack/react-table';
 import {
   absPathParent,
@@ -103,7 +106,7 @@ interface FileBrowserProps {
   isLoading: boolean;
   /** Next.js router transition (URL not committed yet); show immediate toolbar feedback on navigate. */
   isRoutePending?: boolean;
-  /** SWR is refetching the folder listing while showing the previous listing (`keepPreviousData`). */
+  /** The data client is refetching the folder listing while the previous listing remains visible. */
   isListingRevalidating?: boolean;
   /** True while per-file HEAD metadata (size/type) is still being merged for the current listing. */
   isMetadataLoading?: boolean;
@@ -156,6 +159,13 @@ export interface FileItem {
   uid?: string;
   gid?: string;
 }
+
+// Measured from tr[data-index] at 1201x979, 1920x1080, and 390x844.
+// If file row padding, font size, border, icon size, or wrapping changes,
+// rerun the row measurement pass and update this estimate plus the matching
+// h-[49px] row class below.
+const FILE_TABLE_ROW_HEIGHT_PX = 49;
+const FILE_TABLE_VIRTUAL_OVERSCAN = 10;
 
 function normalizedPathKey(p: string): string {
   return normalizeAbsPath(p.trim() || '/');
@@ -817,6 +827,13 @@ export function FileBrowser({
       return f as FileItem;
     });
   }, [files]);
+  const tableStatus = isLoading
+    ? 'loading'
+    : isError
+      ? 'error'
+      : isListingRevalidating
+        ? 'refreshing'
+        : 'ready';
 
   const onVirtualVisibleFileRows = React.useCallback(
     (visibleRows: Row<object>[]) => {
@@ -1152,7 +1169,7 @@ export function FileBrowser({
         const isDirectory = rowIsDirectory(item);
 
         return (
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2 whitespace-nowrap">
             <FileEntryIcon
               name={name}
               pending={pendingMeta}
@@ -1160,7 +1177,7 @@ export function FileBrowser({
               isSymlink={isSymlink}
             />
             <span
-              className="cursor-pointer font-medium hover:underline"
+              className="min-w-0 cursor-pointer truncate font-medium hover:underline"
               onClick={() => openRow(item)}
             >
               {name}
@@ -1198,7 +1215,9 @@ export function FileBrowser({
           );
         }
         return (
-          <span className="tabular-nums">{formatBytes(item.size)}</span>
+          <span className="whitespace-nowrap tabular-nums">
+            {formatBytes(item.size)}
+          </span>
         );
       },
     },
@@ -1226,7 +1245,7 @@ export function FileBrowser({
                 : item.type ?? '—';
         return (
           <FileDetailFade show>
-            <span>{label}</span>
+            <span className="whitespace-nowrap">{label}</span>
           </FileDetailFade>
         );
       },
@@ -1242,7 +1261,7 @@ export function FileBrowser({
         const fullPath = joinAbsPath(currentPath, name);
 
         return (
-          <div className="flex justify-end">
+          <div className="flex justify-end whitespace-nowrap">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="h-8 w-8 p-0">
@@ -2001,106 +2020,142 @@ export function FileBrowser({
             )}
           </div>
         ) : (
-          <>
-            {isLoading ? (
-              <div className="flex justify-center p-8">
-                <Spinner />
-              </div>
-            ) : isError ? (
+          <LoadableSurface
+            status={tableStatus}
+            hasData={fileData.length > 0}
+            skeleton={
+              <DataTable
+                data={[]}
+                cols={columns as ColumnDef<object, unknown>[]}
+                enableSelection
+                disablePagination
+                loading
+                skeletonRows={12}
+                virtualRowEstimatePx={FILE_TABLE_ROW_HEIGHT_PX}
+                renderSkeletonCell={renderFileTableSkeletonCell}
+              />
+            }
+            error={
               <Alert variant="destructive" className="m-4">
                 <AlertTitle>Error</AlertTitle>
                 <AlertDescription>Failed to load files.</AlertDescription>
               </Alert>
-            ) : (
-              <>
-              <DataTable
-                key={currentPath}
-                className={cn(
-                  isListingRevalidating && 'animate-pulse duration-1000',
-                )}
-                data={fileData}
-                cols={columns as ColumnDef<object, unknown>[]}
-                enableSelection
-                onSelectionChange={(rows) => setSelectedRows(rows)}
-                virtualizeRows={Boolean(requestMetadataForNames)}
-                onVirtualVisibleRowsChange={
-                  requestMetadataForNames
-                    ? onVirtualVisibleFileRows
-                    : undefined
-                }
-                wrapTableRow={(row, rowEl) => {
-                  const item = row.original as FileItem;
-                  const name = item.name;
-                  const isDirectory = rowIsDirectory(item);
-                  const isSymlink = item.type?.toLowerCase() === 'symlink';
-                  const fullPath = joinAbsPath(currentPath, name);
+            }
+          >
+            <FreshnessSurface active={isListingRevalidating}>
+                  <DataTable
+                    key={currentPath}
+                    data={fileData}
+                    cols={columns as ColumnDef<object, unknown>[]}
+                    enableSelection
+                    disablePagination
+                    onSelectionChange={(rows) => setSelectedRows(rows)}
+                    getRowClassName={() => 'h-[49px]'}
+                    virtualizeRows
+                    virtualRowEstimatePx={FILE_TABLE_ROW_HEIGHT_PX}
+                    virtualOverscan={FILE_TABLE_VIRTUAL_OVERSCAN}
+                    getVirtualRowKey={(row) => (row.original as FileItem).name}
+                    onVirtualVisibleRowsChange={
+                      requestMetadataForNames
+                        ? onVirtualVisibleFileRows
+                        : undefined
+                    }
+                    wrapTableRow={(row, rowEl) => {
+                      const item = row.original as FileItem;
+                      const name = item.name;
+                      const isDirectory = rowIsDirectory(item);
+                      const isSymlink = item.type?.toLowerCase() === 'symlink';
+                      const fullPath = joinAbsPath(currentPath, name);
 
-                  return (
-                    <ContextMenu>
-                      <ContextMenuTrigger asChild>{rowEl}</ContextMenuTrigger>
-                      <ContextMenuContent>
-                        {!isDirectory && !isSymlink && (
-                          <ContextMenuItem
-                            onClick={() => void handleOpenEntry(item, name)}
-                          >
-                            <PencilIcon className="mr-2 h-4 w-4" />
-                            Edit
-                          </ContextMenuItem>
-                        )}
-                        <ContextMenuItem onClick={() => onDownload(fullPath)}>
-                          <DownloadIcon className="mr-2 h-4 w-4" />
-                          Download
-                        </ContextMenuItem>
-                        <ContextMenuItem
-                          onClick={() =>
-                            isDirectory
-                              ? navigateOrDiscard(fullPath)
-                              : void handleOpenEntry(item, name)
-                          }
-                        >
-                          <FolderIcon className="mr-2 h-4 w-4" />
-                          Open
-                        </ContextMenuItem>
-                        {!isDirectory && !isSymlink ? (
-                          <>
+                      return (
+                        <ContextMenu>
+                          <ContextMenuTrigger asChild>
+                            {rowEl}
+                          </ContextMenuTrigger>
+                          <ContextMenuContent>
+                            {!isDirectory && !isSymlink && (
+                              <ContextMenuItem
+                                onClick={() => void handleOpenEntry(item, name)}
+                              >
+                                <PencilIcon className="mr-2 h-4 w-4" />
+                                Edit
+                              </ContextMenuItem>
+                            )}
                             <ContextMenuItem
-                              onClick={() => {
-                                setRenameTarget({ fullPath, baseName: name });
-                                setRenameOpen(true);
-                              }}
+                              onClick={() => onDownload(fullPath)}
                             >
-                              <PenLine className="mr-2 h-4 w-4" />
-                              Rename
+                              <DownloadIcon className="mr-2 h-4 w-4" />
+                              Download
                             </ContextMenuItem>
                             <ContextMenuItem
-                              onClick={() => openMoveDialogForFile(item)}
+                              onClick={() =>
+                                isDirectory
+                                  ? navigateOrDiscard(fullPath)
+                                  : void handleOpenEntry(item, name)
+                              }
                             >
-                              <ArrowRightLeft className="mr-2 h-4 w-4" />
-                              Move
+                              <FolderIcon className="mr-2 h-4 w-4" />
+                              Open
                             </ContextMenuItem>
-                          </>
-                        ) : null}
-                        <ContextMenuSeparator />
-                        <ContextMenuItem
-                          variant="destructive"
-                          onClick={() => requestDeletePaths([fullPath])}
-                        >
-                          <TrashIcon className="mr-2 h-4 w-4" />
-                          Delete
-                        </ContextMenuItem>
-                      </ContextMenuContent>
-                    </ContextMenu>
-                  );
-                }}
-                disablePagination
-              />
-              </>
-            )}
-          </>
+                            {!isDirectory && !isSymlink ? (
+                              <>
+                                <ContextMenuItem
+                                  onClick={() => {
+                                    setRenameTarget({
+                                      fullPath,
+                                      baseName: name,
+                                    });
+                                    setRenameOpen(true);
+                                  }}
+                                >
+                                  <PenLine className="mr-2 h-4 w-4" />
+                                  Rename
+                                </ContextMenuItem>
+                                <ContextMenuItem
+                                  onClick={() => openMoveDialogForFile(item)}
+                                >
+                                  <ArrowRightLeft className="mr-2 h-4 w-4" />
+                                  Move
+                                </ContextMenuItem>
+                              </>
+                            ) : null}
+                            <ContextMenuSeparator />
+                            <ContextMenuItem
+                              variant="destructive"
+                              onClick={() => requestDeletePaths([fullPath])}
+                            >
+                              <TrashIcon className="mr-2 h-4 w-4" />
+                              Delete
+                            </ContextMenuItem>
+                          </ContextMenuContent>
+                        </ContextMenu>
+                      );
+                    }}
+                  />
+            </FreshnessSurface>
+          </LoadableSurface>
         )}
       </div>
     </div>
   );
+}
+
+function renderFileTableSkeletonCell(columnId: string) {
+  if (columnId === 'select') return <Skeleton className="size-4 rounded-sm" />;
+  if (columnId === 'name') {
+    return (
+      <div className="flex min-w-0 items-center gap-2">
+        <Skeleton className="size-4 rounded-sm" />
+        <Skeleton className="h-4 w-48 max-w-full" />
+      </div>
+    );
+  }
+  if (columnId === 'size') return <Skeleton className="h-4 w-20" />;
+  if (columnId === 'type') return <Skeleton className="h-4 w-24" />;
+  if (columnId === 'actions') {
+    return <Skeleton className="ml-auto size-8 rounded-md" />;
+  }
+  return <Skeleton className="h-4 w-28" />;
 }
 
 function RenameEntryDialog({

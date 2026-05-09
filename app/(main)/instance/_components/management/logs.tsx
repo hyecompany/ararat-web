@@ -2,7 +2,6 @@
 
 import * as React from 'react';
 import { LogsIcon } from 'lucide-react';
-import { useSWRConfig } from 'swr';
 
 import { ScrollArea } from 'ui-web/components/scroll-area';
 import { cn } from 'ui-web/lib/utils';
@@ -11,9 +10,16 @@ import type { Instance } from '@/app/(main)/instances/_lib/instances.d';
 import { ManagementFooter } from './footer';
 import { ManagementShell } from './shell';
 import { useInstanceLogs } from '../../_hooks/logs';
-import { buildInstanceLogsKey, deleteInstanceLog } from '../../_lib/logs';
+import { useIncusClient } from '@/app/_incus/provider';
 import { LogViewer } from './log-viewer';
 import { Spinner } from 'ui-web/components/spinner';
+import { Skeleton } from 'ui-web/components/skeleton';
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from 'ui-web/components/empty';
 
 import {
   AlertDialog,
@@ -40,8 +46,8 @@ export default function Logs({
   instance: Instance;
   onBack?: () => void;
 }) {
-  const { data: logs, isLoading, error: logsError } = useInstanceLogs(instance);
-  const { mutate } = useSWRConfig();
+  const { data: logs, isLoading, error: logsError, mutate } = useInstanceLogs(instance);
+  const client = useIncusClient();
   const [selectedLog, setSelectedLog] = React.useState<string | null>(null);
   const [logToDelete, setLogToDelete] = React.useState<string | null>(null);
   const [isDeleting, setIsDeleting] = React.useState(false);
@@ -64,9 +70,13 @@ export default function Logs({
     try {
       setDeleteError(null);
       setIsDeleting(true);
-      await deleteInstanceLog(instance, logToDelete);
+      await client.instanceLogs.delete({
+        instanceName: instance.name,
+        project: instance.project,
+        filename: logToDelete,
+      });
 
-      await mutate(buildInstanceLogsKey(instance));
+      await mutate();
 
       if (selectedLog === logToDelete) {
         setSelectedLog(null);
@@ -94,11 +104,6 @@ export default function Logs({
       }
     >
       <div className="flex h-full flex-row overflow-hidden rounded-xl border relative">
-        {isLoading && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/50 backdrop-blur-[1px]">
-            <Spinner className="size-6" />
-          </div>
-        )}
         {/* Left Pane: Log List */}
         <div className="flex w-64 flex-col border-r bg-muted/30">
           <div className="flex items-center gap-2 border-b px-4 py-3">
@@ -107,7 +112,9 @@ export default function Logs({
           </div>
           <ScrollArea className="flex-1">
             <div className="flex flex-col gap-1 p-2">
-              {logs?.map((filename) => {
+              {isLoading ? (
+                <LogsListSkeleton />
+              ) : logs?.map((filename) => {
                 const title = LOG_TITLES[filename];
                 return (
                   <button
@@ -136,9 +143,14 @@ export default function Logs({
                 );
               })}
               {!isLoading && logs?.length === 0 && (
-                <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                  No log files found.
-                </div>
+                <Empty className="min-h-40 border-0 p-4">
+                  <EmptyHeader>
+                    <EmptyTitle>No log files</EmptyTitle>
+                    <EmptyDescription>
+                      Logs will appear here once the instance writes them.
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
               )}
             </div>
           </ScrollArea>
@@ -154,9 +166,14 @@ export default function Logs({
               isDeleting={isDeleting && logToDelete === selectedLog}
             />
           ) : (
-            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              Select a log file to view its content.
-            </div>
+            <Empty className="h-full min-h-0 border-0">
+              <EmptyHeader>
+                <EmptyTitle>Select a log file</EmptyTitle>
+                <EmptyDescription>
+                  Choose a log from the list to view its content.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           )}
         </div>
       </div>
@@ -187,5 +204,18 @@ export default function Logs({
         </AlertDialogContent>
       </AlertDialog>
     </ManagementShell>
+  );
+}
+
+function LogsListSkeleton() {
+  return (
+    <>
+      {Array.from({ length: 5 }).map((_, index) => (
+        <div key={index} className="space-y-1 rounded-md px-3 py-2">
+          <Skeleton className="h-4 w-28" />
+          <Skeleton className="h-3 w-20" />
+        </div>
+      ))}
+    </>
   );
 }

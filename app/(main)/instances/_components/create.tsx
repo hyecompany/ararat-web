@@ -70,7 +70,6 @@ import { Spinner } from 'ui-web/components/spinner';
 import { toast } from 'sonner';
 import Editor, { OnMount } from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
-import { mutate } from 'swr';
 import type * as Monaco from 'monaco-editor';
 import { AlertCircleIcon, CodeXmlIcon, UploadIcon } from 'lucide-react';
 import { cn } from 'ui-web/lib/utils';
@@ -381,7 +380,7 @@ export default function CreateInstance({ className }: { className?: string }) {
       isBackupMode
         ? 'sm:max-w-xl'
         : selectingImage
-        ? 'sm:max-w-5xl'
+        ? 'h-[90vh] sm:max-w-5xl'
         : currentTab === 'devices' || currentTab === 'general' || showYamlEditor
           ? 'h-[90vh] sm:max-w-6xl'
           : 'sm:max-w-xl',
@@ -536,8 +535,6 @@ export default function CreateInstance({ className }: { className?: string }) {
             ? `Backup import for "${form.getValues().name}" started`
             : `Instance "${form.getValues().name}" creation started`,
         );
-        // Invalidate the instances list
-        mutate((key) => typeof key === 'string' && key.startsWith('/1.0/instances'));
         setDialogOpen(false);
         // Reset form
         form.reset();
@@ -796,7 +793,10 @@ export default function CreateInstance({ className }: { className?: string }) {
                     </TabsContent>
                     <TabsContent
                       value="source"
-                      className="mt-0 min-h-0 flex-1 overflow-auto data-[state=active]:flex data-[state=active]:flex-col"
+                      className={cn(
+                        'mt-0 min-h-0 flex-1 data-[state=active]:flex data-[state=active]:flex-col',
+                        selectingImage ? 'overflow-hidden' : 'overflow-auto',
+                      )}
                     >
                       <FormField
                         control={form.control}

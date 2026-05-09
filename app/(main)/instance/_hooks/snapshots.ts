@@ -1,21 +1,12 @@
-import { useSWRConfig } from 'swr';
-import {
-  createSnapshot as apiCreateSnapshot,
-  createImageFromSnapshot as apiCreateImageFromSnapshot,
-  createInstanceFromSnapshot as apiCreateInstanceFromSnapshot,
-  deleteSnapshot as apiDeleteSnapshot,
-  editSnapshot as apiEditSnapshot,
-  restoreSnapshot as apiRestoreSnapshot,
-} from '../_lib/snapshots';
-import { getInstanceCacheKey } from './instance';
+import { useIncusClient } from '@/app/_incus/provider';
+import { useInstanceSnapshots } from '@/app/_incus/resources/instances/snapshots/hooks';
 
 export function useSnapshots(instanceName: string, project?: string | null) {
-  const { mutate } = useSWRConfig();
-  const instanceCacheKey = getInstanceCacheKey(instanceName, project);
+  const client = useIncusClient();
+  const resource = useInstanceSnapshots(instanceName, project);
 
-  const mutateInstance = async () => {
-    if (!instanceCacheKey) return;
-    await mutate(instanceCacheKey);
+  const mutateSnapshots = async () => {
+    client.instanceSnapshots.markStale({ instanceName, project });
   };
 
   const createSnapshot = async (
@@ -23,24 +14,24 @@ export function useSnapshots(instanceName: string, project?: string | null) {
     stateful?: boolean,
     expiresAt?: string,
   ) => {
-    await apiCreateSnapshot({
+    await client.instanceSnapshots.create({
       instanceName,
       project,
       name,
       stateful,
       expiresAt,
     });
-    await mutateInstance();
+    await mutateSnapshots();
   };
 
   const deleteSnapshot = async (snapshotName: string) => {
-    await apiDeleteSnapshot(instanceName, project, snapshotName);
-    await mutateInstance();
+    await client.instanceSnapshots.delete({ instanceName, project, snapshotName });
+    await mutateSnapshots();
   };
 
   const restoreSnapshot = async (snapshotName: string) => {
-    await apiRestoreSnapshot(instanceName, project, snapshotName);
-    await mutateInstance();
+    await client.instanceSnapshots.restore({ instanceName, project, snapshotName });
+    await mutateSnapshots();
   };
 
   const editSnapshot = async (
@@ -48,14 +39,14 @@ export function useSnapshots(instanceName: string, project?: string | null) {
     newName: string,
     expiresAt?: string,
   ) => {
-    await apiEditSnapshot({
+    await client.instanceSnapshots.edit({
       instanceName,
       project,
       snapshotName,
       newName,
       expiresAt,
     });
-    await mutateInstance();
+    await mutateSnapshots();
   };
 
   const createInstanceFromSnapshot = async (
@@ -63,7 +54,7 @@ export function useSnapshots(instanceName: string, project?: string | null) {
     targetName: string,
     instanceType: string,
   ) => {
-    await apiCreateInstanceFromSnapshot({
+    await client.instanceSnapshots.createInstance({
       instanceName,
       snapshotName,
       targetName,
@@ -76,7 +67,7 @@ export function useSnapshots(instanceName: string, project?: string | null) {
     snapshotName: string,
     alias?: string,
   ) => {
-    await apiCreateImageFromSnapshot({
+    await client.instanceSnapshots.createImage({
       instanceName,
       snapshotName,
       project,
@@ -85,6 +76,7 @@ export function useSnapshots(instanceName: string, project?: string | null) {
   };
 
   return {
+    ...resource,
     createSnapshot,
     deleteSnapshot,
     restoreSnapshot,

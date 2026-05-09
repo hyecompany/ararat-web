@@ -220,7 +220,7 @@ function ReferenceTokenBadge({
                   <p
                     className={cn(
                       'text-muted-foreground text-xs leading-relaxed transition-opacity',
-                      isSummarizingPreview ? 'animate-pulse' : '',
+                      isSummarizingPreview ? 'freshness-shimmer' : '',
                     )}
                   >
                     {displayDocText}

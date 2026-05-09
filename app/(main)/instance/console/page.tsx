@@ -7,7 +7,7 @@
  */
 
 'use client';
-import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { ExternalLinkIcon } from 'lucide-react';
 import {
@@ -21,13 +21,15 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { MenubarItem } from 'ui-web/components/menubar';
-import { InstanceContext } from '../_context/instance';
+import { useInstanceContext } from '../_context/instance';
+import { useInstance } from '../_hooks/instance';
 import InstanceExec from './instanceExec';
 import ConsoleShell from './_components/console-shell';
 import ConsoleToolbar from './_components/console-toolbar';
 import TextConsoleView from './_components/text-console-view';
 import { useTextConsoleSession } from './_hooks/use-text-console-session';
 import type { Instance } from '../../instances/_lib/instances.d';
+import InstanceClass from '../../_lib/instance';
 import {
   createDisabledConsoleController,
   type ConsoleMode,
@@ -61,7 +63,15 @@ const DIAGNOSTICS_OVERLAY_QUERY = 'spice_diagnostics';
 const DIAGNOSTICS_OVERLAY_ALIAS_QUERY = 'diag';
 
 export default function ConsolePage() {
-  const { name, instance, instanceClass, isLoading } = use(InstanceContext);
+  const { name, project } = useInstanceContext();
+  const { instance, isLoading } = useInstance(name, project, {
+    metadata: true,
+    state: true,
+  });
+  const instanceClass = useMemo(
+    () => (name ? new InstanceClass(name, project) : null),
+    [name, project],
+  );
   const isVirtualMachine = instance?.type === 'virtual-machine';
   const defaultMode = getDefaultConsoleMode(instance);
   const [modeOverride, setModeOverride] = useState<{
@@ -253,6 +263,7 @@ export default function ConsolePage() {
                   <OpenConsoleWindowButton
                     enabled={isVirtualMachine}
                     instanceName={name}
+                    project={project}
                     sharedMemoryFastPathEnabled={sharedMemoryFastPathEnabled}
                     webUsbRedirectionEnabled={webUsbRedirectionEnabled}
                   />
@@ -333,11 +344,13 @@ export default function ConsolePage() {
 function OpenConsoleWindowButton({
   enabled,
   instanceName,
+  project,
   sharedMemoryFastPathEnabled,
   webUsbRedirectionEnabled,
 }: {
   enabled: boolean;
   instanceName: string | null;
+  project: string | null;
   sharedMemoryFastPathEnabled: boolean;
   webUsbRedirectionEnabled: boolean;
 }) {
@@ -353,6 +366,9 @@ function OpenConsoleWindowButton({
           name: instanceName,
           takeover: '1',
         });
+        if (project) {
+          query.set('project', project);
+        }
         if (sharedMemoryFastPathEnabled) {
           query.set(SHARED_MEMORY_FAST_PATH_QUERY, '1');
         }

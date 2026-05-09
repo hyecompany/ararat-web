@@ -15,7 +15,7 @@ export interface UserContextData {
 const UserContext = createContext({
   data: null as UserContextData | null,
   isLoading: true,
-  isValidating: true,
+  isRefreshing: true,
 });
 export default UserContext;
 
@@ -23,7 +23,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const {
     data,
     isLoading: userIsLoading,
-    isValidating: userIsValidating,
+    isRefreshing: userIsRefreshing,
   } = useUser();
   const isClient = use(IsClientContext);
 
@@ -32,7 +32,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       value={{
         data,
         isLoading: userIsLoading || !isClient,
-        isValidating: userIsValidating || !isClient,
+        isRefreshing: userIsRefreshing || !isClient,
       }}
     >
       {children}

@@ -16,6 +16,7 @@ import type { Instance } from '@/app/(main)/instances/_lib/instances.d';
 import { Spinner } from 'ui-web/components/spinner';
 import { Button } from 'ui-web/components/button';
 import { cn } from 'ui-web/lib/utils';
+import { Skeleton } from 'ui-web/components/skeleton';
 
 // --- Date Formatting Helpers ---
 
@@ -350,11 +351,7 @@ export function LogViewer({
   }, [isLxcLog, isQmpLog, content]);
 
   if (isLoading) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <Spinner className="size-6" />
-      </div>
-    );
+    return <LogViewerSkeleton filename={filename} />;
   }
 
   if (error) {
@@ -514,6 +511,29 @@ export function LogViewer({
             />
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function LogViewerSkeleton({ filename }: { filename: string }) {
+  return (
+    <div className="flex h-full flex-col overflow-hidden" aria-busy="true">
+      <div className="flex items-center justify-between border-b bg-muted/20 px-4 py-1">
+        <Skeleton className="h-3 w-40 max-w-[50%]" />
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-5 w-16" />
+          <Skeleton className="h-4 w-20" />
+        </div>
+      </div>
+      <div className="min-h-0 flex-1 space-y-2 overflow-hidden bg-background p-4 font-mono text-xs">
+        <Skeleton className="h-3 w-52" />
+        <Skeleton className="h-3 w-4/5" />
+        <Skeleton className="h-3 w-3/5" />
+        <Skeleton className="h-3 w-11/12" />
+        <Skeleton className="h-3 w-2/3" />
+        <Skeleton className="h-3 w-5/6" />
+        <span className="sr-only">Loading {filename}</span>
       </div>
     </div>
   );

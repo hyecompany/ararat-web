@@ -14,7 +14,8 @@ export interface AuthenticationContextData {
 const AuthenticationContext = createContext({
   data: null as AuthenticationContextData | null,
   isLoading: true,
-  isValidating: true,
+  isStale: false,
+  isRefreshing: true,
 });
 
 export default AuthenticationContext;
@@ -28,9 +29,9 @@ export function AuthenticationProvider({
   const router = useRouter();
   const isClient = use(IsClientContext);
 
-  const { isValidating, isLoading, data } = useServerConfiguration();
+  const { isLoading, isStale, isRefreshing, data } = useServerConfiguration();
   useEffect(() => {
-    if (!isValidating) {
+    if (!isLoading && !isRefreshing) {
       if (data?.auth == 'untrusted') {
         if (!pathname.startsWith('/authentication')) {
           router.replace('/authentication/login');
@@ -41,7 +42,7 @@ export function AuthenticationProvider({
         }
       }
     }
-  }, [data, isValidating, pathname, router, isClient]);
+  }, [data, isLoading, isRefreshing, pathname, router, isClient]);
 
   return (
     <AuthenticationContext
@@ -52,7 +53,8 @@ export function AuthenticationProvider({
           identifier: data?.auth_user_name,
         },
         isLoading: !isClient || isLoading,
-        isValidating: !isClient || isValidating,
+        isStale,
+        isRefreshing: !isClient || isRefreshing,
       }}
     >
       {children}

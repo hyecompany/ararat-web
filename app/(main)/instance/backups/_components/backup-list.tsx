@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 
 import { useConfigurableOptions } from '@/app/_hooks/server';
-import type { InstanceBackup } from '../../_lib/backups';
+import type { InstanceBackup } from '@/app/_incus/types';
 import { DateTimePicker } from '../../_components/date-time-picker';
 import { toOptionalIsoDateTime } from '../../_lib/date-time';
 import { formatDate, getInstanceResourceShortName } from '../../_lib/utils';
@@ -46,6 +46,7 @@ import {
   SelectValue,
 } from 'ui-web/components/select';
 import { Spinner } from 'ui-web/components/spinner';
+import { Skeleton } from 'ui-web/components/skeleton';
 
 interface BackupListProps {
   backups: InstanceBackup[];
@@ -200,14 +201,6 @@ export function BackupList({
     },
   ];
 
-  if (isLoading) {
-    return (
-      <div className="flex justify-center p-8">
-        <Spinner />
-      </div>
-    );
-  }
-
   if (isError) {
     return (
       <Alert variant="destructive">
@@ -248,7 +241,17 @@ export function BackupList({
         </Alert>
       ) : null}
 
-      <DataTable data={backups} cols={columns as any} />
+      <DataTable
+        data={backups}
+        cols={columns as any}
+        disablePagination
+        loading={isLoading}
+        skeletonRows={6}
+        renderSkeletonCell={renderBackupSkeletonCell}
+        virtualizeRows
+        virtualScrollMaxHeightClassName="max-h-[min(60vh,620px)]"
+        virtualRowEstimatePx={52}
+      />
 
       {renameBackup ? (
         <RenameBackupDialog
@@ -285,6 +288,23 @@ export function BackupList({
       ) : null}
     </div>
   );
+}
+
+function renderBackupSkeletonCell(columnId: string) {
+  if (columnId === 'name') return <Skeleton className="h-4 w-32" />;
+  if (columnId === 'created_at') return <Skeleton className="h-4 w-28" />;
+  if (columnId === 'expires_at') return <Skeleton className="h-4 w-24" />;
+  if (columnId === 'exclude_snapshots') return <Skeleton className="h-4 w-8" />;
+  if (columnId === 'optimized_storage') return <Skeleton className="h-4 w-8" />;
+  if (columnId === 'actions') {
+    return (
+      <div className="flex items-center justify-end gap-2">
+        <Skeleton className="h-8 w-24 rounded-md" />
+        <Skeleton className="size-8 rounded-md" />
+      </div>
+    );
+  }
+  return <Skeleton className="h-4 w-24" />;
 }
 
 function CreateBackupDialog({

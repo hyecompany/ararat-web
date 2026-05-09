@@ -1,20 +1,25 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ColumnDef, Row } from '@tanstack/react-table';
 
 import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
 import { Badge } from 'ui-web/components/badge';
-import DataTable from 'ui-web/components/data-table';
-import { Input } from 'ui-web/components/input';
-import { Skeleton } from 'ui-web/components/skeleton';
-import { cn } from 'ui-web/lib/utils';
 import { Button } from 'ui-web/components/button';
-import { Spinner } from 'ui-web/components/spinner';
+import DataTable from 'ui-web/components/data-table';
 import {
-  cancelOperation,
-  fetchOperationsList,
-} from '@/app/(main)/operations/_lib/operations';
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from 'ui-web/components/empty';
+import { Input } from 'ui-web/components/input';
+import { LoadableSurface } from 'ui-web/components/loadable-surface';
+import { Skeleton } from 'ui-web/components/skeleton';
+import { Spinner } from 'ui-web/components/spinner';
+import { PageTransition } from 'ui-web/components/view-transitions';
+import { cn } from 'ui-web/lib/utils';
 import {
   Sheet,
   SheetContent,
@@ -22,7 +27,11 @@ import {
   SheetHeader,
   SheetTitle,
 } from 'ui-web/components/sheet';
-import type { IncusOperation } from '@/app/(main)/operations/_lib/operations.d';
+import { ListChecksIcon } from 'lucide-react';
+import { useOperations } from '@/app/_incus/resources/operations/hooks';
+import type { IncusOperation } from '@/app/_incus/types';
+
+const OPERATION_ROW_HEIGHT_PX = 58;
 
 const STATUS_STYLES: Record<
   string,
@@ -64,37 +73,29 @@ function formatDateTime(value?: string) {
 }
 
 export default function OperationsPage() {
-  const [operations, setOperations] = useState<IncusOperation[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { items: operations, status, cancel, error } = useOperations();
   const [filter, setFilter] = useState('');
-  const [selectedOperations, setSelectedOperations] = useState<
-    IncusOperation[]
-  >([]);
+  const [selectedOperationIds, setSelectedOperationIds] = useState<string[]>([]);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
-  const [inspectorOperation, setInspectorOperation] =
-    useState<IncusOperation | null>(null);
+  const [inspectorOperationId, setInspectorOperationId] = useState<string | null>(
+    null,
+  );
   const [isInspectorOpen, setIsInspectorOpen] = useState(false);
 
-  const fetchOperations = useCallback(async () => {
-    try {
-      const parsed = await fetchOperationsList();
-      setOperations(
-        parsed.sort((a, b) => {
-          const dateA = new Date(a.created_at ?? a.updated_at ?? 0).getTime();
-          const dateB = new Date(b.created_at ?? b.updated_at ?? 0).getTime();
-          return dateB - dateA;
-        }),
-      );
-    } catch {
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchOperations();
-  }, [fetchOperations]);
+  const selectedOperations = useMemo(() => {
+    const byId = new Map(operations.map((operation) => [operation.id, operation]));
+    return selectedOperationIds
+      .map((id) => byId.get(id))
+      .filter((operation): operation is IncusOperation => Boolean(operation));
+  }, [operations, selectedOperationIds]);
+  const inspectorOperation = useMemo(
+    () =>
+      inspectorOperationId
+        ? operations.find((operation) => operation.id === inspectorOperationId) ?? null
+        : null,
+    [inspectorOperationId, operations],
+  );
 
   const columns = useMemo<ColumnDef<object, unknown>[]>(
     () => [
@@ -165,8 +166,24 @@ export default function OperationsPage() {
     [],
   );
 
+  const handleCancelSelected = async () => {
+    if (!selectedOperations.length) return;
+    setActionError(null);
+    setIsCancelling(true);
+    try {
+      await Promise.all(selectedOperations.map((operation) => cancel(operation.id)));
+      setSelectedOperationIds([]);
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : 'Unable to cancel operations.',
+      );
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
   return (
-    <div className="space-y-4">
+    <PageTransition className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <div>
           <p className="text-2xl font-semibold">Operations</p>
@@ -180,34 +197,14 @@ export default function OperationsPage() {
               variant="outline"
               size="sm"
               disabled={isCancelling}
-              onClick={async () => {
-                if (!selectedOperations.length) return;
-                setActionError(null);
-                setIsCancelling(true);
-                try {
-                  await Promise.all(
-                    selectedOperations.map((operation) =>
-                      cancelOperation(operation.id),
-                    ),
-                  );
-                  await fetchOperations();
-                } catch (error) {
-                  setActionError(
-                    error instanceof Error
-                      ? error.message
-                      : 'Unable to cancel operations.',
-                  );
-                } finally {
-                  setIsCancelling(false);
-                }
-              }}
+              onClick={handleCancelSelected}
             >
               {isCancelling ? <Spinner className="mr-2 size-3" /> : null}
               Cancel Selected
             </Button>
           ) : (
             <Input
-              placeholder="Search operations…"
+              placeholder="Search operations..."
               value={filter}
               onChange={(event) => setFilter(event.target.value)}
               className="w-full sm:w-64"
@@ -221,44 +218,73 @@ export default function OperationsPage() {
           <AlertDescription>{actionError}</AlertDescription>
         </Alert>
       ) : null}
-      {isLoading ? (
-        <Skeleton className="h-48 w-full" />
-      ) : operations.length ? (
+      {error ? (
+        <Alert variant="destructive">
+          <AlertTitle>Unable to load operations</AlertTitle>
+          <AlertDescription>
+            {error.message || 'Check your Incus API connection and try again.'}
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      <LoadableSurface
+        status={status}
+        hasData={operations.length > 0}
+        freshness
+        skeleton={
+          <DataTable
+            enableSelection
+            data={[]}
+            cols={columns}
+            disablePagination
+            loading
+            skeletonRows={8}
+            virtualRowEstimatePx={OPERATION_ROW_HEIGHT_PX}
+            renderSkeletonCell={renderOperationSkeletonCell}
+          />
+        }
+        empty={
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <ListChecksIcon />
+              </EmptyMedia>
+              <EmptyTitle>No operations running</EmptyTitle>
+              <EmptyDescription>
+                Background tasks and live Incus operations will appear here.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        }
+      >
         <DataTable
           enableSelection
           data={operations}
           cols={columns}
           stringFilter={filter}
-          className=""
+          disablePagination
+          virtualizeRows
+          virtualScrollMaxHeightClassName="max-h-[min(72vh,760px)]"
+          virtualRowEstimatePx={OPERATION_ROW_HEIGHT_PX}
           onSelectionChange={(rows) => {
-            const next = rows.map((row) => row.original as IncusOperation);
-            setSelectedOperations((prev) => {
-              if (
-                prev.length === next.length &&
-                prev.every((item, index) => item.id === next[index]?.id)
-              ) {
-                return prev;
-              }
-              return next;
-            });
+            const next = rows.map((row) => (row.original as IncusOperation).id);
+            setSelectedOperationIds((prev) =>
+              prev.length === next.length &&
+              prev.every((item, index) => item === next[index])
+                ? prev
+                : next,
+            );
           }}
           onRowClick={(row) => {
-            setInspectorOperation(row.original as IncusOperation);
+            setInspectorOperationId((row.original as IncusOperation).id);
             setIsInspectorOpen(true);
           }}
         />
-      ) : (
-        <div className="flex h-48 items-center justify-center rounded-md border border-white/5">
-          <p className="text-sm text-muted-foreground">
-            No operations are currently running.
-          </p>
-        </div>
-      )}
+      </LoadableSurface>
       <Sheet
         open={isInspectorOpen}
         onOpenChange={(open) => {
           setIsInspectorOpen(open);
-          if (!open) setInspectorOperation(null);
+          if (!open) setInspectorOperationId(null);
         }}
       >
         <SheetContent className="sm:max-w-md">
@@ -271,7 +297,54 @@ export default function OperationsPage() {
           )}
         </SheetContent>
       </Sheet>
-    </div>
+    </PageTransition>
+  );
+}
+
+function renderOperationSkeletonCell(columnId: string, rowIndex: number) {
+  const rowWidths = [
+    {
+      id: 'w-44',
+      class: 'w-16',
+      description: 'w-64',
+      status: 'w-20',
+      created_at: 'w-32',
+    },
+    {
+      id: 'w-36',
+      class: 'w-20',
+      description: 'w-52',
+      status: 'w-24',
+      created_at: 'w-28',
+    },
+    {
+      id: 'w-48',
+      class: 'w-14',
+      description: 'w-72',
+      status: 'w-20',
+      created_at: 'w-36',
+    },
+    {
+      id: 'w-40',
+      class: 'w-16',
+      description: 'w-56',
+      status: 'w-24',
+      created_at: 'w-32',
+    },
+  ];
+  const widths = rowWidths[rowIndex % rowWidths.length];
+
+  if (columnId === 'select') return <Skeleton className="size-4 rounded-sm" />;
+  if (columnId === 'status') {
+    return <Skeleton className={cn('h-5 rounded-full', widths.status)} />;
+  }
+  return (
+    <Skeleton
+      className={cn(
+        'h-4',
+        widths[columnId as keyof typeof widths] ?? 'w-28',
+      )}
+    />
   );
 }
 
@@ -281,11 +354,12 @@ function OperationInspector({ operation }: { operation: IncusOperation }) {
       <SheetHeader className="px-4 pt-4">
         <SheetTitle>{operation.description ?? operation.id}</SheetTitle>
         <SheetDescription>
-          {operation.class ?? 'Operation'} · {operation.status}
+          {operation.class ?? 'Operation'} · {operation.status ?? 'Unknown'}
         </SheetDescription>
       </SheetHeader>
       <div className="flex-1 overflow-y-auto px-4 pb-6 space-y-4">
         <MetadataSection title="Metadata" metadata={operation.metadata} />
+        <MetadataSection title="Resources" metadata={operation.resources} />
       </div>
     </>
   );

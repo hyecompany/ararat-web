@@ -1,6 +1,5 @@
-import useSWR from 'swr';
-import { getProjects } from '@/app/(main)/_lib/projects';
+import { useProjectsResource } from '@/app/_incus/resources/projects/hooks';
 
 export function useProjects() {
-  return useSWR('/1.0/projects?recursion=1', getProjects);
+  return useProjectsResource();
 }

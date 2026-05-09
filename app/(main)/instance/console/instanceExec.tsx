@@ -1,8 +1,9 @@
 'use client';
 
-import { use, useState, type FormEvent, type ReactNode } from 'react';
-import { InstanceContext } from '../_context/instance';
+import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useInstanceContext } from '../_context/instance';
 import { useTerminal } from './useTerminal';
+import InstanceClass from '../../_lib/instance';
 import { Button } from 'ui-web/components/button';
 import { Input } from 'ui-web/components/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from 'ui-web/components/dialog';
@@ -20,7 +21,11 @@ export default function InstanceExec({
   onOpenChange,
   trigger,
 }: InstanceExecProps = {}) {
-  const { instanceClass } = use(InstanceContext);
+  const { name, project } = useInstanceContext();
+  const instanceClass = useMemo(
+    () => (name ? new InstanceClass(name, project) : null),
+    [name, project],
+  );
   const {
     terminalRef,
     termRef,

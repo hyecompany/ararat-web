@@ -53,11 +53,15 @@ export function SnapshotsContent({
   instanceProject,
   instanceType,
   snapshots,
+  isLoading = false,
+  isError = null,
 }: {
   instanceName: string;
   instanceProject: string | null;
   instanceType: string;
   snapshots: InstanceSnapshot[];
+  isLoading?: boolean;
+  isError?: Error | null;
 }) {
   const [isCreateOpen, setIsCreateOpen] = React.useState(false);
   const [actionError, setActionError] = React.useState<string | null>(null);
@@ -175,6 +179,13 @@ export function SnapshotsContent({
         </Alert>
       ) : null}
 
+      {isError ? (
+        <Alert variant="destructive">
+          <AlertTitle>Snapshots failed to load</AlertTitle>
+          <AlertDescription>{isError.message}</AlertDescription>
+        </Alert>
+      ) : null}
+
       {successMessage ? (
         <Alert>
           <div className="flex items-start justify-between gap-4">
@@ -195,7 +206,17 @@ export function SnapshotsContent({
         </Alert>
       ) : null}
 
-      <DataTable data={snapshots} cols={columns as any} />
+      <DataTable
+        data={snapshots}
+        cols={columns as any}
+        disablePagination
+        loading={isLoading}
+        skeletonRows={6}
+        renderSkeletonCell={renderSnapshotSkeletonCell}
+        virtualizeRows
+        virtualScrollMaxHeightClassName="max-h-[min(60vh,620px)]"
+        virtualRowEstimatePx={52}
+      />
 
       {editSnapshot ? (
         <EditSnapshotDialog
@@ -274,6 +295,17 @@ export function SnapshotsContent({
       ) : null}
     </div>
   );
+}
+
+function renderSnapshotSkeletonCell(columnId: string) {
+  if (columnId === 'select') return null;
+  if (columnId === 'name') return <div className="h-4 w-32 rounded-md bg-accent freshness-shimmer" />;
+  if (columnId === 'created_at') return <div className="h-4 w-36 rounded-md bg-accent freshness-shimmer" />;
+  if (columnId === 'expires_at') return <div className="h-4 w-24 rounded-md bg-accent freshness-shimmer" />;
+  if (columnId === 'stateful') return <div className="h-4 w-10 rounded-md bg-accent freshness-shimmer" />;
+  if (columnId === 'size') return <div className="h-4 w-16 rounded-md bg-accent freshness-shimmer" />;
+  if (columnId === 'actions') return <div className="ml-auto h-8 w-24 rounded-md bg-accent freshness-shimmer" />;
+  return <div className="h-4 w-28 rounded-md bg-accent freshness-shimmer" />;
 }
 
 function CreateSnapshotDialog({

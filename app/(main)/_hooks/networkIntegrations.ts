@@ -1,7 +1,5 @@
-import useSWR from 'swr';
-
-import { getNetworkIntegrations } from '@/app/(main)/_lib/networkIntegrations';
+import { useNetworkIntegrationsResource } from '@/app/_incus/resources/network-integrations/hooks';
 
 export function useNetworkIntegrations() {
-  return useSWR('/1.0/network-integrations?recursion=1', getNetworkIntegrations);
+  return useNetworkIntegrationsResource();
 }

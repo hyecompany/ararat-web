@@ -17,6 +17,7 @@ import {
   useState,
 } from 'react';
 
+import { requestOperation } from '@/app/_incus/transport';
 import InstanceClass from '../../../_lib/instance';
 import { useConsoleFullscreen } from './use-console-fullscreen';
 import {
@@ -442,7 +443,9 @@ function cancelConsoleOperation(operation: string | undefined) {
     return;
   }
 
-  void fetch(operation, { method: 'DELETE', keepalive: true }).catch(() => {});
+  void requestOperation(operation, {
+    init: { method: 'DELETE', keepalive: true },
+  }).catch(() => {});
 }
 
 export function useSpiceSession({

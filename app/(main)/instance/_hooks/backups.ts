@@ -1,29 +1,15 @@
-import useSWR, { useSWRConfig } from 'swr';
-import { jsonFetcher } from '../../../_lib/fetcher';
-import { StandardResponse } from '../../../_lib/response';
-import { buildApiPath } from '@/app/_lib/url';
-import {
-  createBackup as apiCreateBackup,
-  deleteBackup as apiDeleteBackup,
-  renameBackup as apiRenameBackup,
-  downloadBackup as apiDownloadBackup,
-  type InstanceBackup,
-} from '../_lib/backups';
-
-function getBackupsCacheKey(instanceName: string, project?: string | null) {
-  return buildApiPath(`/1.0/instances/${encodeURIComponent(instanceName)}/backups`, {
-    project: project ?? null,
-    params: { recursion: 1 },
-  });
-}
+import React from 'react';
+import { useIncusClient } from '@/app/_incus/provider';
+import { useInstanceBackups } from '@/app/_incus/resources/instances/backups/hooks';
 
 export function useBackups(instanceName: string, project?: string | null) {
-  const { mutate } = useSWRConfig();
-  const backupsCacheKey = getBackupsCacheKey(instanceName, project);
-  const { data, error, isLoading } = useSWR<StandardResponse<InstanceBackup[]>>(
-    backupsCacheKey,
-    (url: string) => jsonFetcher<InstanceBackup[]>(url),
-  );
+  const client = useIncusClient();
+  const resource = useInstanceBackups(instanceName, project);
+
+  const mutate = React.useCallback(async () => {
+    client.instanceBackups.markStale({ instanceName, project });
+    await client.instanceBackups.ensure({ instanceName, project });
+  }, [client, instanceName, project]);
 
   const createBackup = async (
     name?: string,
@@ -32,7 +18,7 @@ export function useBackups(instanceName: string, project?: string | null) {
     compressionAlgorithm?: string,
     expiresAt?: string,
   ) => {
-    await apiCreateBackup(
+    await client.instanceBackups.create({
       instanceName,
       project,
       name,
@@ -40,28 +26,26 @@ export function useBackups(instanceName: string, project?: string | null) {
       optimizedStorage,
       compressionAlgorithm,
       expiresAt,
-    );
-    await mutate(backupsCacheKey);
+    });
+    await mutate();
   };
 
   const deleteBackup = async (backupName: string) => {
-    await apiDeleteBackup(instanceName, project, backupName);
-    await mutate(backupsCacheKey);
+    await client.instanceBackups.delete({ instanceName, project, backupName });
+    await mutate();
   };
 
   const renameBackup = async (oldName: string, newName: string) => {
-    await apiRenameBackup(instanceName, project, oldName, newName);
-    await mutate(backupsCacheKey);
+    await client.instanceBackups.rename({ instanceName, project, oldName, newName });
+    await mutate();
   };
 
   const downloadBackup = (backupName: string) => {
-    apiDownloadBackup(instanceName, project, backupName);
+    client.instanceBackups.download({ instanceName, project, backupName });
   };
 
   return {
-    backups: data?.metadata || [],
-    isLoading,
-    isError: error,
+    ...resource,
     createBackup,
     deleteBackup,
     renameBackup,

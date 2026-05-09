@@ -24,12 +24,12 @@ const OIDC_LOCK_TTL_MS = 30_000; // refresh should complete quickly; TTL prevent
 
 /**
  * Hook to get OIDC user data from the oidc_id cookie
- * Returns user data if available, loading state, and validation state
+ * Returns user data if available, initial loading state, and refresh state.
  */
 export function useOidcUser(enabled: boolean = true) {
   const [data, setData] = useState<OidcUserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isValidating, setIsValidating] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(true);
 
   // Refs to avoid stale closures and overlapping refreshes
   const isMountedRef = useRef(true);
@@ -49,7 +49,7 @@ export function useOidcUser(enabled: boolean = true) {
   useEffect(() => {
     if (!enabled) {
       setIsLoading(false);
-      setIsValidating(false);
+      setIsRefreshing(false);
       return;
     }
 
@@ -173,7 +173,7 @@ export function useOidcUser(enabled: boolean = true) {
       }
 
       isRefreshingRef.current = true;
-      setIsValidating(true);
+      setIsRefreshing(true);
 
       const promise = (async () => {
         try {
@@ -194,7 +194,7 @@ export function useOidcUser(enabled: boolean = true) {
           releaseCrossTabLock();
           isRefreshingRef.current = false;
           inFlightRefreshRef.current = null;
-          if (isMountedRef.current) setIsValidating(false);
+          if (isMountedRef.current) setIsRefreshing(false);
         }
       })();
 
@@ -261,7 +261,7 @@ export function useOidcUser(enabled: boolean = true) {
       // Either still valid or refresh is disabled; ensure we reflect latest cookie state
       readAndUpdateUser();
       if (isMountedRef.current) {
-        setIsValidating(false);
+        setIsRefreshing(false);
       }
     }
 
@@ -301,6 +301,6 @@ export function useOidcUser(enabled: boolean = true) {
   return {
     data,
     isLoading,
-    isValidating,
+    isRefreshing,
   };
 }

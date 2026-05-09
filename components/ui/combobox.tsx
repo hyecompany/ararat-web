@@ -13,9 +13,9 @@ import {
   CommandSeparator,
 } from './command';
 import { cn } from 'ui-web/lib/utils';
-import { Spinner } from './spinner';
 import { Badge } from './badge';
 import { XIcon } from 'lucide-react';
+import { ComboboxOptionsSkeleton } from './skeleton-patterns';
 
 interface ComboboxContextValue {
   value?: string;
@@ -389,10 +389,7 @@ function ComboboxContent({
         <Command className="[&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-1.5">
           <CommandInput placeholder={searchPlaceholder} disabled={loading} />
           {loading ? (
-            <div className="py-10 flex flex-col items-center justify-center gap-2">
-              <Spinner className="size-5" />
-              <div className="text-xs text-muted-foreground">Loading...</div>
-            </div>
+            <ComboboxOptionsSkeleton />
           ) : (
             <>
               <CommandEmpty>{emptyLabel}</CommandEmpty>
@@ -451,7 +448,7 @@ function ComboboxItem({
       disabled={disabled as any}
       className={cn(
         "data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground relative flex cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        validating && 'animate-pulse',
+        validating && 'freshness-shimmer',
         className,
       )}
       {...props}

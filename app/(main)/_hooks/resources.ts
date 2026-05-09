@@ -1,6 +1,5 @@
-import useSWR from 'swr';
-import { getResources } from '../_lib/resources';
+import { useServerResourcesResource } from '@/app/_incus/resources/server/hooks';
 
 export function useResources() {
-  return useSWR('/1.0/resources', getResources);
+  return useServerResourcesResource();
 }

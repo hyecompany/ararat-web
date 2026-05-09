@@ -13,10 +13,12 @@ import {
 import CreateInstance from './_components/create';
 import DataTable from 'ui-web/components/data-table';
 import { Input } from 'ui-web/components/input';
+import { LoadableSurface } from 'ui-web/components/loadable-surface';
 import { Skeleton } from 'ui-web/components/skeleton';
 import { useInstances } from '@/app/(main)/instances/_hooks/instances';
 import type { Instance, InstanceState } from './_lib/instances.d';
 import { deleteInstance } from './_lib/instances';
+import { useIncusClient } from '@/app/_incus/provider';
 import { Badge } from 'ui-web/components/badge';
 import { Button } from 'ui-web/components/button';
 import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
@@ -28,6 +30,7 @@ import {
   SheetTitle,
 } from 'ui-web/components/sheet';
 import { Spinner } from 'ui-web/components/spinner';
+import { PageTransition } from 'ui-web/components/view-transitions';
 import ProjectsContext from '@/app/(main)/_context/projects';
 import { Progress } from 'ui-web/components/progress';
 import IsClientContext from '@/app/_context/isClient';
@@ -69,42 +72,6 @@ function canDelete(instance: Instance): boolean {
   return !isDeleteProtected(instance) && !isRunning(instance);
 }
 
-async function performInstanceAction({
-  action,
-  instance,
-  project,
-}: {
-  action: InstanceAction;
-  instance: Instance;
-  project: string | null;
-}) {
-  const instanceProject = project ?? instance.project ?? null;
-  const projectSuffix = instanceProject
-    ? `?project=${encodeURIComponent(instanceProject)}`
-    : '';
-  const res = await fetch(
-    `/1.0/instances/${encodeURIComponent(instance.name)}/state${projectSuffix}`,
-    {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        action,
-        timeout: 30,
-        force: false,
-        stateful: false,
-      }),
-    },
-  );
-  if (!res.ok) {
-    const payload = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(
-      payload?.error || `Unable to ${action} instance ${instance.name}`,
-    );
-  }
-}
-
 function canPerformAction(action: InstanceAction, instance: Instance): boolean {
   const status = instance.status?.toLowerCase();
   switch (action) {
@@ -122,9 +89,18 @@ function canPerformAction(action: InstanceAction, instance: Instance): boolean {
 }
 
 export default function Instances() {
+  const incusClient = useIncusClient();
   const { currentProject } = use(ProjectsContext);
-  const { data, error, isLoading, isValidating, mutate } =
-    useInstances(currentProject);
+  const [visibleRange, setVisibleRange] = React.useState({
+    start: 0,
+    count: 30,
+    overscan: 10,
+  });
+  const { data, error, status, mutate } = useInstances({
+    project: currentProject,
+    visibleRange,
+    include: { metadata: true, state: true },
+  });
   const [search, setSearch] = React.useState('');
   const [selectedInstances, setSelectedInstances] = React.useState<Instance[]>(
     [],
@@ -158,6 +134,7 @@ export default function Instances() {
                 pathname: '/instance',
                 query,
               }}
+              transitionTypes={['nav-forward']}
               className="text-left font-medium text-primary underline focus:outline-none cursor-pointer"
               onClick={(event) => {
                 event.stopPropagation();
@@ -276,13 +253,15 @@ export default function Instances() {
         setActionInFlight(action);
         await Promise.all(
           targetInstances.map((instance) =>
-            performInstanceAction({
+            incusClient.instances.setState({
               action,
-              instance,
-              project:
-                currentProject === 'all'
-                  ? (instance.project ?? null)
-                  : (currentProject ?? instance.project ?? null),
+              instance: {
+                ...instance,
+                project:
+                  currentProject === 'all'
+                    ? (instance.project ?? 'default')
+                    : (currentProject ?? instance.project ?? 'default'),
+              },
             }),
           ),
         );
@@ -295,7 +274,7 @@ export default function Instances() {
         setActionInFlight(null);
       }
     },
-    [currentProject, mutate, selectedInstances],
+    [currentProject, incusClient, mutate, selectedInstances],
   );
 
   const handleSelectionChange = React.useCallback((rows: Row<object>[]) => {
@@ -307,6 +286,19 @@ export default function Instances() {
     setInspectorInstance(instance);
     setIsSheetOpen(true);
   }, []);
+
+  const handleVirtualVisibleRangeChange = React.useCallback(
+    (range: { start: number; count: number; overscan: number }) => {
+      setVisibleRange((current) =>
+        current.start === range.start &&
+        current.count === range.count &&
+        current.overscan === range.overscan
+          ? current
+          : range,
+      );
+    },
+    [],
+  );
 
   // Compute deletable, protected, and running instances for mass deletion
   const deletableInstances = React.useMemo(
@@ -385,20 +377,21 @@ export default function Instances() {
     isSheetOpen,
   ]);
 
-  const isBusy = (isLoading && !data) || !isClient;
+  const tableStatus = !isClient ? 'loading' : status;
+  const hasRows = Boolean(data?.length);
 
   React.useEffect(() => {
     setSelectedInstances([]);
   }, [currentProject]);
 
   return (
-    <>
+    <PageTransition>
       <div className="space-y-4 mb-4">
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-2xl font-semibold">Instances</p>
           <div className="flex flex-1 flex-wrap items-center gap-3 justify-end">
             {!hasSelection ? (
-              !isBusy ? (
+              isClient ? (
                 <Input
                   placeholder="Search instances..."
                   value={search}
@@ -475,24 +468,49 @@ export default function Instances() {
         ) : null}
       </div>
 
-      {!isBusy ? (
+      <LoadableSurface
+        status={tableStatus}
+        hasData={hasRows}
+        freshness
+        skeleton={
+          <DataTable
+            key={`${currentProject}-skeleton`}
+            enableSelection
+            data={[]}
+            cols={columns}
+            disablePagination
+            loading
+            skeletonRows={7}
+            virtualRowEstimatePx={76}
+            renderSkeletonCell={renderInstanceSkeletonCell}
+          />
+        }
+        empty={
+          <DataTable
+            key={`${currentProject}-empty`}
+            enableSelection
+            data={[]}
+            cols={columns}
+            disablePagination
+            stringFilter={search}
+          />
+        }
+      >
         <DataTable
           key={currentProject}
           enableSelection
           data={(data as Instance[]) ?? []}
           cols={columns}
-          className={isValidating ? 'animate-pulse' : ''}
+          disablePagination
+          virtualizeRows
+          virtualScrollMaxHeightClassName="max-h-[min(72vh,760px)]"
+          virtualRowEstimatePx={76}
+          onVirtualVisibleRangeChange={handleVirtualVisibleRangeChange}
           stringFilter={search}
           onSelectionChange={handleSelectionChange}
           onRowClick={(row) => handleRowClick(row)}
         />
-      ) : (
-        <div className="space-y-2">
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-        </div>
-      )}
+      </LoadableSurface>
 
       <Sheet
         open={isSheetOpen}
@@ -590,8 +608,38 @@ export default function Instances() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </PageTransition>
   );
+}
+
+function renderInstanceSkeletonCell(columnId: string) {
+  if (columnId === 'select') return <Skeleton className="size-4 rounded-sm" />;
+  if (columnId === 'name') return <Skeleton className="h-4 w-32" />;
+  if (columnId === 'project') return <Skeleton className="h-4 w-20" />;
+  if (columnId === 'description') {
+    return <Skeleton className="h-4 w-48 max-w-full" />;
+  }
+  if (columnId === 'status') {
+    return <Skeleton className="h-6 w-20 rounded-full" />;
+  }
+  if (columnId === 'type') return <Skeleton className="h-4 w-24" />;
+  if (columnId === 'usage') {
+    return (
+      <div className="space-y-2">
+        <div className="flex justify-between gap-3">
+          <Skeleton className="h-3 w-16" />
+          <Skeleton className="h-3 w-24" />
+        </div>
+        <Skeleton className="h-1.5 w-full" />
+        <div className="flex justify-between gap-3">
+          <Skeleton className="h-3 w-12" />
+          <Skeleton className="h-3 w-20" />
+        </div>
+        <Skeleton className="h-1.5 w-full" />
+      </div>
+    );
+  }
+  return <Skeleton className="h-4 w-28" />;
 }
 
 function InstanceDetails({

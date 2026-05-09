@@ -2,7 +2,8 @@
 
 import React from 'react';
 import { useInstanceContext } from './_context/instance';
-import { Spinner } from 'ui-web/components/spinner';
+import { useInstance } from './_hooks/instance';
+import { Skeleton } from 'ui-web/components/skeleton';
 import {
   Card,
   CardContent,
@@ -12,6 +13,7 @@ import {
 } from 'ui-web/components/card';
 import { Progress } from 'ui-web/components/progress';
 import { Badge } from 'ui-web/components/badge';
+import { cn } from 'ui-web/lib/utils';
 import {
   formatBytes,
   formatDate,
@@ -24,7 +26,11 @@ import {
 } from './_lib/utils';
 
 export default function InstancePage() {
-  const { instance, isLoading } = useInstanceContext();
+  const { name, project } = useInstanceContext();
+  const { instance, isError } = useInstance(name, project, {
+    metadata: true,
+    state: true,
+  });
   const [cpuPercent, setCpuPercent] = React.useState<number>(0);
   const lastCpuUsage = React.useRef<number | null>(null);
   const lastTime = React.useRef<number | null>(null);
@@ -65,28 +71,30 @@ export default function InstancePage() {
     }
   }, [currentCpuUsage, instance]);
 
-  if (isLoading) {
-    return <Spinner />;
-  }
-
-  if (!instance) {
+  if (!name || isError) {
     return null; // Layout handles error display
   }
 
-  const memoryUsage = instance.state?.memory?.usage ?? 0;
+  const isValuePending = !instance;
+  const memoryUsage = instance?.state?.memory?.usage ?? 0;
   const memoryTotal =
-    instance.state?.memory?.total ?? instance.state?.memory?.usage_peak;
-  const memoryPercent = calcResourcePercent(memoryUsage, memoryTotal);
+    instance?.state?.memory?.total ?? instance?.state?.memory?.usage_peak;
+  const memoryPercent = instance
+    ? calcResourcePercent(memoryUsage, memoryTotal)
+    : 0;
 
-  const diskUsage = getRootDiskUsage(instance.state) ?? 0;
-  const diskTotal = instance.state?.disk?.root?.total;
-  const diskPercent = calcResourcePercent(diskUsage, diskTotal);
+  const diskUsage = instance ? getRootDiskUsage(instance.state) ?? 0 : 0;
+  const diskTotal = instance?.state?.disk?.root?.total;
+  const diskPercent = instance ? calcResourcePercent(diskUsage, diskTotal) : 0;
 
-  const networkDetails = getNetworkDetails(instance);
-  const baseImage = getBaseImage(instance);
-  const rootDiskPool = getRootDiskPool(instance);
-  const instanceType =
-    instance.type === 'virtual-machine'
+  const networkDetails = instance
+    ? getNetworkDetails(instance)
+    : { ipv4: [], ipv6: [], macs: [] };
+  const baseImage = instance ? getBaseImage(instance) : undefined;
+  const rootDiskPool = instance ? getRootDiskPool(instance) : undefined;
+  const instanceType = !instance
+    ? undefined
+    : instance.type === 'virtual-machine'
       ? 'Virtual Machine'
       : instance.type === 'container'
         ? 'Container'
@@ -103,30 +111,44 @@ export default function InstancePage() {
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Memory</span>
-              <span>
+              <PendingValue pending={isValuePending} className="w-28">
                 {formatBytes(memoryUsage)}
                 {memoryTotal ? ` / ${formatBytes(memoryTotal)}` : ''}
-              </span>
+              </PendingValue>
             </div>
-            <Progress value={memoryPercent} className="h-2" />
+            {isValuePending ? (
+              <Skeleton className="h-2 w-full" />
+            ) : (
+              <Progress value={memoryPercent} className="h-2" />
+            )}
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Root Disk</span>
-              <span>
+              <PendingValue pending={isValuePending} className="w-28">
                 {formatBytes(diskUsage)}
                 {diskTotal ? ` / ${formatBytes(diskTotal)}` : ''}
-              </span>
+              </PendingValue>
             </div>
-            <Progress value={diskPercent} className="h-2" />
+            {isValuePending ? (
+              <Skeleton className="h-2 w-full" />
+            ) : (
+              <Progress value={diskPercent} className="h-2" />
+            )}
           </div>
-          {instance.state?.cpu?.usage !== undefined && (
+          {(isValuePending || instance?.state?.cpu?.usage !== undefined) && (
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">CPU Usage</span>
-                <span>{cpuPercent.toFixed(2)}%</span>
+                <PendingValue pending={isValuePending} className="w-14">
+                  {cpuPercent.toFixed(2)}%
+                </PendingValue>
               </div>
-              <Progress value={cpuPercent} className="h-2" />
+              {isValuePending ? (
+                <Skeleton className="h-2 w-full" />
+              ) : (
+                <Progress value={cpuPercent} className="h-2" />
+              )}
             </div>
           )}
         </CardContent>
@@ -143,7 +165,12 @@ export default function InstancePage() {
               IPv4
             </span>
             <div className="flex flex-wrap gap-2">
-              {networkDetails.ipv4.length > 0 ? (
+              {isValuePending ? (
+                <>
+                  <Skeleton className="h-6 w-28 rounded-full" />
+                  <Skeleton className="h-6 w-24 rounded-full" />
+                </>
+              ) : networkDetails.ipv4.length > 0 ? (
                 networkDetails.ipv4.map((ip) => (
                   <Badge key={ip} variant="secondary" className="font-mono">
                     {ip}
@@ -159,7 +186,12 @@ export default function InstancePage() {
               IPv6
             </span>
             <div className="flex flex-wrap gap-2">
-              {networkDetails.ipv6.length > 0 ? (
+              {isValuePending ? (
+                <>
+                  <Skeleton className="h-6 w-36 rounded-full" />
+                  <Skeleton className="h-6 w-28 rounded-full" />
+                </>
+              ) : networkDetails.ipv6.length > 0 ? (
                 networkDetails.ipv6.map((ip) => (
                   <Badge key={ip} variant="secondary" className="font-mono">
                     {ip}
@@ -175,7 +207,9 @@ export default function InstancePage() {
               MAC
             </span>
             <div className="flex flex-wrap gap-2">
-              {networkDetails.macs.length > 0 ? (
+              {isValuePending ? (
+                <Skeleton className="h-6 w-32 rounded-full" />
+              ) : networkDetails.macs.length > 0 ? (
                 networkDetails.macs.map((mac) => (
                   <Badge key={mac} variant="outline" className="font-mono">
                     {mac}
@@ -197,41 +231,62 @@ export default function InstancePage() {
         <CardContent className="space-y-2 text-sm">
           <div className="flex justify-between">
             <span className="text-muted-foreground">Project</span>
-            <span>{instance.project ?? 'default'}</span>
+            <PendingValue pending={isValuePending} className="w-16">
+              {instance?.project ?? 'default'}
+            </PendingValue>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Type</span>
-            <span>{instanceType}</span>
+            <PendingValue pending={isValuePending} className="w-24">
+              {instanceType ?? '—'}
+            </PendingValue>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Base Image</span>
-            <span className="truncate max-w-[150px]" title={baseImage ?? ''}>
+            <PendingValue
+              pending={isValuePending}
+              className="w-32"
+              valueClassName="truncate max-w-[150px]"
+              title={baseImage ?? ''}
+            >
               {baseImage ?? '—'}
-            </span>
+            </PendingValue>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Architecture</span>
-            <span>{instance.architecture ?? '—'}</span>
+            <PendingValue pending={isValuePending} className="w-20">
+              {instance?.architecture ?? '—'}
+            </PendingValue>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Location</span>
-            <span>{instance.location ?? '—'}</span>
+            <PendingValue pending={isValuePending} className="w-20">
+              {instance?.location ?? '—'}
+            </PendingValue>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Storage Pool</span>
-            <span>{rootDiskPool ?? '—'}</span>
+            <PendingValue pending={isValuePending} className="w-20">
+              {rootDiskPool ?? '—'}
+            </PendingValue>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">PID</span>
-            <span>{instance.state?.pid ?? '—'}</span>
+            <PendingValue pending={isValuePending} className="w-12">
+              {instance?.state?.pid ?? '—'}
+            </PendingValue>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Created</span>
-            <span>{formatDate(instance.created_at)}</span>
+            <PendingValue pending={isValuePending} className="w-28">
+              {formatDate(instance?.created_at)}
+            </PendingValue>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Last Used</span>
-            <span>{formatDate(instance.last_used_at)}</span>
+            <PendingValue pending={isValuePending} className="w-28">
+              {formatDate(instance?.last_used_at)}
+            </PendingValue>
           </div>
         </CardContent>
       </Card>
@@ -243,7 +298,12 @@ export default function InstancePage() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">
-            {(instance.profiles && instance.profiles.length > 0
+            {isValuePending ? (
+              <>
+                <Skeleton className="h-6 w-20 rounded-full" />
+                <Skeleton className="h-6 w-24 rounded-full" />
+              </>
+            ) : (instance?.profiles && instance.profiles.length > 0
               ? instance.profiles
               : ['default']
             ).map((profile: string) => (
@@ -255,5 +315,29 @@ export default function InstancePage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function PendingValue({
+  pending,
+  className,
+  valueClassName,
+  title,
+  children,
+}: {
+  pending: boolean;
+  className?: string;
+  valueClassName?: string;
+  title?: string;
+  children: React.ReactNode;
+}) {
+  if (pending) {
+    return <Skeleton className={cn('h-4', className)} />;
+  }
+
+  return (
+    <span className={valueClassName} title={title}>
+      {children}
+    </span>
   );
 }
