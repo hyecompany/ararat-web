@@ -33,8 +33,8 @@ import {
   BoxesIcon,
   ChevronDownIcon,
   ChevronsLeftRightEllipsisIcon,
-  CircleDotDashedIcon,
   HardDriveIcon,
+  ListChecksIcon,
   PackageIcon,
   SquaresIntersectIcon,
 } from 'lucide-react';
@@ -100,6 +100,11 @@ const data = {
       url: '/instances',
       icon: BoxesIcon,
     },
+    {
+      title: 'Storage Pools',
+      url: '/storage-pools',
+      icon: HardDriveIcon,
+    },
     /*{
       title: 'Networking',
       url: '#',
@@ -125,7 +130,7 @@ const data = {
       subItems: [
         {
           title: 'Pools',
-          url: '/storage/pools',
+          url: '/storage-pools',
         },
         {
           title: 'Volumes',
@@ -155,7 +160,7 @@ const data = {
     {
       title: 'Operations',
       url: '/operations',
-      icon: CircleDotDashedIcon,
+      icon: ListChecksIcon,
     },
   ],
   navSecondary: [
@@ -173,6 +178,7 @@ const data = {
 };
 
 export default function Sidebar({
+  style,
   ...props
 }: React.ComponentProps<typeof RawSidebar>) {
   const pathname = usePathname();
@@ -185,7 +191,16 @@ export default function Sidebar({
   }, [pathname, isMobile, setOpenMobile]);
 
   return (
-    <RawSidebar collapsible="icon" {...props}>
+    <RawSidebar
+      collapsible="icon"
+      style={
+        {
+          viewTransitionName: 'ararat-sidebar',
+          ...style,
+        } as React.CSSProperties
+      }
+      {...props}
+    >
       <SidebarHeader>
         <div className="flex w-full mt-4 group-data-[collapsible=icon]:mt-0">
           <img
@@ -258,7 +273,11 @@ function NavMain({
                       <DropdownMenuSeparator />
                       {item.subItems.map((subItem) => (
                         <DropdownMenuItem key={subItem.title} asChild>
-                          <Link href={subItem.url} aria-label={subItem.title}>
+                          <Link
+                            href={subItem.url}
+                            aria-label={subItem.title}
+                            transitionTypes={['nav-lateral']}
+                          >
                             <span>{subItem.title}</span>
                           </Link>
                         </DropdownMenuItem>
@@ -284,6 +303,7 @@ function NavMain({
                               <Link
                                 href={subItem.url}
                                 aria-label={subItem.title}
+                                transitionTypes={['nav-lateral']}
                               >
                                 <span>{subItem.title}</span>
                               </Link>
@@ -295,7 +315,7 @@ function NavMain({
                   </Collapsible>
                 )
               ) : (
-                <Link href={item.url}>
+                <Link href={item.url} transitionTypes={['nav-lateral']}>
                   <SidebarMenuButton
                     isActive={pathname.startsWith(item.url)}
                     tooltip={item.title}
@@ -347,12 +367,12 @@ function NavUser() {
   const { isMobile } = useSidebar();
   const {
     data: authData,
-    isValidating: authIsValidating,
+    isRefreshing: authIsRefreshing,
     isLoading: authIsLoading,
   } = React.use(AuthenticationContext);
   const {
     data: userData,
-    isValidating: userIsValidating,
+    isRefreshing: userIsRefreshing,
     isLoading: userIsLoading,
   } = React.use(UserContext);
   const { setTheme } = useTheme();
@@ -382,7 +402,7 @@ function NavUser() {
     window.location.href = "/ui/authentication/login";
   }, [authData]);
   return (
-    <SidebarMenu className={authIsValidating ? 'animate-pulse' : ''}>
+    <SidebarMenu className={authIsRefreshing ? 'freshness-shimmer' : ''}>
       <SidebarMenuItem>
         <DropdownMenu>
           <DropdownMenuTrigger
@@ -420,7 +440,7 @@ function NavUser() {
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span
-                  className={`truncate font-medium ${userIsValidating ? 'animate-pulse' : ''}`}
+                  className={`truncate font-medium ${userIsRefreshing ? 'freshness-shimmer' : ''}`}
                 >
                   {!userIsLoading && userData?.name ? userData.name : ""}
                 </span>
@@ -463,13 +483,13 @@ function NavUser() {
                   )}
                 </Avatar>
                 <div
-                  className={`grid flex-1 text-left text-sm leading-tight ${authIsValidating ? 'animate-pulse' : ''
+                  className={`grid flex-1 text-left text-sm leading-tight ${authIsRefreshing ? 'freshness-shimmer' : ''
                     }`}
                 >
                   {authData?.method === "tls" ? (
                     <>
                       <span
-                        className={`truncate font-medium ${userIsValidating ? 'animate-pulse' : ''
+                        className={`truncate font-medium ${userIsRefreshing ? 'freshness-shimmer' : ''
                           }`}
                       >
                         {userData?.name}
