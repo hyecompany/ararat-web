@@ -2,12 +2,12 @@ import type { Metadata } from 'next';
 import { Geist, Geist_Mono, Poppins } from 'next/font/google';
 import './globals.css';
 import ThemeProvider from '@/app/_context/theme';
-import SwrProvider from '@/app/_context/swr';
 import { AuthenticationProvider } from '@/app/_context/authentication';
 import Router from './router';
 import { EventEmitterProvider } from '@/app/_context/events';
 import { Toaster } from 'ui-web/components/sonner';
 import { IsClientProvider } from './_context/isClient';
+import { IncusProvider } from '@/app/_incus/provider';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -41,18 +41,18 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${poppins.variable} h-svh overflow-hidden antialiased`}
       >
         <IsClientProvider>
-          <SwrProvider>
-            <ThemeProvider>
-              <AuthenticationProvider>
-                <EventEmitterProvider>
+          <ThemeProvider>
+            <EventEmitterProvider>
+              <IncusProvider>
+                <AuthenticationProvider>
                   <Router>
                     {children}
                     <Toaster />
                   </Router>
-                </EventEmitterProvider>
-              </AuthenticationProvider>
-            </ThemeProvider>
-          </SwrProvider>
+                </AuthenticationProvider>
+              </IncusProvider>
+            </EventEmitterProvider>
+          </ThemeProvider>
         </IsClientProvider>
       </body>
     </html>

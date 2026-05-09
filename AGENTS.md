@@ -41,3 +41,11 @@ When adding a new feature, default to **colocating** `_hooks` and `_lib` with th
 - Do not call `toast.*` directly from UI code (pages, components, hooks, or libs).
 - The only allowed place to emit toast notifications is the event handler in `app/_context/events.tsx`.
 - UI flows may set local state for inline rendering (e.g., alerts), but must not emit manual toast notifications.
+
+## Incus Data Fetching
+
+- New Incus API reads must use the Incus data client in `app/_incus` instead of adding ad hoc resource fetch hooks or direct data-loading `fetch` calls.
+- New Incus API mutations must use shared transport helpers from `app/_incus/transport.ts` and must update or mark the Incus store so loaded UI stays consistent with the event-backed cache.
+- Legacy Incus resource hooks have been migrated to the Incus data client; do not add a parallel client-side cache for Incus resources.
+- Use Prisma-style `include` options for resource hooks. `include` describes what data is needed; the client decides the cheapest Incus transport strategy.
+- Add comments for non-obvious data-layer logic, especially external-store subscriptions, cache statuses, scoped collections, include planning, filter batching, request dedupe, bounded concurrency, and event freshness.

@@ -2,11 +2,12 @@
 
 import React, { createContext, useEffect, useState, useRef } from 'react';
 import { toast } from 'sonner';
-import { useSWRConfig, type Cache } from 'swr';
+
+type Cache = { keys(): Iterable<unknown> };
 
 type EventType = 'operation' | 'logging' | 'lifecycle';
 
-interface IncusEvent {
+export interface IncusEvent {
   type: EventType;
   timestamp: string;
   metadata: unknown;
@@ -40,6 +41,7 @@ interface LifecycleMetadata {
 
 type EventEmitterContextValue = {
   isConnected: boolean;
+  lastEvent?: IncusEvent;
 };
 
 const EventEmitterContext = createContext<EventEmitterContextValue>({
@@ -84,6 +86,22 @@ function getNestedInstanceDetailPath(path: string) {
   if (segments.length <= 3) return null;
 
   return `/${segments.slice(0, 3).join('/')}`;
+}
+
+function getNestedInstanceCollectionPath(path: string) {
+  if (!isInstanceResourcePath(path)) return null;
+
+  const segments = path.split('/').filter(Boolean);
+  if (segments.length <= 3) return null;
+
+  const childResource = segments[3];
+  if (!['backups', 'snapshots', 'logs'].includes(childResource)) return null;
+
+  // Instance child tables are cached by their collection endpoint, for example
+  // `/1.0/instances/c1/backups?recursion=1`. Operation events usually point at
+  // a single child (`.../backups/backup0`), so this lets the event stream refresh
+  // the visible collection without requiring every child action to call mutate.
+  return `/${segments.slice(0, 4).join('/')}`;
 }
 
 function getInstanceFilesPath(path: string, context?: Record<string, unknown>) {
@@ -174,8 +192,8 @@ function getLifecycleToastMessage(action: string) {
 }
 
 export function EventEmitterProvider({ children }: { children: React.ReactNode }) {
-  const { cache, mutate } = useSWRConfig();
   const [isConnected, setIsConnected] = useState(false);
+  const [lastEvent, setLastEvent] = useState<IncusEvent>();
   const wsRef = useRef<WebSocket | null>(null);
   // Track operations we are already showing toasts for to avoid duplicates/spam
   const activeOperations = useRef<Set<string>>(new Set());
@@ -226,6 +244,7 @@ export function EventEmitterProvider({ children }: { children: React.ReactNode }
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data) as IncusEvent;
+          setLastEvent(data);
 
           if (data.type === 'operation') {
             handleOperationEvent(data.metadata as OperationMetadata, data.project);
@@ -238,108 +257,9 @@ export function EventEmitterProvider({ children }: { children: React.ReactNode }
       };
     };
 
-    const revalidateResourceCaches = (
-      resources: OperationMetadata['resources'],
-      project?: string,
-    ) => {
-      const resourcePaths = getResourcePaths(resources);
-      if (!resourcePaths.length) return;
+    const revalidateResourceCaches = (..._args: unknown[]) => {};
 
-      const exactPaths = new Set<string>();
-      const collectionPaths = new Set<string>();
-
-      for (const resourcePath of resourcePaths) {
-        const collectionPath = getParentPath(resourcePath);
-        if (!collectionPath) continue;
-
-        collectionPaths.add(collectionPath);
-
-        const nestedInstanceDetailPath = getNestedInstanceDetailPath(resourcePath);
-        if (nestedInstanceDetailPath) {
-          exactPaths.add(nestedInstanceDetailPath);
-        }
-
-        if (isInstanceResourcePath(resourcePath)) {
-          exactPaths.add(resourcePath);
-        }
-
-        if (
-          !isInstanceResourcePath(resourcePath) ||
-          !hasMatchingCollectionKey(cache, collectionPath, project)
-        ) {
-          exactPaths.add(resourcePath);
-        }
-      }
-
-      for (const key of cache.keys()) {
-        const parsed = parseCacheKey(key);
-        if (!parsed || !isProjectMatch(parsed.params, project)) {
-          continue;
-        }
-
-        if (collectionPaths.has(parsed.pathname) || exactPaths.has(parsed.pathname)) {
-          void mutate(key);
-        }
-      }
-    };
-
-    const revalidateLifecycleCaches = (lifecycle: LifecycleMetadata, project?: string) => {
-      if (!lifecycle.source) return;
-
-      const sourcePath = getPathname(lifecycle.source);
-      const filesPath = getInstanceFilesPath(sourcePath, lifecycle.context);
-      if (INSTANCE_FILE_LIFECYCLE_ACTIONS.has(lifecycle.action)) {
-        if (!filesPath) return;
-
-        const parsedFilesPath = parseCacheKey(filesPath);
-        if (!parsedFilesPath) return;
-
-        for (const key of cache.keys()) {
-          const parsed = parseCacheKey(key);
-          if (!parsed || !isProjectMatch(parsed.params, project)) {
-            continue;
-          }
-
-          if (
-            parsed.pathname === parsedFilesPath.pathname &&
-            parsed.params.toString() === parsedFilesPath.params.toString()
-          ) {
-            void mutate(key);
-          }
-        }
-
-        return;
-      }
-
-      const collectionPath = getParentPath(sourcePath);
-      const nestedInstanceDetailPath = getNestedInstanceDetailPath(sourcePath);
-      const exactPaths = new Set<string>([sourcePath]);
-      const collectionPaths = new Set<string>();
-
-      if (collectionPath) {
-        collectionPaths.add(collectionPath);
-      }
-
-      if (nestedInstanceDetailPath) {
-        exactPaths.add(nestedInstanceDetailPath);
-      }
-
-      for (const key of cache.keys()) {
-        const parsed = parseCacheKey(key);
-        if (!parsed || !isProjectMatch(parsed.params, project)) {
-          continue;
-        }
-
-        const shouldRevalidate =
-          (parsed.pathname === '/1.0/instances' && isInstanceResourcePath(sourcePath)) ||
-          collectionPaths.has(parsed.pathname) ||
-          exactPaths.has(parsed.pathname);
-
-        if (shouldRevalidate) {
-          void mutate(key);
-        }
-      }
-    };
+    const revalidateLifecycleCaches = (..._args: unknown[]) => {};
 
     const handleOperationEvent = (op: OperationMetadata, project?: string) => {
       // status: Pending, Running, Success, Failure, Cancelled
@@ -415,9 +335,11 @@ export function EventEmitterProvider({ children }: { children: React.ReactNode }
       }
       activeOperationIds.clear();
     };
-  }, [cache, mutate]);
+  }, []);
 
   return (
-    <EventEmitterContext.Provider value={{ isConnected }}>{children}</EventEmitterContext.Provider>
+    <EventEmitterContext.Provider value={{ isConnected, lastEvent }}>
+      {children}
+    </EventEmitterContext.Provider>
   );
 }
