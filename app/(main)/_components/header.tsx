@@ -3,7 +3,7 @@
 import { Separator } from 'ui-web/components/separator';
 import { SidebarTrigger } from 'ui-web/components/sidebar';
 import { CheckIcon, ChevronDownIcon, GlobeIcon, PencilIcon, PlusIcon } from 'lucide-react';
-import { use, useMemo, useState } from 'react';
+import { use, useMemo, useState, type CSSProperties } from 'react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,7 +34,10 @@ export function SiteHeader({ children }: { children?: React.ReactNode }) {
     currentProject === 'all' ? <GlobeIcon className="size-4 shrink-0" /> : null;
 
   return (
-    <header className="flex h-(--header-height) shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
+    <header
+      className="flex h-(--header-height) shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)"
+      style={{ viewTransitionName: 'ararat-site-header' } as CSSProperties}
+    >
       <div className="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-4" />

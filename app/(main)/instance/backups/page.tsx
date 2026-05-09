@@ -2,32 +2,25 @@
 
 import React from 'react';
 import { useInstanceContext } from '../_context/instance';
+import { useInstance } from '../_hooks/instance';
 import { useBackups } from '../_hooks/backups';
 import { useStoragePools } from '../../_hooks/storagePools';
 import { getRootDiskPool } from '../_lib/utils';
-import { Spinner } from 'ui-web/components/spinner';
 import { BackupList } from './_components/backup-list';
 
 export default function BackupsPage() {
-  const {
-    instance,
-    project,
-    isLoading: isInstanceLoading,
-  } = useInstanceContext();
-  const { data: storagePools, isLoading: isStorageLoading } = useStoragePools();
+  const { name, project } = useInstanceContext();
+  const { instance } = useInstance(name, project, { metadata: true });
+  const { data: storagePools } = useStoragePools();
 
-  const isLoading = isInstanceLoading || isStorageLoading;
-
-  if (isLoading) {
-    return <Spinner />;
-  }
-
-  if (!instance) {
+  const instanceName = name;
+  if (!instanceName) {
     return null;
   }
 
   return (
     <Backups
+      instanceName={instanceName}
       instance={instance}
       project={project}
       storagePools={storagePools || []}
@@ -36,16 +29,21 @@ export default function BackupsPage() {
 }
 
 function Backups({
+  instanceName,
   instance,
   project,
   storagePools,
 }: {
-  instance: any;
+  instanceName: string;
+  instance: any | undefined;
   project: string | null;
   storagePools: any[];
 }) {
-  const rootDiskPoolName = getRootDiskPool(instance);
-  const rootDiskPool = storagePools.find((p) => p.name === rootDiskPoolName);
+  const instanceProject = instance?.project ?? project ?? null;
+  const rootDiskPoolName = instance ? getRootDiskPool(instance) : null;
+  const rootDiskPool = rootDiskPoolName
+    ? storagePools.find((p) => p.name === rootDiskPoolName)
+    : null;
   const canUseOptimizedStorage =
     rootDiskPool?.driver === 'zfs' || rootDiskPool?.driver === 'btrfs';
 
@@ -57,7 +55,7 @@ function Backups({
     deleteBackup,
     renameBackup,
     downloadBackup,
-  } = useBackups(instance.name, instance.project ?? project ?? null);
+  } = useBackups(instanceName, instanceProject);
 
   return (
     <BackupList

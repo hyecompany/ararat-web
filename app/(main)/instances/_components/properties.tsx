@@ -4,6 +4,7 @@ import * as React from 'react';
 import { UseFormReturn } from 'react-hook-form';
 
 import { Field, FieldLabel } from 'ui-web/components/field';
+import { FreshnessSurface } from 'ui-web/components/freshness';
 import { Input } from 'ui-web/components/input';
 import { useProfiles } from '@/app/(main)/_hooks/profiles';
 
@@ -49,7 +50,8 @@ export default function InstanceProperties({
   const {
     data: profiles,
     isLoading: isLoadingProfiles,
-    isValidating: isValidatingProfiles,
+    isStale: isProfilesStale,
+    isRefreshing: isProfilesRefreshing,
   } = useProfiles();
   return (
     <div className="flex flex-col gap-2">
@@ -86,30 +88,32 @@ export default function InstanceProperties({
       />
       <Field>
         <FieldLabel htmlFor="profile">Profiles</FieldLabel>
-        <Combobox
-          multiple
-          values={profilesSelected}
-          onValuesChange={setProfilesSelected}
-          defaultValue="default"
-          validating={isValidatingProfiles}
-        >
-          <ComboboxTrigger placeholder="Profiles" id="profile" />
-          <ComboboxContent
-            searchPlaceholder="Search profiles..."
-            loading={isLoadingProfiles}
-            emptyLabel="No profiles found."
+        <FreshnessSurface active={isProfilesStale || isProfilesRefreshing}>
+          <Combobox
+            multiple
+            values={profilesSelected}
+            onValuesChange={setProfilesSelected}
+            defaultValue="default"
+            validating={isProfilesRefreshing}
           >
-            {profiles?.map((p) => (
-              <ComboboxItem
-                key={p.name}
-                value={p.name}
-                description={p.description}
-              >
-                {p.name}
-              </ComboboxItem>
-            ))}
-          </ComboboxContent>
-        </Combobox>
+            <ComboboxTrigger placeholder="Profiles" id="profile" />
+            <ComboboxContent
+              searchPlaceholder="Search profiles..."
+              loading={isLoadingProfiles}
+              emptyLabel="No profiles found."
+            >
+              {profiles?.map((p) => (
+                <ComboboxItem
+                  key={p.name}
+                  value={p.name}
+                  description={p.description}
+                >
+                  {p.name}
+                </ComboboxItem>
+              ))}
+            </ComboboxContent>
+          </Combobox>
+        </FreshnessSurface>
       </Field>
       <Field>
         <FieldLabel htmlFor="type">Type</FieldLabel>

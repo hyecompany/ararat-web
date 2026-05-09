@@ -7,67 +7,32 @@ import React, {
   useMemo,
 } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useInstance } from '../_hooks/instance';
-import { Instance } from '../../instances/_lib/instances.d';
-import InstanceClass from '../../_lib/instance';
 
 interface InstanceContextValue {
   name: string | null;
   project: string | null;
-  instance: Instance | undefined;
-  isLoading: boolean;
-  isError: Error | null;
-  isValidating: boolean;
-  mutate: () => Promise<void>;
-  instanceClass: InstanceClass | null;
 }
 
-const InstanceContext = createContext<InstanceContextValue>({
-  name: null,
-  project: null,
-  instance: undefined,
-  isLoading: true,
-  isError: null,
-  isValidating: true,
-  mutate: async () => {},
-  instanceClass: null,
-});
+const InstanceContext = createContext<InstanceContextValue | undefined>(
+  undefined,
+);
 
-function useInstanceContextValue(
+function createInstanceRouteValue(
   name: string | null,
   project: string | null,
 ): InstanceContextValue {
-  const { instance, isLoading, isError, mutate, isValidating } =
-    useInstance(name, project);
-  const instanceName = instance?.name ?? name;
-  const instanceProject = instance?.project ?? project ?? null;
-  const instanceClass = useMemo(
-    () => (instanceName ? new InstanceClass(instanceName, instanceProject) : null),
-    [instanceName, instanceProject],
-  );
-
-  return useMemo(
-    () => ({
-      name,
-      project,
-      instance,
-      isLoading,
-      isError: isError instanceof Error ? isError : null,
-      isValidating,
-      mutate: async () => {
-        await mutate();
-      },
-      instanceClass,
-    }),
-    [instance, instanceClass, isError, isLoading, isValidating, mutate, name, project],
-  );
+  return { name, project };
 }
 
 function InstanceProviderInner({ children }: { children: ReactNode }) {
   const searchParams = useSearchParams();
-  const value = useInstanceContextValue(
-    searchParams.get('name'),
-    searchParams.get('project'),
+  const value = useMemo(
+    () =>
+      createInstanceRouteValue(
+        searchParams.get('name'),
+        searchParams.get('project'),
+      ),
+    [searchParams],
   );
 
   return (
@@ -86,7 +51,10 @@ export function InstanceProviderForName({
   name: string | null;
   project?: string | null;
 }) {
-  const value = useInstanceContextValue(name, project);
+  const value = useMemo(
+    () => createInstanceRouteValue(name, project),
+    [name, project],
+  );
 
   return (
     <InstanceContext.Provider value={value}>
@@ -97,9 +65,28 @@ export function InstanceProviderForName({
 
 export function InstanceProvider({ children }: { children: ReactNode }) {
   return (
-    <React.Suspense fallback={null}>
+    <React.Suspense fallback={<InstanceProviderFallback>{children}</InstanceProviderFallback>}>
       <InstanceProviderInner>{children}</InstanceProviderInner>
     </React.Suspense>
+  );
+}
+
+function InstanceProviderFallback({ children }: { children: ReactNode }) {
+  const params =
+    typeof window === 'undefined'
+      ? new URLSearchParams()
+      : new URLSearchParams(window.location.search);
+  const name = params.get('name');
+  const project = params.get('project');
+  const value = useMemo(
+    () => createInstanceRouteValue(name, project),
+    [name, project],
+  );
+
+  return (
+    <InstanceContext.Provider value={value}>
+      {children}
+    </InstanceContext.Provider>
   );
 }
 

@@ -4,6 +4,7 @@ import * as React from 'react';
 import stableStringify from 'fast-json-stable-stringify';
 
 import { Combobox, ComboboxContent, ComboboxItem, ComboboxTrigger } from '@/components/ui/combobox';
+import { FreshnessSurface } from '@/components/ui/freshness';
 import { useProfiles } from '@/app/(main)/_hooks/profiles';
 import type { Instance } from '@/app/(main)/instances/_lib/instances.d';
 import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
@@ -23,7 +24,12 @@ export default function Profiles({
     () => instance.profiles ?? ['default'],
     [instance.profiles],
   );
-  const { data: profiles, isLoading, isValidating } = useProfiles();
+  const {
+    data: profiles,
+    isLoading,
+    isStale: isProfilesStale,
+    isRefreshing: isProfilesRefreshing,
+  } = useProfiles();
   const [draftProfiles, setDraftProfiles] = React.useState<string[]>(currentProfiles);
   const [isSaving, setIsSaving] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | null>(null);
@@ -111,30 +117,32 @@ export default function Profiles({
       <div className="space-y-2">
         <div className="space-y-2">
           <p className="text-sm font-medium">Profiles</p>
-          <Combobox
-            multiple
-            values={draftProfiles}
-            onValuesChange={setDraftProfiles}
-            validating={isValidating}
-            disabled={isSaving}
-          >
-            <ComboboxTrigger placeholder="Profiles" id="instance-profiles" />
-            <ComboboxContent
-              searchPlaceholder="Search profiles..."
-              loading={isLoading}
-              emptyLabel="No profiles found."
+          <FreshnessSurface active={isProfilesStale || isProfilesRefreshing}>
+            <Combobox
+              multiple
+              values={draftProfiles}
+              onValuesChange={setDraftProfiles}
+              validating={isProfilesRefreshing}
+              disabled={isSaving}
             >
-              {profiles?.map((profile) => (
-                <ComboboxItem
-                  key={profile.name}
-                  value={profile.name}
-                  description={profile.description}
-                >
-                  {profile.name}
-                </ComboboxItem>
-              ))}
-            </ComboboxContent>
-          </Combobox>
+              <ComboboxTrigger placeholder="Profiles" id="instance-profiles" />
+              <ComboboxContent
+                searchPlaceholder="Search profiles..."
+                loading={isLoading}
+                emptyLabel="No profiles found."
+              >
+                {profiles?.map((profile) => (
+                  <ComboboxItem
+                    key={profile.name}
+                    value={profile.name}
+                    description={profile.description}
+                  >
+                    {profile.name}
+                  </ComboboxItem>
+                ))}
+              </ComboboxContent>
+            </Combobox>
+          </FreshnessSurface>
         </div>
       </div>
 

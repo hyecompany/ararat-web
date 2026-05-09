@@ -1,18 +1,36 @@
-import useSWR from 'swr';
+import React from 'react';
+import { useIncusClient } from '@/app/_incus/provider';
+import {
+  useInstanceLogContent as useInstanceLogContentResource,
+  useInstanceLogs as useInstanceLogsResource,
+} from '@/app/_incus/resources/instances/logs/hooks';
 import { Instance } from '../../instances/_lib/instances.d';
-import { buildInstanceLogsKey, getInstanceLogContent, getInstanceLogs } from '../_lib/logs';
 
 export function useInstanceLogs(instance: Instance) {
-  return useSWR(buildInstanceLogsKey(instance), () => getInstanceLogs(instance));
+  const client = useIncusClient();
+  const resource = useInstanceLogsResource(instance.name, instance.project);
+
+  const mutate = React.useCallback(async () => {
+    client.instanceLogs.markStale({
+      instanceName: instance.name,
+      project: instance.project,
+    });
+    await client.instanceLogs.ensure({
+      instanceName: instance.name,
+      project: instance.project,
+    });
+  }, [client, instance.name, instance.project]);
+
+  return {
+    ...resource,
+    mutate,
+  };
 }
 
 export function useInstanceLogContent(instance: Instance, filename: string | null) {
-  return useSWR(
-    instance && filename ? buildInstanceLogsKey(instance, filename) : null,
-    () => (instance && filename ? getInstanceLogContent(instance, filename) : null),
-    {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-    },
+  return useInstanceLogContentResource(
+    instance.name,
+    instance.project,
+    filename,
   );
 }

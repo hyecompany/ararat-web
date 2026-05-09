@@ -1,11 +1,10 @@
 'use client';
 
 import React from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useInstanceContext } from '../_context/instance';
+import { useInstance } from '../_hooks/instance';
 import { useFiles } from './_hooks/files';
-import { getSymlinkResolvedNavTarget } from './_lib/files';
-import { Spinner } from 'ui-web/components/spinner';
 import { FileBrowser } from '../../_components/files';
 import type { Instance } from '../../instances/_lib/instances.d';
 
@@ -23,30 +22,37 @@ function getInstanceFilesHomePath(instance: Instance): string {
   return normalizeInstanceFsPath(raw) ?? '/';
 }
 
+function getNextRouterPathname(pathname: string) {
+  // The desktop proxy exposes the app at /ui, but Next's router still expects
+  // internal paths like /instance/files. Passing /ui/... to router.push causes
+  // the external URL to become /ui/ui/...
+  if (pathname === '/ui') {
+    return '/';
+  }
+
+  return pathname.startsWith('/ui/') ? pathname.slice('/ui'.length) : pathname;
+}
+
 export default function FilesPage() {
   const searchParams = useSearchParams();
   const urlName = searchParams.get('name');
-  const { instance, project, isLoading } = useInstanceContext();
+  const { name, project } = useInstanceContext();
+  const instanceName = urlName ?? name;
+  const instanceProject = searchParams.get('project') ?? project;
+  const { instance } = useInstance(instanceName, instanceProject, {
+    metadata: true,
+  });
 
-  if (isLoading) {
-    return <Spinner />;
-  }
-
-  if (!urlName || !instance) {
+  if (!urlName || !instanceName) {
     return null;
-  }
-
-  // URL query is authoritative for active instance; wait for context to align.
-  if (instance.name !== urlName) {
-    return <Spinner />;
   }
 
   return (
     <Files
       key={urlName}
       instance={instance}
-      instanceName={urlName}
-      project={project}
+      instanceName={instanceName}
+      project={instanceProject}
     />
   );
 }
@@ -56,14 +62,18 @@ function Files({
   instanceName,
   project,
 }: {
-  instance: Instance;
+  instance?: Instance;
   instanceName: string;
   project: string | null;
 }) {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [isRoutePending, startRouteTransition] = React.useTransition();
-  const homePath = React.useMemo(() => getInstanceFilesHomePath(instance), [instance]);
-  const instanceProject = instance.project ?? project ?? null;
+  const homePath = React.useMemo(
+    () => (instance ? getInstanceFilesHomePath(instance) : '/'),
+    [instance],
+  );
+  const instanceProject = instance?.project ?? project ?? null;
   const pathParam = searchParams.get('path');
   const currentPath = React.useMemo(() => {
     const raw = pathParam ?? homePath;
@@ -93,11 +103,14 @@ function Files({
       }
 
       const query = params.toString();
-      const currentPathname = window.location.pathname;
+      const currentPathname = getNextRouterPathname(window.location.pathname);
       const target = query ? `${currentPathname}?${query}` : currentPathname;
-      window.history.pushState(null, '', target);
+      router.push(target, {
+        scroll: false,
+        transitionTypes: ['nav-lateral'],
+      });
     });
-  }, [homePath, instanceName, instanceProject, startRouteTransition]);
+  }, [homePath, instanceName, instanceProject, router, startRouteTransition]);
 
   const {
     files,
@@ -119,6 +132,7 @@ function Files({
     probeInstancePathKind,
     fetchDirectoryEntries,
     requestMetadataForNames,
+    resolveSymlinkNavTarget,
   } = useFiles(instanceName, currentPath, instanceProject);
 
   return (
@@ -140,9 +154,7 @@ function Files({
       probePathKind={probeInstancePathKind}
       fetchDirectoryEntries={fetchDirectoryEntries}
       requestMetadataForNames={requestMetadataForNames}
-      resolveSymlinkNavTarget={(path) =>
-        getSymlinkResolvedNavTarget(instanceName, instanceProject, path)
-      }
+      resolveSymlinkNavTarget={resolveSymlinkNavTarget}
       onCreateEmptyFile={(name) => createEmptyFile(currentPath, name)}
       onCreateDirectory={(name) => createDirectory(currentPath, name)}
       onDelete={deleteFile}

@@ -2,10 +2,10 @@
 
 import React from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { mutate as mutateCache } from 'swr';
 import { InstanceProvider, useInstanceContext } from './_context/instance';
-import { getInstanceCacheKey } from './_hooks/instance';
+import { useInstance } from './_hooks/instance';
 import { Spinner } from 'ui-web/components/spinner';
+import { Skeleton } from 'ui-web/components/skeleton';
 import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
 import { Instance } from '../instances/_lib/instances.d';
 import { Button } from 'ui-web/components/button';
@@ -23,6 +23,7 @@ import {
   PencilIcon,
   CheckIcon,
   XIcon,
+  Settings2Icon,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from 'ui-web/components/tabs';
 import {
@@ -32,7 +33,6 @@ import {
 } from './_lib/instance';
 import { SiteHeader } from '@/app/(main)/_components/header';
 import { InstanceActionsMenu } from './_components/instance-actions-menu';
-import IsClientContext from '@/app/_context/isClient';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -43,10 +43,16 @@ import {
 } from 'ui-web/components/breadcrumb';
 import { cn } from 'ui-web/lib/utils';
 import Link from 'next/link';
+import { PageTransition } from 'ui-web/components/view-transitions';
+
+export const dynamic = 'force-dynamic';
 
 function InstanceLayoutContent({ children }: { children: React.ReactNode }) {
-  const isClient = React.use(IsClientContext);
-  const { name, project, instance, isLoading, isError, mutate } = useInstanceContext();
+  const { name, project } = useInstanceContext();
+  const { instance, isError, mutate } = useInstance(name, project, {
+    metadata: true,
+    state: true,
+  });
 
   const pathname = usePathname();
 
@@ -82,34 +88,28 @@ function InstanceLayoutContent({ children }: { children: React.ReactNode }) {
       );
     }
 
-    if (!isClient || (isLoading && !instance)) {
-      return (
-        <div className="flex h-full items-center justify-center p-8">
-          <Spinner className="size-8" />
-        </div>
-      );
-    }
-
-    if (isError || !instance) {
-      return (
-        <div className="h-full overflow-auto p-6">
-          <Alert variant="destructive">
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>
-              {isError?.message || 'Instance not found.'}
-            </AlertDescription>
-          </Alert>
-        </div>
-      );
-    }
-
     return (
       <div className="flex h-full min-h-0 flex-col gap-6 p-6">
-        <InstanceHeader instance={instance} onMutate={mutate} />
+        <InstanceHeader
+          instance={instance}
+          fallbackName={name}
+          onMutate={mutate}
+        />
 
         <div className="flex min-h-0 flex-1 flex-col gap-4">
           <InstanceTabs />
-          <div className="mt-4 min-h-0 flex-1">{children}</div>
+          <div className="mt-4 min-h-0 flex-1">
+            {isError ? (
+              <Alert variant="destructive">
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>
+                  {isError.message}
+                </AlertDescription>
+              </Alert>
+            ) : (
+              children
+            )}
+          </div>
         </div>
       </div>
     );
@@ -122,7 +122,9 @@ function InstanceLayoutContent({ children }: { children: React.ReactNode }) {
           <BreadcrumbList>
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
-                <Link href="/instances">Instances</Link>
+                <Link href="/instances" transitionTypes={['nav-back']}>
+                  Instances
+                </Link>
               </BreadcrumbLink>
             </BreadcrumbItem>
             {name && (
@@ -135,6 +137,7 @@ function InstanceLayoutContent({ children }: { children: React.ReactNode }) {
                         pathname: '/instance',
                         query: instanceQuery,
                       }}
+                      transitionTypes={['nav-lateral']}
                     >
                       {name}
                     </Link>
@@ -150,7 +153,7 @@ function InstanceLayoutContent({ children }: { children: React.ReactNode }) {
         </Breadcrumb>
       </SiteHeader>
       <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-        {renderContent()}
+        <PageTransition className="h-full">{renderContent()}</PageTransition>
       </div>
     </div>
   );
@@ -184,9 +187,11 @@ type EditableField = 'name' | 'description' | null;
 
 function InstanceHeader({
   instance,
+  fallbackName,
   onMutate,
 }: {
-  instance: Instance;
+  instance: Instance | undefined;
+  fallbackName?: string | null;
   onMutate: () => Promise<void>;
 }) {
   const router = useRouter();
@@ -210,6 +215,7 @@ function InstanceHeader({
   }, []);
 
   const handleAction = async (action: InstanceAction) => {
+    if (!instance) return;
     try {
       setActionError(null);
       setActionInFlight(action);
@@ -224,7 +230,8 @@ function InstanceHeader({
     }
   };
 
-  const currentDescription = instance.description ?? '';
+  const displayName = instance?.name ?? fallbackName ?? '';
+  const currentDescription = instance?.description ?? '';
   const isBusy = actionInFlight !== null || isSavingField;
 
   const cancelEditing = React.useCallback(() => {
@@ -244,9 +251,9 @@ function InstanceHeader({
 
       setFieldError(null);
       setActiveField(field);
-      setDraftValue(field === 'name' ? instance.name : currentDescription);
+      setDraftValue(field === 'name' ? displayName : currentDescription);
     },
-    [currentDescription, instance.name, isBusy],
+    [currentDescription, displayName, isBusy],
   );
 
   React.useEffect(() => {
@@ -283,7 +290,7 @@ function InstanceHeader({
   }, [activeField, cancelEditing]);
 
   const saveField = async () => {
-    if (!activeField || isSavingField) {
+    if (!instance || !activeField || isSavingField) {
       return;
     }
 
@@ -316,23 +323,7 @@ function InstanceHeader({
         signal: abortController.signal,
       });
 
-      const nextKey = getInstanceCacheKey(
-        updatedInstance.name,
-        updatedInstance.project ?? instance.project ?? null,
-      );
-
-      if (nextKey) {
-        await mutateCache(
-          nextKey,
-          {
-            type: 'sync',
-            status: 'Success',
-            status_code: 200,
-            metadata: updatedInstance,
-          },
-          { revalidate: false },
-        );
-      }
+      await onMutate();
 
       if (updatedInstance.name !== instance.name) {
         const nextQuery = new URLSearchParams(window.location.search);
@@ -340,6 +331,7 @@ function InstanceHeader({
         React.startTransition(() => {
           router.replace(`${pathname}?${nextQuery.toString()}`, {
             scroll: false,
+            transitionTypes: ['nav-lateral'],
           });
         });
       } else {
@@ -361,7 +353,7 @@ function InstanceHeader({
     }
   };
 
-  const status = instance.status?.toLowerCase();
+  const status = instance?.status?.toLowerCase();
   const isRunning = status === 'running';
   const isStopped = status === 'stopped';
   const isFrozen = status === 'frozen';
@@ -456,7 +448,7 @@ function InstanceHeader({
               !value && 'text-muted-foreground/80 italic',
             )}
             onClick={() => startEditing(field)}
-            disabled={isBusy}
+            disabled={isBusy || !instance}
           >
             <span className={cn(displayClassName, !value && 'font-normal')}>
               {displayValue}
@@ -477,31 +469,47 @@ function InstanceHeader({
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
-        <InstanceActionsMenu
-          instance={instance}
-          disabled={isBusy}
-          onMutate={onMutate}
-        />
+        {instance ? (
+          <InstanceActionsMenu
+            instance={instance}
+            disabled={isBusy}
+            onMutate={onMutate}
+          />
+        ) : (
+          <InstanceActionsButtonPending name={displayName} />
+        )}
 
         <div ref={fieldContainerRef} className="flex-1 space-y-1">
-          {renderEditableField({
-            field: 'name',
-            value: instance.name,
-            placeholder: 'Untitled instance',
-            displayClassName: 'truncate text-2xl font-bold',
-            inputClassName: 'h-11 text-2xl font-bold',
-          })}
-          {renderEditableField({
-            field: 'description',
-            value: currentDescription,
-            placeholder: 'Add a description',
-            displayClassName: 'truncate text-sm text-muted-foreground',
-            inputClassName: 'h-9 text-sm',
-          })}
+          {displayName ? (
+            instance ? (
+              renderEditableField({
+                field: 'name',
+                value: displayName,
+                placeholder: 'Untitled instance',
+                displayClassName: 'truncate text-2xl font-bold',
+                inputClassName: 'h-11 text-2xl font-bold',
+              })
+            ) : (
+              <p className="truncate text-2xl font-bold">{displayName}</p>
+            )
+          ) : (
+            <Skeleton className="h-8 w-40 max-w-[60vw]" />
+          )}
+          {instance ? (
+            renderEditableField({
+              field: 'description',
+              value: currentDescription,
+              placeholder: 'Add a description',
+              displayClassName: 'truncate text-sm text-muted-foreground',
+              inputClassName: 'h-9 text-sm',
+            })
+          ) : (
+            <Skeleton className="h-4 w-56 max-w-[70vw]" />
+          )}
         </div>
 
         <div className="flex gap-2">
-          {availableActions.map((action) => {
+          {instance ? availableActions.map((action) => {
             const { label, Icon } = instanceActionDetails[action];
             return (
               <Button
@@ -519,7 +527,7 @@ function InstanceHeader({
                 {label}
               </Button>
             );
-          })}
+          }) : null}
         </div>
       </div>
 
@@ -537,6 +545,25 @@ function InstanceHeader({
         </Alert>
       )}
     </div>
+  );
+}
+
+function InstanceActionsButtonPending({ name }: { name?: string | null }) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      disabled
+      className="relative h-16 w-16 shrink-0 rounded-lg border bg-muted p-0 shadow-sm"
+      aria-label={name ? `Manage instance ${name}` : 'Manage instance'}
+    >
+      <Skeleton className="size-8 rounded-md" />
+      <span className="absolute -right-1 -bottom-1 size-3.75 rounded-full border-2 border-background bg-muted-foreground/30" />
+      <span className="absolute top-1 right-1 rounded-full border bg-background/95 p-1 text-muted-foreground shadow-sm">
+        <Settings2Icon className="size-3" />
+      </span>
+    </Button>
   );
 }
 
@@ -590,6 +617,7 @@ function InstanceTabs() {
                     pathname: targetPath,
                     query,
                   }}
+                  transitionTypes={['nav-lateral']}
                 >
                   <tab.icon aria-hidden="true" className="mr-2 h-4 w-4" />
                   {tab.label}

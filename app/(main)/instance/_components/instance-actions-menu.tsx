@@ -176,7 +176,7 @@ export function InstanceActionsMenu({
   const handleDeleteDone = React.useCallback(async () => {
     handleClose();
     React.startTransition(() => {
-      router.push('/instances');
+      router.push('/instances', { transitionTypes: ['nav-back'] });
     });
   }, [handleClose, router]);
 
