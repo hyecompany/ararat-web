@@ -31,6 +31,13 @@ import {
   TableHeader,
   TableRow,
 } from './table';
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from './empty';
+import { Skeleton } from './skeleton';
 import { ArrowDown } from 'lucide-react';
 import { cn } from 'ui-web/lib/utils';
 
@@ -111,8 +118,15 @@ export default function DataTable({
   virtualizeRows,
   virtualScrollMaxHeightClassName,
   virtualRowEstimatePx,
+  virtualOverscan,
+  getVirtualRowKey,
   onVirtualVisibleRowsChange,
+  onVirtualVisibleRangeChange,
   fixedLayout = false,
+  loading = false,
+  skeletonRows = 7,
+  renderSkeletonCell,
+  emptyState,
 }: {
   data: object[];
   cols: ColumnDef<object, unknown>[];
@@ -137,8 +151,19 @@ export default function DataTable({
   virtualizeRows?: boolean;
   virtualScrollMaxHeightClassName?: string;
   virtualRowEstimatePx?: number;
+  virtualOverscan?: number;
+  getVirtualRowKey?: (row: Row<object>) => string | number;
   onVirtualVisibleRowsChange?: (rows: Row<object>[]) => void;
+  onVirtualVisibleRangeChange?: (range: {
+    start: number;
+    count: number;
+    overscan: number;
+  }) => void;
   fixedLayout?: boolean;
+  loading?: boolean;
+  skeletonRows?: number;
+  renderSkeletonCell?: (columnId: string, rowIndex: number) => React.ReactNode;
+  emptyState?: React.ReactNode;
 }) {
   let columns: ColumnDef<object, unknown>[] = cols.map((col) => {
     return {
@@ -246,15 +271,31 @@ export default function DataTable({
   const scrollParentRef = React.useRef<HTMLDivElement>(null);
   const tableRows = table.getRowModel().rows;
   const estimate = virtualRowEstimatePx ?? 44;
+  const overscan = virtualOverscan ?? 10;
 
   const useVirtual =
     Boolean(virtualizeRows && disablePagination && tableRows.length > 0);
+
+  // TanStack Virtual keeps measurements by item key. Row ids keep measured
+  // heights attached to the same logical row when sorting/filtering shifts an
+  // item to a different index, which prevents small scroll jumps.
+  const getVirtualItemKey = React.useCallback(
+    (index: number) => {
+      const row = tableRows[index];
+      if (!row) return index;
+      return getVirtualRowKey ? getVirtualRowKey(row) : row.id;
+    },
+    [getVirtualRowKey, tableRows],
+  );
 
   const rowVirtualizer = useVirtualizer({
     count: useVirtual ? tableRows.length : 0,
     getScrollElement: () => scrollParentRef.current,
     estimateSize: () => estimate,
-    overscan: 10,
+    overscan,
+    getItemKey: getVirtualItemKey,
+    // Keep this measured-row safety net. Call sites should still provide an
+    // accurate estimate, but real DOM measurement protects against CSS drift.
     measureElement: (el) => el.getBoundingClientRect().height,
   });
 
@@ -280,17 +321,24 @@ export default function DataTable({
     if (
       !virtualizeRows ||
       !disablePagination ||
-      !onVirtualVisibleRowsChange
+      (!onVirtualVisibleRowsChange && !onVirtualVisibleRangeChange)
     ) {
       return;
     }
     const run = () => {
       const items = rowVirtualizer.getVirtualItems();
       if (items.length === 0) return;
+      const start = Math.min(...items.map((item) => item.index));
+      const end = Math.max(...items.map((item) => item.index)) + 1;
+      onVirtualVisibleRangeChange?.({
+        start,
+        count: end - start,
+        overscan,
+      });
       const visibleRows = items
         .map((vi) => tableRows[vi.index])
         .filter((r): r is Row<object> => r != null);
-      onVirtualVisibleRowsChange(visibleRows);
+      onVirtualVisibleRowsChange?.(visibleRows);
     };
     run();
     const raf = requestAnimationFrame(run);
@@ -301,7 +349,9 @@ export default function DataTable({
     virtualizeRows,
     disablePagination,
     onVirtualVisibleRowsChange,
+    onVirtualVisibleRangeChange,
     rowVirtualizer,
+    overscan,
   ]);
 
   const renderOneRow = (row: Row<object>, index?: number) => {
@@ -352,6 +402,43 @@ export default function DataTable({
     return wrapTableRow ? wrapTableRow(row, rowEl) : rowEl;
   };
 
+  const visibleColumns = table.getVisibleLeafColumns();
+  const renderSkeletonRow = (rowIndex: number) => (
+    <TableRow
+      key={`skeleton-${rowIndex}`}
+      aria-hidden
+      data-skeleton-row=""
+      className="hover:bg-transparent"
+      style={virtualRowEstimatePx ? { height: virtualRowEstimatePx } : undefined}
+    >
+      {visibleColumns.map((column) => {
+        const size = column.getSize();
+        const isFixedSize = column.columnDef.size != null;
+        const shouldFixWidth = !fixedLayout || isFixedSize;
+        const cellSizePx = `${size}px`;
+        const fallback =
+          column.id === 'select' ? (
+            <Skeleton className="size-4 rounded-sm" />
+          ) : (
+            <Skeleton className="h-4 w-3/4 max-w-full" />
+          );
+
+        return (
+          <TableCell
+            key={column.id}
+            className="min-w-0"
+            style={{
+              width: shouldFixWidth ? cellSizePx : 'auto',
+              maxWidth: shouldFixWidth ? cellSizePx : 'none',
+            }}
+          >
+            {renderSkeletonCell?.(column.id, rowIndex) ?? fallback}
+          </TableCell>
+        );
+      })}
+    </TableRow>
+  );
+
   return (
     <div className={cn('w-full', containerClassName, className)}>
       <div
@@ -365,6 +452,11 @@ export default function DataTable({
               'max-h-[min(66vh,664px)]'
             : '',
         )}
+        style={
+          useVirtual
+            ? ({ overflowAnchor: 'none' } as React.CSSProperties)
+            : undefined
+        }
       >
         <Table className={cn(fixedLayout && 'table-fixed', 'w-full')}>
           <TableHeader>
@@ -397,7 +489,11 @@ export default function DataTable({
             ))}
           </TableHeader>
           <TableBody>
-            {tableRows.length ? (
+            {loading ? (
+              Array.from({ length: skeletonRows }).map((_, index) =>
+                renderSkeletonRow(index),
+              )
+            ) : tableRows.length ? (
               useVirtual ? (
                 <>
                   {paddingTop > 0 ? (
@@ -434,10 +530,19 @@ export default function DataTable({
             ) : (
               <TableRow>
                 <TableCell
-                  colSpan={columns.length}
+                  colSpan={visibleColumns.length}
                   className="h-24 text-center"
                 >
-                  No results.
+                  {emptyState ?? (
+                    <Empty className="min-h-24 border-0 p-4">
+                      <EmptyHeader>
+                        <EmptyTitle>No results</EmptyTitle>
+                        <EmptyDescription>
+                          Adjust your filters or search query.
+                        </EmptyDescription>
+                      </EmptyHeader>
+                    </Empty>
+                  )}
                 </TableCell>
               </TableRow>
             )}

@@ -1,10 +1,20 @@
 import { cn } from 'ui-web/lib/utils';
 
-function Skeleton({ className, ...props }: React.ComponentProps<'div'>) {
+function Skeleton({
+  className,
+  shimmer = true,
+  ...props
+}: React.ComponentProps<'div'> & {
+  shimmer?: boolean;
+}) {
   return (
     <div
       data-slot="skeleton"
-      className={cn('bg-accent animate-pulse rounded-md', className)}
+      className={cn(
+        'bg-accent rounded-md',
+        shimmer && 'freshness-shimmer',
+        className,
+      )}
       {...props}
     />
   );
