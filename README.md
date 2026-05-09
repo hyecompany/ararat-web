@@ -4,17 +4,17 @@
 
 Hye Ararat provides a clean, intuitive dashboard for managing your Incus deployment. Whether you are running an old iMac in your closet or building a hyperscaler, Ararat gives you the unified comprehensive control plane you need to take your infrastructure to its peak.
 
-**Current Release:** v3.0.0-beta.2
+**Current Release:** v3.0.0-beta.3
 
 ## Roadmap
 
 Hye Ararat is currently in public beta. Below is a high-level summary of our progress on supporting the foundational Incus primitives:
 
-- [x] Instances (almost complete)
+- [x] Instances
 - [x] Operations
 - [x] Projects
+- [ ] Storage (In Progress)
 - [ ] Networks
-- [ ] Storage
 - [ ] Server
 - [ ] Cluster
 - [ ] Images
