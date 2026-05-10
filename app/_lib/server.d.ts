@@ -32,6 +32,7 @@ export interface ConfigOption {
   fullKey?: string;
   scoped_defaults?: Partial<Record<'container' | 'virtual-machine', string | undefined>>;
   supported_types?: ('container' | 'virtual-machine')[];
+  supported_disk_content_types?: ('filesystem' | 'block')[];
   required_for?: ('container' | 'virtual-machine')[];
   unit_options?: string[];
   default_unit?: string;

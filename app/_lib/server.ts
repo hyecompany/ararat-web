@@ -14,13 +14,17 @@ export function processConfigurableOptions(config: ConfigurableOptions) {
   // This is a heuristic approach that may break if description formatting changes.
   // If the API ever provides explicit metadata for supported types, use that instead.
   const TYPE_PATTERNS = {
-    container: ['(only for containers)', '(container only)', 'containers only'],
+    container: [
+      /\bonly\s+for\s+containers?\s*(?::|\)|$)/i,
+      /\bcontainers?\s+only\b/i,
+      /\bcontainer\s+only\b/i,
+      /\bfor\s+containers?\s+only\b/i,
+    ],
     vm: [
-      '(only for virtual machines)',
-      '(vm only)',
-      'virtual machines only',
-      'vms only',
-      'for vms',
+      /\bonly\s+for\s+(?:virtual\s+machines?|vms?)\s*(?::|\)|$)/i,
+      /\b(?:virtual\s+machines?|vms?)\s+only\b/i,
+      /\bvm\s+only\b/i,
+      /\bfor\s+(?:virtual\s+machines?|vms?)\s+only\b/i,
     ],
   };
 
@@ -28,6 +32,20 @@ export function processConfigurableOptions(config: ConfigurableOptions) {
     universal: ['yes', 'true'],
     container: ['container'],
     vm: ['virtual machine', 'vm'],
+  };
+  const DISK_CONTENT_PATTERNS = {
+    filesystem: [
+      /\bonly\s+for\s+file\s*systems?\b/i,
+      /\bonly\s+for\s+file\s*system\s+disk\s+devices?\b/i,
+      /\bfile\s*system\s+disk\s+devices?\s+only\b/i,
+      /\bfile\s*system\s+specific\b/i,
+    ],
+    block: [
+      /\bonly\s+for\s+block\s+devices?\b/i,
+      /\bonly\s+for\s+block\s+disk\s+devices?\b/i,
+      /\bblock\s+devices?\s+only\b/i,
+      /\bblock\s+specific\b/i,
+    ],
   };
 
   const CONFIG_REFERENCE_REGEX = /\{config:option\}`([^:]+):([^`]+)`/g;
@@ -487,8 +505,12 @@ export function processConfigurableOptions(config: ConfigurableOptions) {
     option.fullKey = fullKey;
     option.key = fullKey;
     option.supported_types = ['container', 'virtual-machine'];
+    option.supported_disk_content_types = undefined;
     let typeMatchCategory: 'both' | 'container' | 'virtual-machine' = MATCHED_TYPE_BOTH;
-    if (
+    if (configSection === 'devices' && fullKey === 'boot.priority') {
+      option.supported_types = ['virtual-machine'];
+      typeMatchCategory = 'virtual-machine';
+    } else if (
       normalizedCondition &&
       normalizedCondition.includes('container') &&
       !normalizedCondition.includes('virtual machine') &&
@@ -505,12 +527,12 @@ export function processConfigurableOptions(config: ConfigurableOptions) {
       typeMatchCategory = 'virtual-machine';
     }
     // Check for container-only patterns
-    else if (TYPE_PATTERNS.container.some((pattern) => textToCheck.includes(pattern))) {
+    else if (TYPE_PATTERNS.container.some((pattern) => pattern.test(textToCheck))) {
       option.supported_types = ['container'];
       typeMatchCategory = 'container';
     }
     // Check for VM-only patterns
-    else if (TYPE_PATTERNS.vm.some((pattern) => textToCheck.includes(pattern))) {
+    else if (TYPE_PATTERNS.vm.some((pattern) => pattern.test(textToCheck))) {
       option.supported_types = ['virtual-machine'];
       typeMatchCategory = 'virtual-machine';
     }
@@ -604,6 +626,21 @@ export function processConfigurableOptions(config: ConfigurableOptions) {
     const override = FIELD_OVERRIDES[fullKey];
     if (override) {
       Object.assign(option, override);
+    }
+
+    if (configSection === 'devices' && categoryName === 'disk') {
+      const supportsFilesystem = DISK_CONTENT_PATTERNS.filesystem.some((pattern) =>
+        pattern.test(textToCheck),
+      );
+      const supportsBlock = DISK_CONTENT_PATTERNS.block.some((pattern) =>
+        pattern.test(textToCheck),
+      );
+
+      if (supportsFilesystem && !supportsBlock) {
+        option.supported_disk_content_types = ['filesystem'];
+      } else if (supportsBlock && !supportsFilesystem) {
+        option.supported_disk_content_types = ['block'];
+      }
     }
 
     annotateUnitOptions(option, fullKey, categoryName.toLowerCase(), textToCheck);
