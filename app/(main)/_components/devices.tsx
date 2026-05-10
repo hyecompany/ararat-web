@@ -884,22 +884,46 @@ function DeviceListItem({
   );
 }
 
-function DeviceListItemWithIssues({
+type DeviceListItemWithIssuesProps = Omit<DeviceListItemProps, 'hasIssues'> & {
+  deviceConfig?: { keys: Array<Record<string, ConfigOption>> };
+  instanceType: 'container' | 'virtual-machine';
+  project?: string | null;
+};
+
+function DeviceListItemWithIssues(props: DeviceListItemWithIssuesProps) {
+  const { name, device, deviceConfig, instanceType, ...listItemProps } = props;
+
+  if (device.type === 'disk') {
+    return <DiskDeviceListItemWithIssues {...props} />;
+  }
+
+  const hasIssues = deviceHasRequiredFieldIssues({
+    device,
+    deviceConfig,
+    instanceType,
+  });
+
+  return (
+    <DeviceListItem
+      {...listItemProps}
+      name={name}
+      device={device}
+      hasIssues={hasIssues}
+    />
+  );
+}
+
+function DiskDeviceListItemWithIssues({
   name,
   device,
   deviceConfig,
   instanceType,
   project,
   ...props
-}: Omit<DeviceListItemProps, 'hasIssues'> & {
-  deviceConfig?: { keys: Array<Record<string, ConfigOption>> };
-  instanceType: 'container' | 'virtual-machine';
-  project?: string | null;
-}) {
-  const { rows: storageVolumeRows } = useStoragePoolVolumes(
-    device.type === 'disk' ? device.pool : undefined,
-    { project },
-  );
+}: DeviceListItemWithIssuesProps) {
+  const { rows: storageVolumeRows } = useStoragePoolVolumes(device.pool, {
+    project,
+  });
   const storageVolumes = React.useMemo(
     () =>
       storageVolumeRows

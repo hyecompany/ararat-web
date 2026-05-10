@@ -248,19 +248,32 @@ export function useStoragePoolVolumes(
     ? resourceKeys.storagePoolVolumesCollection(poolName, collectionKey)
     : null;
   const storeSnapshot = client.store.getSnapshot();
-  const volumeMetadataKeys = React.useMemo(() => {
-    if (!poolName) return [];
-    const pool = storeSnapshot.state.storagePools.items[poolName];
-    return Object.keys(pool?.volumes.items ?? {})
-      .filter((key) => {
-        const identity = splitStorageVolumeKey(key);
-        return (
-          (collectionKey === 'all' || identity.project === collectionKey) &&
-          identity.type === volumeType
-        );
-      })
-      .map((key) => resourceKeys.storageVolumeMetadata(poolName, key));
-  }, [collectionKey, poolName, storeSnapshot, volumeType]);
+  const knownVolumeKeys = React.useMemo(
+    () =>
+      poolName
+        ? Object.keys(
+            client.store.getSnapshot().state.storagePools.items[poolName]
+              ?.volumes.items ?? {},
+          ).filter((key) => {
+            const identity = splitStorageVolumeKey(key);
+            return (
+              (collectionKey === 'all' || identity.project === collectionKey) &&
+              identity.type === volumeType
+            );
+          })
+        : [],
+    [client, collectionKey, poolName, storeSnapshot.version, volumeType],
+  );
+  const knownVolumeSignature = knownVolumeKeys.join('|');
+  const volumeMetadataKeys = React.useMemo(
+    () =>
+      poolName
+        ? knownVolumeKeys.map((key) =>
+            resourceKeys.storageVolumeMetadata(poolName, key),
+          )
+        : [],
+    [knownVolumeSignature, poolName],
+  );
   const subscriptionKeys = React.useMemo(
     () => (storeKey ? [storeKey, ...volumeMetadataKeys] : []),
     [storeKey, volumeMetadataKeys],
