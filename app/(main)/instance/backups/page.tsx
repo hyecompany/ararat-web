@@ -4,14 +4,24 @@ import React from 'react';
 import { useInstanceContext } from '../_context/instance';
 import { useInstance } from '../_hooks/instance';
 import { useBackups } from '../_hooks/backups';
-import { useStoragePools } from '../../_hooks/storagePools';
+import { useStoragePools } from '@/app/_incus/resources/storage-pools/hooks';
+import type { StoragePool } from '@/app/_incus/types';
 import { getRootDiskPool } from '../_lib/utils';
 import { BackupList } from './_components/backup-list';
 
 export default function BackupsPage() {
   const { name, project } = useInstanceContext();
   const { instance } = useInstance(name, project, { metadata: true });
-  const { data: storagePools } = useStoragePools();
+  const { rows: storagePoolRows } = useStoragePools({
+    include: { metadata: true },
+  });
+  const storagePools = React.useMemo(
+    () =>
+      storagePoolRows
+        .map((row) => row.metadata)
+        .filter((pool): pool is StoragePool => Boolean(pool)),
+    [storagePoolRows],
+  );
 
   const instanceName = name;
   if (!instanceName) {
@@ -23,7 +33,7 @@ export default function BackupsPage() {
       instanceName={instanceName}
       instance={instance}
       project={project}
-      storagePools={storagePools || []}
+      storagePools={storagePools}
     />
   );
 }

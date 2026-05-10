@@ -48,7 +48,8 @@ import Logs from './management/logs';
 import Profiles from './management/profiles';
 import Rebuild from './management/rebuild';
 import Repair from './management/repair';
-import { useStoragePools } from '@/app/(main)/_hooks/storagePools';
+import { useStoragePools } from '@/app/_incus/resources/storage-pools/hooks';
+import type { StoragePool } from '@/app/_incus/types';
 
 type ActionView =
   | 'menu'
@@ -142,7 +143,16 @@ export function InstanceActionsMenu({
   onMutate: () => Promise<void>;
 }) {
   const router = useRouter();
-  const { data: storagePools } = useStoragePools();
+  const { rows: storagePoolRows } = useStoragePools({
+    include: { metadata: true },
+  });
+  const storagePools = React.useMemo(
+    () =>
+      storagePoolRows
+        .map((row) => row.metadata)
+        .filter((pool): pool is StoragePool => Boolean(pool)),
+    [storagePoolRows],
+  );
   const [open, setOpen] = React.useState(false);
   const [view, setView] = React.useState<ActionView>('menu');
 

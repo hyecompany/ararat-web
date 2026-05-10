@@ -3,7 +3,8 @@
 import * as React from 'react';
 import ProjectsContext from '@/app/(main)/_context/projects';
 import { Combobox, ComboboxContent, ComboboxItem, ComboboxTrigger } from '@/components/ui/combobox';
-import { useStoragePools } from '@/app/(main)/_hooks/storagePools';
+import { useStoragePools } from '@/app/_incus/resources/storage-pools/hooks';
+import type { StoragePool } from '@/app/_incus/types';
 import type { Instance } from '@/app/(main)/instances/_lib/instances.d';
 import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
 import { Checkbox } from 'ui-web/components/checkbox';
@@ -21,7 +22,16 @@ export default function Clone({
   onDone: () => Promise<void>;
 }) {
   const { projects } = React.useContext(ProjectsContext);
-  const { data: storagePools } = useStoragePools();
+  const { rows: storagePoolRows } = useStoragePools({
+    include: { metadata: true },
+  });
+  const storagePools = React.useMemo(
+    () =>
+      storagePoolRows
+        .map((row) => row.metadata)
+        .filter((pool): pool is StoragePool => Boolean(pool)),
+    [storagePoolRows],
+  );
   const rootDiskPoolName =
     instance.expanded_devices?.root?.pool ?? instance.devices?.root?.pool ?? null;
   const [name, setName] = React.useState(`${instance.name}-copy`);
