@@ -28,7 +28,12 @@ export function SettingsYamlEditor({
   const { resolvedTheme } = useTheme();
 
   return (
-    <div className={cn('flex min-h-[22rem] flex-col overflow-hidden', className)}>
+    <div
+      className={cn(
+        'flex min-h-[22rem] flex-col overflow-hidden rounded-md border bg-card',
+        className,
+      )}
+    >
       {description || error ? (
         <div className="border-b px-6 py-4">
           {description ? (

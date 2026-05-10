@@ -168,7 +168,6 @@ export default function Devices({
           value={yamlContent}
           error={yamlError}
           onChange={handleYamlChange}
-          description="Edit the raw instance devices YAML. Changes stay synced with the structured editor."
           className="h-full"
         />
       ) : (
