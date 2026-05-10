@@ -2,12 +2,18 @@ import { describe, expect, test } from 'bun:test';
 
 import { classifyBufferIsBinary, preflightOpen } from './file-open-policy';
 
+const BINARY_CLASSIFICATION_SAMPLE_BYTES = 24 * 1024;
+
 function bytesBuffer(bytes: number[]): ArrayBuffer {
   return Uint8Array.from(bytes).buffer;
 }
 
 function textBuffer(text: string): ArrayBuffer {
   return new TextEncoder().encode(text).buffer;
+}
+
+function repeatedByteBuffer(byte: number, length: number): ArrayBuffer {
+  return new Uint8Array(length).fill(byte).buffer;
 }
 
 describe('classifyBufferIsBinary', () => {
@@ -36,6 +42,17 @@ describe('classifyBufferIsBinary', () => {
 
   test('detects NUL bytes as binary', () => {
     expect(classifyBufferIsBinary('unknown', bytesBuffer([0x61, 0x00, 0x62]))).toBe(true);
+  });
+
+  test('treats valid UTF-8 content larger than the sample as editable', () => {
+    const largeText = repeatedByteBuffer(0x61, BINARY_CLASSIFICATION_SAMPLE_BYTES * 2);
+    expect(classifyBufferIsBinary('large.log', largeText)).toBe(false);
+  });
+
+  test('samples classification instead of scanning the full buffer', () => {
+    const bytes = new Uint8Array(BINARY_CLASSIFICATION_SAMPLE_BYTES + 1).fill(0x61);
+    bytes[BINARY_CLASSIFICATION_SAMPLE_BYTES] = 0x00;
+    expect(classifyBufferIsBinary('large.log', bytes.buffer)).toBe(false);
   });
 });
 

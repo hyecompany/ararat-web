@@ -1,5 +1,6 @@
 /** Ask before loading full body into editor for very large files. */
 export const LARGE_FILE_CONFIRM_BYTES = 8 * 1024 * 1024;
+const BINARY_CLASSIFICATION_SAMPLE_BYTES = 24 * 1024;
 
 const KNOWN_TEXT_FILENAMES = new Set(
   [
@@ -146,45 +147,12 @@ function isAllowedTextControlByte(byte: number) {
 }
 
 function isValidUtf8(bytes: Uint8Array) {
-  let index = 0;
-  while (index < bytes.length) {
-    const byte = bytes[index];
-    if (byte <= 0x7f) {
-      index += 1;
-      continue;
-    }
-
-    let needed = 0;
-    let minCodePoint = 0;
-    let codePoint = 0;
-    if (byte >= 0xc2 && byte <= 0xdf) {
-      needed = 1;
-      minCodePoint = 0x80;
-      codePoint = byte & 0x1f;
-    } else if (byte >= 0xe0 && byte <= 0xef) {
-      needed = 2;
-      minCodePoint = 0x800;
-      codePoint = byte & 0x0f;
-    } else if (byte >= 0xf0 && byte <= 0xf4) {
-      needed = 3;
-      minCodePoint = 0x10000;
-      codePoint = byte & 0x07;
-    } else {
-      return false;
-    }
-
-    if (index + needed >= bytes.length) return false;
-    for (let offset = 1; offset <= needed; offset += 1) {
-      const continuation = bytes[index + offset];
-      if ((continuation & 0xc0) !== 0x80) return false;
-      codePoint = (codePoint << 6) | (continuation & 0x3f);
-    }
-    if (codePoint < minCodePoint) return false;
-    if (codePoint >= 0xd800 && codePoint <= 0xdfff) return false;
-    if (codePoint > 0x10ffff) return false;
-    index += needed + 1;
+  try {
+    new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    return true;
+  } catch {
+    return false;
   }
-  return true;
 }
 
 export function classifyBufferIsBinary(
@@ -194,16 +162,17 @@ export function classifyBufferIsBinary(
   void fileName;
   const u8 = new Uint8Array(buffer);
   if (u8.length === 0) return false;
-  if (hasBinaryMagicNumber(u8)) return true;
+  const sample = u8.subarray(0, BINARY_CLASSIFICATION_SAMPLE_BYTES);
+  if (hasBinaryMagicNumber(sample)) return true;
 
   let suspiciousControlBytes = 0;
-  for (const byte of u8) {
+  for (const byte of sample) {
     if (byte === 0) return true;
     if (byte < 0x20 && !isAllowedTextControlByte(byte)) {
       suspiciousControlBytes += 1;
     }
   }
 
-  if (!isValidUtf8(u8)) return true;
-  return suspiciousControlBytes / u8.length > 0.01;
+  if (!isValidUtf8(sample)) return true;
+  return suspiciousControlBytes / sample.length > 0.01;
 }
