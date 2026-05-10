@@ -120,7 +120,6 @@ export default function ImageSelector({
     data: localImagesData,
     isLoading,
     isStale: isImagesStale,
-    isRefreshing: isImagesRefreshing,
   } = useImages(resolvedProject);
   const [userAddedRemoteServers, setUserAddedRemoteServers] = useState<
     RemoteServer[]
@@ -491,7 +490,7 @@ export default function ImageSelector({
             </div>
           </div>
           <FreshnessSurface
-            active={isImagesStale || isImagesRefreshing || loadingRemotes}
+            active={isImagesStale || loadingRemotes}
             className="mt-2 min-h-0 flex-1 overflow-hidden"
           >
             <DataTable

@@ -72,7 +72,12 @@ import Editor, { OnMount } from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
 import type * as Monaco from 'monaco-editor';
 import { AlertCircleIcon, CodeXmlIcon, UploadIcon } from 'lucide-react';
-import { cn } from 'ui-web/lib/utils';
+import {
+  cn,
+  dashboardMonacoOptions,
+  dashboardMonacoTheme,
+  defineDashboardMonacoThemes,
+} from 'ui-web/lib/utils';
 
 const sourceSchema = z
   .object({
@@ -612,9 +617,11 @@ export default function CreateInstance({ className }: { className?: string }) {
                       defaultLanguage="yaml"
                       value={yamlContent}
                       onChange={handleYamlChange}
+                      beforeMount={defineDashboardMonacoThemes}
                       onMount={handleEditorMount}
-                      theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
+                      theme={dashboardMonacoTheme(resolvedTheme)}
                       options={{
+                        ...dashboardMonacoOptions,
                         minimap: { enabled: false },
                         fontSize: 14,
                         lineNumbers: 'on',

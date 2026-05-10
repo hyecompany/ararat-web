@@ -25,6 +25,8 @@ type FileWithMetadata = {
   mode?: string;
   uid?: string;
   gid?: string;
+  symlinkTargetKind?: InstancePathKind;
+  symlinkTargetPath?: string;
 };
 
 type InstancePathKind = 'directory' | 'file' | 'missing';
@@ -32,6 +34,9 @@ type InstancePathKind = 'directory' | 'file' | 'missing';
 type FileMetadataFetcher = (
   filePath: string,
 ) => Promise<Pick<InstanceFileMetadata, 'type' | 'size' | 'mode' | 'uid' | 'gid'>>;
+type SymlinkTargetResolver = (
+  linkPath: string,
+) => Promise<{ kind: InstancePathKind; path?: string }>;
 
 /** Bounded parallelism for HEAD/metadata fan-out (large dirs + browser connection limits). */
 const METADATA_FETCH_BATCH = 16;
@@ -40,12 +45,13 @@ async function fetchEntryMetadata(
   fetchMetadata: FileMetadataFetcher,
   listingParent: string,
   fileName: string,
+  resolveSymlinkTargetInfo?: SymlinkTargetResolver,
 ): Promise<FileWithMetadata> {
   try {
     const filePath = joinAbsPath(listingParent, fileName);
     const meta = await fetchMetadata(filePath);
     const type = meta.type ?? undefined;
-    return {
+    const row: FileWithMetadata = {
       name: fileName,
       type,
       size: meta.size,
@@ -53,6 +59,16 @@ async function fetchEntryMetadata(
       uid: meta.uid ?? undefined,
       gid: meta.gid ?? undefined,
     };
+    if (type?.toLowerCase() === 'symlink' && resolveSymlinkTargetInfo) {
+      try {
+        const target = await resolveSymlinkTargetInfo(filePath);
+        row.symlinkTargetKind = target.kind;
+        row.symlinkTargetPath = target.path;
+      } catch {
+        row.symlinkTargetKind = 'missing';
+      }
+    }
+    return row;
   } catch {
     return { name: fileName };
   }
@@ -79,6 +95,7 @@ async function fetchDirectoryEntriesForInstance(
   dirPath: string,
   fetchMetadata: FileMetadataFetcher,
   fetchChildren: (path: string) => Promise<string[]>,
+  resolveSymlinkTargetInfo?: SymlinkTargetResolver,
 ): Promise<FileWithMetadata[]> {
   const normalizedPath = normalizeAbsPath(dirPath);
   const names = await fetchChildren(normalizedPath);
@@ -88,7 +105,12 @@ async function fetchDirectoryEntriesForInstance(
     const slice = names.slice(i, i + METADATA_FETCH_BATCH);
     const batch = await Promise.all(
       slice.map((fileName) =>
-        fetchEntryMetadata(fetchMetadata, normalizedPath, fileName),
+        fetchEntryMetadata(
+          fetchMetadata,
+          normalizedPath,
+          fileName,
+          resolveSymlinkTargetInfo,
+        ),
       ),
     );
     batch.forEach((row, j) => {
@@ -121,20 +143,20 @@ export function useFiles(
 
   const hasListingPayload = Array.isArray(listing.names);
 
-  /** Full-area spinner only when there is no listing to show yet (cold load / empty cache). */
+  /** Full-table skeleton only belongs to the directory listing phase. */
   const isListingLoading =
-    !error && !hasListingPayload && listing.status === 'loading';
+    !error && !hasListingPayload && listing.isLoading;
 
   /** Stale listing visible while the next folder's GET is in flight. */
   const isListingRevalidating =
-    !error && hasListingPayload && (listing.status === 'stale' || listing.status === 'refreshing');
+    !error && hasListingPayload && listing.isStale;
 
   useLayoutEffect(() => {
     if (!hasListingPayload || error) return;
-    if (listing.status !== 'refreshing') {
+    if (!listing.isRefreshing) {
       settledListingPathRef.current = normalizedPath;
     }
-  }, [hasListingPayload, listing.status, normalizedPath, error]);
+  }, [hasListingPayload, listing.isRefreshing, normalizedPath, error]);
 
   const [filesWithMetadata, setFilesWithMetadata] = useState<FileWithMetadata[]>(
     [],
@@ -233,7 +255,7 @@ export function useFiles(
     const names = listing.names;
     const listingSignature = `${normalizedPath}\n${names.join('\n')}`;
     if (listingSignatureRef.current === listingSignature) {
-      const parentDirForMetadata = listing.status !== 'refreshing'
+      const parentDirForMetadata = !listing.isRefreshing
         ? normalizedPath
         : settledListingPathRef.current;
       metadataParentDirRef.current = parentDirForMetadata;
@@ -246,7 +268,7 @@ export function useFiles(
     loadedMetadataNamesRef.current = new Set();
     inFlightMetadataNamesRef.current = new Set();
 
-    const parentDirForMetadata = listing.status !== 'refreshing'
+    const parentDirForMetadata = !listing.isRefreshing
       ? normalizedPath
       : settledListingPathRef.current;
     metadataParentDirRef.current = parentDirForMetadata;
@@ -275,7 +297,37 @@ export function useFiles(
     queueMicrotask(() => {
       requestMetadataForNames(names.slice(0, 128));
     });
-  }, [listing.names, error, listing.status, incusClient, instanceName, normalizedPath, project, requestMetadataForNames]);
+  }, [listing.names, error, listing.isRefreshing, incusClient, instanceName, normalizedPath, project, requestMetadataForNames]);
+
+  // Keep directory listing and metadata as separate loading phases. A cached or
+  // freshly fetched name list should render rows immediately; size/type metadata
+  // is filled later by viewport-driven HEAD requests. If this path has no
+  // listing payload yet, do not reuse the previous path's local rows for a frame:
+  // that causes "old table -> skeleton -> new table" during navigation.
+  const visibleFiles = (() => {
+    if (!listing.names || !Array.isArray(listing.names) || error) {
+      return [];
+    }
+
+    const names = listing.names;
+    const listingSignature = `${normalizedPath}\n${names.join('\n')}`;
+    if (listingSignatureRef.current === listingSignature) {
+      return filesWithMetadata;
+    }
+
+    const parentDirForMetadata = !listing.isRefreshing
+      ? normalizedPath
+      : settledListingPathRef.current;
+
+    return names.map((name) => {
+      const cached = incusClient.instanceFiles.getCachedMetadata({
+        instanceName,
+        project,
+        path: joinAbsPath(parentDirForMetadata, name),
+      });
+      return rowFromCachedMetadata(cached, name);
+    });
+  })();
 
   const uploadFile = async (
     currentPath: string,
@@ -348,11 +400,8 @@ export function useFiles(
     ) => void,
   ) => {
     const dest = normalizeAbsPath(destParentPath);
-    const refresh = new Set<string>();
     for (let i = 0; i < sources.length; i++) {
       const s = sources[i];
-      refresh.add(absPathParent(s.sourcePath));
-      refresh.add(dest);
       await moveRemoteFile({
         fetchFileBlob: (p) =>
           incusClient.instanceFiles.fetchBlob({ instanceName, project, path: p }),
@@ -377,19 +426,6 @@ export function useFiles(
             label: s.fileName,
           }),
       });
-      incusClient.instanceFiles.removeMetadata({
-        instanceName,
-        project,
-        path: s.sourcePath,
-      });
-      incusClient.instanceFiles.markMetadataMissing({
-        instanceName,
-        project,
-        path: joinAbsPath(dest, s.fileName),
-      });
-    }
-    for (const p of refresh) {
-      incusClient.instanceFiles.markChildrenStale({ instanceName, project, path: p });
     }
   };
 
@@ -516,6 +552,25 @@ export function useFiles(
     [incusClient, instanceName, project],
   );
 
+  const resolveSymlinkTargetInfo = useCallback(
+    async (linkAbsPath: string): Promise<{ kind: InstancePathKind; path?: string }> => {
+      const nav = await resolveSymlinkNavTarget(linkAbsPath);
+      if (nav.fileBasename) {
+        return {
+          kind: 'file',
+          path: joinAbsPath(nav.directoryPath, nav.fileBasename),
+        };
+      }
+
+      const kind = await probeInstancePathKind(nav.directoryPath);
+      return {
+        kind,
+        path: kind === 'missing' ? undefined : nav.directoryPath,
+      };
+    },
+    [probeInstancePathKind, resolveSymlinkNavTarget],
+  );
+
   const fetchDirectoryEntries = useCallback(
     (dirPath: string) =>
       fetchDirectoryEntriesForInstance(instanceName, project, dirPath, (filePath) =>
@@ -530,8 +585,9 @@ export function useFiles(
           project,
           path: dir,
         }),
+      resolveSymlinkTargetInfo,
       ),
-    [incusClient, instanceName, project],
+    [incusClient, instanceName, project, resolveSymlinkTargetInfo],
   );
 
   const renameEntry = async (fullPath: string, newBaseName: string) => {
@@ -544,7 +600,7 @@ export function useFiles(
   };
 
   return {
-    files: filesWithMetadata,
+    files: visibleFiles,
     isLoading: isListingLoading,
     isListingRevalidating,
     isMetadataLoading: metadataRequestCount > 0,

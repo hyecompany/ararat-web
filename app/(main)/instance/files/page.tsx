@@ -1,11 +1,12 @@
 'use client';
 
-import React from 'react';
+import React, { addTransitionType } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useInstanceContext } from '../_context/instance';
 import { useInstance } from '../_hooks/instance';
 import { useFiles } from './_hooks/files';
 import { FileBrowser } from '../../_components/files';
+import { classifyFileNavigationTransition } from '../../_lib/files';
 import type { Instance } from '../../instances/_lib/instances.d';
 
 function normalizeInstanceFsPath(raw: string | undefined): string | null {
@@ -81,7 +82,15 @@ function Files({
   }, [pathParam, homePath]);
 
   const handleNavigate = React.useCallback((path: string) => {
+    const targetPath = normalizeInstanceFsPath(path) ?? '/';
+    const transitionType = classifyFileNavigationTransition(
+      currentPath,
+      targetPath,
+    );
+
     startRouteTransition(() => {
+      addTransitionType(transitionType);
+
       // Ignore delayed callbacks from a previously mounted instance view.
       const liveParams = new URLSearchParams(window.location.search);
       const liveName = liveParams.get('name');
@@ -94,12 +103,12 @@ function Files({
       if (instanceProject) {
         params.set('project', instanceProject);
       }
-      if (path === '/') {
+      if (targetPath === '/') {
         params.set('path', '/');
-      } else if (path === homePath && homePath !== '/') {
+      } else if (targetPath === homePath && homePath !== '/') {
         params.delete('path');
       } else {
-        params.set('path', path);
+        params.set('path', targetPath);
       }
 
       const query = params.toString();
@@ -107,10 +116,17 @@ function Files({
       const target = query ? `${currentPathname}?${query}` : currentPathname;
       router.push(target, {
         scroll: false,
-        transitionTypes: ['nav-lateral'],
+        transitionTypes: [transitionType],
       });
     });
-  }, [homePath, instanceName, instanceProject, router, startRouteTransition]);
+  }, [
+    currentPath,
+    homePath,
+    instanceName,
+    instanceProject,
+    router,
+    startRouteTransition,
+  ]);
 
   const {
     files,

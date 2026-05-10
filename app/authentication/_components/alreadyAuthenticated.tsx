@@ -6,11 +6,11 @@ import { AlertCircleIcon } from 'lucide-react';
 import { Button } from 'ui-web/components/button';
 import Link from 'next/link';
 export default function AlreadyAuthenticated() {
-  const { data, isRefreshing } = use(AuthenticationContext);
+  const { data, isStale } = use(AuthenticationContext);
   return data?.isAuthenticated ? (
     <Alert
       variant="default"
-      className={`${isRefreshing ? 'freshness-shimmer' : ''} mb-4`}
+      className={`${isStale ? 'freshness-shimmer' : ''} mb-4`}
     >
       <AlertCircleIcon />
       <AlertTitle>You are already authenticated.</AlertTitle>

@@ -131,6 +131,17 @@ export function markAllEventManagedDataStale(store: IncusStore) {
     if (item.access.status === 'ready') {
       changedKeys.add(resourceKeys.instanceAccess(key));
     }
+    for (const [path, file] of Object.entries(item.files.items)) {
+      if (file.metadata.status === 'ready') {
+        changedKeys.add(resourceKeys.instanceFileMetadata(key, path));
+      }
+      if (file.children?.status === 'ready') {
+        changedKeys.add(resourceKeys.instanceFileChildren(key, path));
+      }
+      if (file.content?.status === 'ready') {
+        changedKeys.add(resourceKeys.instanceFileContent(key, path));
+      }
+    }
   }
   if (snapshot.operations.collection.status === 'ready') {
     changedKeys.add(resourceKeys.operationsCollection);
@@ -212,6 +223,11 @@ export function markAllEventManagedDataStale(store: IncusStore) {
       if (item.metadata.status === 'ready') item.metadata.status = 'stale';
       if (item.state.status === 'ready') item.state.status = 'stale';
       if (item.access.status === 'ready') item.access.status = 'stale';
+      for (const file of Object.values(item.files.items)) {
+        if (file.metadata.status === 'ready') file.metadata.status = 'stale';
+        if (file.children?.status === 'ready') file.children.status = 'stale';
+        if (file.content?.status === 'ready') file.content.status = 'stale';
+      }
     }
     if (state.operations.collection.status === 'ready') {
       state.operations.collection.status = 'stale';

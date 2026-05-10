@@ -117,7 +117,7 @@ export default function Profiles({
       <div className="space-y-2">
         <div className="space-y-2">
           <p className="text-sm font-medium">Profiles</p>
-          <FreshnessSurface active={isProfilesStale || isProfilesRefreshing}>
+          <FreshnessSurface active={isProfilesStale}>
             <Combobox
               multiple
               values={draftProfiles}

@@ -10,6 +10,12 @@ import {
 import { IconRotateClockwise } from '@tabler/icons-react';
 import Editor from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
+import {
+  cn,
+  dashboardMonacoOptions,
+  dashboardMonacoTheme,
+  defineDashboardMonacoThemes,
+} from 'ui-web/lib/utils';
 
 import { Input } from 'ui-web/components/input';
 import { Switch } from 'ui-web/components/switch';
@@ -44,7 +50,6 @@ import {
   ComboboxTrigger,
 } from 'ui-web/components/combobox';
 import { Field, FieldContent, FieldDescription, FieldLabel } from 'ui-web/components/field';
-import { cn } from 'ui-web/lib/utils';
 import { AutocompleteInput } from '@/components/ui/autocomplete-input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -656,9 +661,11 @@ function MonacoValueInput({
         defaultLanguage={language || 'plaintext'}
         language={language || 'plaintext'}
         theme={theme}
+        beforeMount={defineDashboardMonacoThemes}
         value={value || ''}
         onChange={(nextValue) => onChange(nextValue ?? '')}
         options={{
+          ...dashboardMonacoOptions,
           readOnly: disabled,
           minimap: { enabled: false },
           scrollBeyondLastLine: false,
@@ -1659,7 +1666,7 @@ export default function GeneralConfiguration({
             onChange={onChange}
             disabled={disabled}
             language={metadata.editor_language}
-            theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
+            theme={dashboardMonacoTheme(resolvedTheme)}
           />
         </div>
       );

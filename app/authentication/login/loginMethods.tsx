@@ -18,7 +18,7 @@ function OIDCButton(props: React.ComponentProps<typeof Button>) {
 }
 
 export default function LoginMethodsComponent() {
-  const { isLoading, isRefreshing, data } = useServerConfiguration();
+  const { isLoading, isStale, data } = useServerConfiguration();
   const [authenticating, setAuthenticating] = React.useState(false);
   const router = useRouter();
   const pathname = usePathname();
@@ -52,7 +52,7 @@ export default function LoginMethodsComponent() {
   // Auto-redirect when only one auth method is available
   // Uses replace() to prevent user from navigating back to this intermediate state
   useEffect(() => {
-    if (!isLoading && !isRefreshing) {
+    if (!isLoading && !isStale) {
       if (data?.auth_methods.length === 1) {
         startTransition(() => {
           setAuthenticating(true);
@@ -86,7 +86,7 @@ export default function LoginMethodsComponent() {
         clearTimeout(autoRedirectTimerRef.current);
       }
     };
-  }, [data, isLoading, isRefreshing, router]);
+  }, [data, isLoading, isStale, router]);
 
   // Reset loading state if user navigates back to this page (e.g., after a failed navigation)
   useEffect(() => {
@@ -119,7 +119,7 @@ export default function LoginMethodsComponent() {
           if (method === "tls")
             return (
               <TLSButton
-                className={isRefreshing ? 'freshness-shimmer' : ''}
+                className={isStale ? 'freshness-shimmer' : ''}
                 key={method}
                 {...props}
               />
@@ -127,14 +127,14 @@ export default function LoginMethodsComponent() {
           if (method === "oidc")
             return (
               <OIDCButton
-                className={isRefreshing ? "freshness-shimmer" : ""}
+                className={isStale ? "freshness-shimmer" : ""}
                 key={method}
                 {...props}
               />
             );
           return (
             <Button
-              className={isRefreshing ? 'freshness-shimmer' : ''}
+              className={isStale ? 'freshness-shimmer' : ''}
               key={method}
               {...props}
             >

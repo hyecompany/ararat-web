@@ -8,6 +8,11 @@ import z from 'zod';
 import Editor from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
 import { CodeXmlIcon } from 'lucide-react';
+import {
+  dashboardMonacoOptions,
+  dashboardMonacoTheme,
+  defineDashboardMonacoThemes,
+} from 'ui-web/lib/utils';
 
 import {
   createProject,
@@ -386,8 +391,10 @@ export default function ProjectDialog({ open, onOpenChange, mode, project }: Pro
                     defaultLanguage="yaml"
                     value={yamlContent}
                     onChange={handleYamlChange}
-                    theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
+                    beforeMount={defineDashboardMonacoThemes}
+                    theme={dashboardMonacoTheme(resolvedTheme)}
                     options={{
+                      ...dashboardMonacoOptions,
                       minimap: { enabled: false },
                       fontSize: 14,
                       lineNumbers: 'on',

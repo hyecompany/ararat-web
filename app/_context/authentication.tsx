@@ -31,7 +31,7 @@ export function AuthenticationProvider({
 
   const { isLoading, isStale, isRefreshing, data } = useServerConfiguration();
   useEffect(() => {
-    if (!isLoading && !isRefreshing) {
+    if (!isLoading && !isStale) {
       if (data?.auth == 'untrusted') {
         if (!pathname.startsWith('/authentication')) {
           router.replace('/authentication/login');
@@ -42,7 +42,7 @@ export function AuthenticationProvider({
         }
       }
     }
-  }, [data, isLoading, isRefreshing, pathname, router, isClient]);
+  }, [data, isLoading, isStale, pathname, router, isClient]);
 
   return (
     <AuthenticationContext

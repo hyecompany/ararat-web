@@ -208,7 +208,7 @@ export default function GraphicalConsoleView({
         {showStatusOverlay && status === 'connecting' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70 text-white">
             <Spinner className="size-6" />
-            <p className="text-sm">Connecting to clean-sheet console…</p>
+            <p className="text-sm">Connecting to graphical console…</p>
           </div>
         )}
         {showStatusOverlay && status === 'error' && (
@@ -216,7 +216,7 @@ export default function GraphicalConsoleView({
             <Alert variant="destructive">
               <AlertTitle>Graphical console unavailable</AlertTitle>
               <AlertDescription>
-                {error ?? 'Unable to initialize the clean-sheet console.'}
+                {error ?? 'Unable to initialize the graphical console.'}
               </AlertDescription>
             </Alert>
           </div>

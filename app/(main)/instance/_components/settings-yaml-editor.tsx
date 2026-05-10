@@ -3,7 +3,12 @@
 import * as React from 'react';
 import Editor from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
-import { cn } from 'ui-web/lib/utils';
+import {
+  cn,
+  dashboardMonacoOptions,
+  dashboardMonacoTheme,
+  defineDashboardMonacoThemes,
+} from 'ui-web/lib/utils';
 
 interface SettingsYamlEditorProps {
   value: string;
@@ -41,8 +46,10 @@ export function SettingsYamlEditor({
           language="yaml"
           value={value}
           onChange={onChange}
-          theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
+          beforeMount={defineDashboardMonacoThemes}
+          theme={dashboardMonacoTheme(resolvedTheme)}
           options={{
+            ...dashboardMonacoOptions,
             minimap: { enabled: false },
             fontSize: 14,
             lineNumbers: 'on',

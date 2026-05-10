@@ -11,6 +11,21 @@ import {
 
 export type IncusStoreKey = string;
 
+function normalizeResourcePath(path: string) {
+  const trimmed = path.trim();
+  const prefixed = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  const collapsed = prefixed.replace(/\/+/g, '/');
+  return collapsed.length > 1 && collapsed.endsWith('/')
+    ? collapsed.slice(0, -1)
+    : collapsed;
+}
+
+export function parentResourcePath(path: string) {
+  const normalized = normalizeResourcePath(path);
+  if (normalized === '/') return '/';
+  return normalized.substring(0, normalized.lastIndexOf('/')) || '/';
+}
+
 export const resourceKeys = {
   events: 'events',
   serverConfiguration: 'server:configuration',
@@ -110,6 +125,13 @@ export type IncusResourceRef =
   | { kind: 'instancesCollection'; project: string }
   | { kind: 'instance'; project: string; name: string; key: string }
   | { kind: 'instanceState'; project: string; name: string; key: string }
+  | {
+      kind: 'instanceFile';
+      project: string;
+      name: string;
+      key: string;
+      path: string;
+    }
   | { kind: 'instanceBackupsCollection'; project: string; name: string; key: string }
   | {
       kind: 'instanceBackup';
@@ -266,6 +288,17 @@ export function parseIncusResourcePath(
     if (segments[3] === 'state') {
       return { kind: 'instanceState', project, name, key };
     }
+    if (segments[3] === 'files') {
+      const filePath = parsed.params.get('path');
+      if (!filePath) return { kind: 'instance', project, name, key };
+      return {
+        kind: 'instanceFile',
+        project,
+        name,
+        key,
+        path: normalizeResourcePath(filePath),
+      };
+    }
     if (segments[3] === 'backups') {
       if (!segments[4]) {
         return { kind: 'instanceBackupsCollection', project, name, key };
@@ -401,6 +434,16 @@ export function keysForResource(resource: IncusResourceRef | null): IncusStoreKe
       ];
     case 'instanceState':
       return [resourceKeys.instanceState(resource.key)];
+    case 'instanceFile':
+      return [
+        resourceKeys.instanceFileChildren(
+          resource.key,
+          parentResourcePath(resource.path),
+        ),
+        resourceKeys.instanceFileMetadata(resource.key, resource.path),
+        resourceKeys.instanceFileChildren(resource.key, resource.path),
+        resourceKeys.instanceFileContent(resource.key, resource.path),
+      ];
     case 'instanceBackupsCollection':
       return [resourceKeys.instanceBackupsCollection(resource.key)];
     case 'instanceBackup':

@@ -213,53 +213,6 @@ export function createInstanceFilesResource(
       ?.metadata.data;
   }
 
-  function markMetadataMissing(request: InstanceFileMetadataRequest) {
-    const project = request.project || 'default';
-    const path = normalizeAbsPath(request.path);
-    const key = instanceKey(project, request.instanceName);
-    const storeKey = resourceKeys.instanceFileMetadata(key, path);
-
-    store.update((state) => {
-      const file = state.instances.items[key]?.files.items[path] ??
-        store.ensureInstanceFile(key, path);
-      file.metadata = { status: 'missing' };
-      file.content = { status: 'missing' };
-    }, [storeKey, resourceKeys.instanceFileContent(key, path)]);
-  }
-
-  function markChildrenStale(request: InstanceFileChildrenRequest) {
-    const project = request.project || 'default';
-    const path = normalizeAbsPath(request.path);
-    const key = instanceKey(project, request.instanceName);
-    const storeKey = resourceKeys.instanceFileChildren(key, path);
-
-    store.update((state) => {
-      const file = state.instances.items[key]?.files.items[path];
-      if (!file) return;
-      file.children = {
-        status: file.children?.names?.length ? 'stale' : 'missing',
-        names: file.children?.names ?? [],
-      };
-    }, [storeKey]);
-  }
-
-  function removeMetadata(request: InstanceFileMetadataRequest) {
-    const project = request.project || 'default';
-    const path = normalizeAbsPath(request.path);
-    const key = instanceKey(project, request.instanceName);
-
-    store.update((state) => {
-      const file = state.instances.items[key]?.files.items[path];
-      if (file) {
-        delete state.instances.items[key]?.files.items[path];
-      }
-    }, [
-      resourceKeys.instanceFileMetadata(key, path),
-      resourceKeys.instanceFileChildren(key, path),
-      resourceKeys.instanceFileContent(key, path),
-    ]);
-  }
-
   async function uploadFile(
     request: InstanceFileMetadataRequest & {
       parentPath: string;
@@ -290,8 +243,6 @@ export function createInstanceFilesResource(
         },
       },
     );
-    markMetadataMissing({ ...request, project, path: filePath });
-    markChildrenStale({ ...request, project, path: parentPath });
   }
 
   async function saveFileContent(
@@ -314,15 +265,14 @@ export function createInstanceFilesResource(
         body: request.content,
       },
     });
-    markMetadataMissing({ ...request, project, path });
-    markChildrenStale({ ...request, project, path: path.split('/').slice(0, -1).join('/') || '/' });
   }
 
   async function createDirectory(
     request: InstanceFileMetadataRequest & { parentPath: string; name: string },
   ) {
     const project = request.project || 'default';
-    const path = normalizeAbsPath(`${normalizeAbsPath(request.parentPath)}/${request.name}`);
+    const parentPath = normalizeAbsPath(request.parentPath);
+    const path = normalizeAbsPath(`${parentPath}/${request.name}`);
     await requestRaw(`/1.0/instances/${encodeURIComponent(request.instanceName)}/files`, {
       params: { project, path },
       init: {
@@ -335,8 +285,6 @@ export function createInstanceFilesResource(
         },
       },
     });
-    markMetadataMissing({ ...request, project, path });
-    markChildrenStale({ ...request, project, path: normalizeAbsPath(request.parentPath) });
   }
 
   async function createEmptyFile(
@@ -353,8 +301,6 @@ export function createInstanceFilesResource(
       params: { project, path },
       init: { method: 'DELETE' },
     });
-    removeMetadata({ ...request, project, path });
-    markChildrenStale({ ...request, project, path: path.split('/').slice(0, -1).join('/') || '/' });
   }
 
   async function fetchRaw(request: InstanceFileMetadataRequest) {
@@ -500,9 +446,6 @@ export function createInstanceFilesResource(
     getChildren,
     getMetadata,
     getCachedMetadata,
-    markChildrenStale,
-    markMetadataMissing,
-    removeMetadata,
     uploadFile,
     createDirectory,
     createEmptyFile,

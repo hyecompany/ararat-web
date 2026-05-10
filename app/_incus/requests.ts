@@ -108,6 +108,17 @@ export class RequestRegistry {
   }
 }
 
+const emptyRequestSnapshotCache = new Map<string, { version: string }>();
+
+export function getEmptyRequestSnapshotForKeys(keys: string[]) {
+  const signature = keys.map((key) => `${key}:0`).join('|');
+  const cached = emptyRequestSnapshotCache.get(signature);
+  if (cached) return cached;
+  const snapshot = { version: signature };
+  emptyRequestSnapshotCache.set(signature, snapshot);
+  return snapshot;
+}
+
 function wait(ms: number) {
   return new Promise<void>((resolve) => window.setTimeout(resolve, ms));
 }
