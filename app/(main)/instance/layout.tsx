@@ -204,9 +204,14 @@ function InstanceHeader({
   const [draftValue, setDraftValue] = React.useState('');
   const [fieldError, setFieldError] = React.useState<string | null>(null);
   const [isSavingField, setIsSavingField] = React.useState(false);
+  const [hydrated, setHydrated] = React.useState(false);
   const fieldContainerRef = React.useRef<HTMLDivElement | null>(null);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
   const saveAbortControllerRef = React.useRef<AbortController | null>(null);
+
+  React.useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   React.useEffect(() => {
     return () => {
@@ -469,7 +474,7 @@ function InstanceHeader({
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
-        {instance ? (
+        {hydrated && instance ? (
           <InstanceActionsMenu
             instance={instance}
             disabled={isBusy}
