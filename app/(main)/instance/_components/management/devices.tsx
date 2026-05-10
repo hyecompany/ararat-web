@@ -178,6 +178,7 @@ export default function Devices({
             devices={draftDevices}
             onDevicesChange={setDraftDevices}
             instanceType={instanceType}
+            project={instance.project ?? null}
             className="rounded-xl border"
           />
         </div>

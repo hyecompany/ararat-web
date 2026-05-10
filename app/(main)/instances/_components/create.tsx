@@ -29,7 +29,7 @@ import {
 } from 'ui-web/components/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from 'ui-web/components/tabs';
 import { Input } from 'ui-web/components/input';
-import { useState, useMemo, use, useCallback, useRef } from 'react';
+import { useState, useMemo, use, useCallback, useRef, useEffect } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import z from 'zod';
@@ -40,28 +40,19 @@ import InstanceProperties from '@/app/(main)/instances/_components/properties';
 import InstanceDevices from './devices';
 import type { Device } from '@/app/(main)/instances/_lib/instances.d';
 import {
+  hasValidRootDisk,
+  isRootDiskScaffold,
+} from '@/app/(main)/_components/device-rules';
+import {
   createInstance,
   importInstanceFromBackup,
 } from '@/app/(main)/instances/_lib/instances';
 import { toYaml, fromYaml } from '@/app/(main)/_lib/yaml';
 
-/**
- * Check if a valid root disk exists in the devices (either direct or inherited)
- */
-function hasValidRootDisk(
-  devices: Record<string, Device>,
-  inheritedDevices: Record<string, Device>,
-): boolean {
-  const allDevices = { ...inheritedDevices, ...devices };
-  const rootDisk = Object.values(allDevices).find(
-    (device) => device.type === 'disk' && device.path === '/',
-  );
-  return rootDisk !== undefined && !!rootDisk.pool;
-}
-
 import GeneralConfiguration from '@/app/(main)/_components/general-configuration';
 import { useProfiles } from '@/app/(main)/_hooks/profiles';
-import { useStoragePools } from '@/app/(main)/_hooks/storagePools';
+import { useStoragePools } from '@/app/_incus/resources/storage-pools/hooks';
+import type { StoragePool } from '@/app/_incus/types';
 import ProjectsContext, {
   ALL_PROJECTS_VALUE,
 } from '@/app/(main)/_context/projects';
@@ -126,8 +117,21 @@ export default function CreateInstance({ className }: { className?: string }) {
   const { resolvedTheme } = useTheme();
   const { data: server, isLoading: isLoadingServerConfiguration } =
     useServerConfiguration();
-  const { data: storagePools, isLoading: isLoadingStoragePools } =
-    useStoragePools();
+  const {
+    rows: storagePoolRows,
+    status: storagePoolsStatus,
+  } = useStoragePools({ include: { metadata: true } });
+  const storagePools = useMemo(
+    () =>
+      storagePoolRows
+        .map((row) => row.metadata)
+        .filter((pool): pool is StoragePool => Boolean(pool)),
+    [storagePoolRows],
+  );
+  const isLoadingStoragePools =
+    storagePoolsStatus === 'missing' ||
+    storagePoolsStatus === 'loading' ||
+    storagePoolsStatus === 'refreshing';
   const [profilesSelected, setProfilesSelected] = useState<string[]>(['default']);
   const [instanceType, setInstanceType] = useState<'virtual-machine' | 'container'>('container');
   const [devices, setDevices] = useState<Record<string, Device>>({});
@@ -141,8 +145,22 @@ export default function CreateInstance({ className }: { className?: string }) {
   const [yamlError, setYamlError] = useState<string | null>(null);
   const [yamlContent, setYamlContent] = useState<string>('');
   const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
+  const resolvedTargetProject = useMemo(() => {
+    if (effectiveProject) {
+      return effectiveProject;
+    }
 
-  const { data: profiles } = useProfiles();
+    if (currentProject !== ALL_PROJECTS_VALUE) {
+      return '';
+    }
+
+    const defaultProject = projects.find((project) => project.name === 'default');
+    return defaultProject?.name ?? projects[0]?.name ?? '';
+  }, [currentProject, effectiveProject, projects]);
+
+  const { data: profiles } = useProfiles(undefined, {
+    project: resolvedTargetProject,
+  });
 
   // Aggregate inherited devices from profiles
   const inheritedDevices = useMemo(() => {
@@ -160,6 +178,26 @@ export default function CreateInstance({ className }: { className?: string }) {
     }
     return inherited;
   }, [profiles, profilesSelected]);
+
+  useEffect(() => {
+    if (!profiles) return;
+
+    setDevices((currentDevices) => {
+      if (inheritedDevices.root && isRootDiskScaffold(currentDevices.root)) {
+        const { root, ...rest } = currentDevices;
+        return rest;
+      }
+
+      if (!inheritedDevices.root && !currentDevices.root) {
+        return {
+          ...currentDevices,
+          root: { type: 'disk', path: '/' },
+        };
+      }
+
+      return currentDevices;
+    });
+  }, [inheritedDevices, profiles]);
 
   // Correct implementation using useMemo
   const memoizedExpandedConfig = useMemo(() => {
@@ -222,18 +260,6 @@ export default function CreateInstance({ className }: { className?: string }) {
   }, [server?.api_extensions]);
   const isBackupSupported =
     !isLoadingServerConfiguration && missingBackupExtensions.length === 0;
-  const resolvedTargetProject = useMemo(() => {
-    if (effectiveProject) {
-      return effectiveProject;
-    }
-
-    if (currentProject !== ALL_PROJECTS_VALUE) {
-      return '';
-    }
-
-    const defaultProject = projects.find((project) => project.name === 'default');
-    return defaultProject?.name ?? projects[0]?.name ?? '';
-  }, [currentProject, effectiveProject, projects]);
 
   const resetSourceFields = () => {
     form.setValue('source.fingerprint', undefined, { shouldDirty: true });
@@ -796,6 +822,7 @@ export default function CreateInstance({ className }: { className?: string }) {
                         setProfilesSelected={setProfilesSelected}
                         instanceType={instanceType}
                         setInstanceType={setInstanceType}
+                        project={resolvedTargetProject}
                       />
                     </TabsContent>
                     <TabsContent
@@ -861,6 +888,7 @@ export default function CreateInstance({ className }: { className?: string }) {
                         devices={devices}
                         onDevicesChange={setDevices}
                         instanceType={instanceType}
+                        project={resolvedTargetProject}
                       />
                     </TabsContent>
                     <TabsContent

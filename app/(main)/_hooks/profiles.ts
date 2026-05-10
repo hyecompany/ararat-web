@@ -1,5 +1,11 @@
-import { useProfilesResource } from '@/app/_incus/resources/profiles/hooks';
+import {
+  useProfilesResource,
+  type UseProfilesOptions,
+} from '@/app/_incus/resources/profiles/hooks';
 
-export function useProfiles(profiles?: string[]) {
-  return useProfilesResource(profiles);
+export function useProfiles(
+  profiles?: string[],
+  options: UseProfilesOptions = {},
+) {
+  return useProfilesResource(profiles, options);
 }
