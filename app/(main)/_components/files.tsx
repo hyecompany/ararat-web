@@ -1317,6 +1317,12 @@ export function FileBrowser({
       );
       if (!ok) return;
     }
+    if (typeof item.size !== 'number') {
+      const ok = window.confirm(
+        'The file size is not available yet. Loading it may use significant memory. Load it in the editor?',
+      );
+      if (!ok) return;
+    }
 
     const fileParentDir = absPathParent(fullPath);
     if (
@@ -2160,18 +2166,20 @@ export function FileBrowser({
             >
               <Tooltip>
                 <TooltipTrigger asChild>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex size-9 shrink-0 items-center justify-center rounded-md transition-colors select-none hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-                >
-                  <TextCursorInput
-                    className="size-4 shrink-0 transition-opacity"
-                    aria-hidden="true"
-                  />
-                  <span className="sr-only">Go to path</span>
-                </button>
-              </PopoverTrigger>
+                  <span className="inline-flex">
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex size-9 shrink-0 items-center justify-center rounded-md transition-colors select-none hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                      >
+                        <TextCursorInput
+                          className="size-4 shrink-0 transition-opacity"
+                          aria-hidden="true"
+                        />
+                        <span className="sr-only">Go to path</span>
+                      </button>
+                    </PopoverTrigger>
+                  </span>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" sideOffset={6}>
                   Go to path
