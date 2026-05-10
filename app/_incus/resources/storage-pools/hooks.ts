@@ -7,6 +7,7 @@ import type {
   ResourceStatus,
   ResourcesStoragePool,
   StoragePool,
+  StorageVolume,
 } from '@/app/_incus/types';
 import type { UseStoragePoolsRequest } from './ensure';
 import { resourceKeys } from '@/app/_incus/resources';
@@ -20,6 +21,8 @@ import {
   type IncusScopedStoreSnapshot,
   type IncusStoreSnapshot,
 } from '@/app/_incus/store';
+import { collectionStatusKey } from '@/app/_incus/scope';
+import { splitStorageVolumeKey } from '@/app/_incus/keys';
 
 export type StoragePoolRow = {
   name: string;
@@ -27,6 +30,20 @@ export type StoragePoolRow = {
   resources?: ResourcesStoragePool;
   metadataStatus: ResourceStatus;
   resourcesStatus: ResourceStatus;
+};
+
+export type StorageVolumeRow = {
+  key: string;
+  name: string;
+  type: string;
+  project: string;
+  metadata?: StorageVolume;
+  metadataStatus: ResourceStatus;
+};
+
+export type UseStoragePoolVolumesOptions = {
+  project?: string | null;
+  type?: string;
 };
 
 function visibleStatuses(
@@ -216,5 +233,116 @@ export function useStoragePools(request: UseStoragePoolsRequest = {}) {
     request.visibleRange,
     requestSnapshot.version,
     snapshot,
+  ]);
+}
+
+export function useStoragePoolVolumes(
+  poolName: string | null | undefined,
+  options: UseStoragePoolVolumesOptions = {},
+) {
+  const client = useIncusClient();
+  const selectedProject = options.project ?? client.getProject();
+  const collectionKey = collectionStatusKey(selectedProject ?? 'default');
+  const volumeType = options.type ?? 'custom';
+  const storeKey = poolName
+    ? resourceKeys.storagePoolVolumesCollection(poolName, collectionKey)
+    : null;
+  const storeSnapshot = client.store.getSnapshot();
+  const volumeMetadataKeys = React.useMemo(() => {
+    if (!poolName) return [];
+    const pool = storeSnapshot.state.storagePools.items[poolName];
+    return Object.keys(pool?.volumes.items ?? {})
+      .filter((key) => {
+        const identity = splitStorageVolumeKey(key);
+        return (
+          (collectionKey === 'all' || identity.project === collectionKey) &&
+          identity.type === volumeType
+        );
+      })
+      .map((key) => resourceKeys.storageVolumeMetadata(poolName, key));
+  }, [collectionKey, poolName, storeSnapshot, volumeType]);
+  const subscriptionKeys = React.useMemo(
+    () => (storeKey ? [storeKey, ...volumeMetadataKeys] : []),
+    [storeKey, volumeMetadataKeys],
+  );
+  const { storeSnapshot: snapshot, hasInFlight } = useIncusResourceSnapshot(
+    client,
+    subscriptionKeys,
+  );
+  const collection = poolName
+    ? snapshot.state.storagePools.items[poolName]?.volumes.collection.byProject[
+        collectionKey
+      ] ?? snapshot.state.storagePools.items[poolName]?.volumes.collection.all
+    : undefined;
+
+  React.useEffect(() => {
+    if (!poolName) return;
+    void client.ensureStoragePoolVolumes(poolName, selectedProject ?? 'default');
+  }, [client, poolName, selectedProject, collection?.status, snapshot.version]);
+
+  return React.useMemo(() => {
+    const volumeItems = poolName
+      ? snapshot.state.storagePools.items[poolName]?.volumes.items ?? {}
+      : {};
+    const rows = Object.entries(volumeItems)
+      .map(([key, item]) => {
+        const identity = splitStorageVolumeKey(key);
+        return {
+          key,
+          item,
+          ...identity,
+        };
+      })
+      .filter(
+        (row) =>
+          (collectionKey === 'all' || row.project === collectionKey) &&
+          row.type === volumeType,
+      )
+      .sort((left, right) => left.name.localeCompare(right.name))
+      .map(({ key, name, type, project, item }): StorageVolumeRow => {
+        const metadataKey = poolName
+          ? resourceKeys.storageVolumeMetadata(poolName, key)
+          : '';
+        return {
+          key,
+          name,
+          type,
+          project,
+          metadata: item.metadata.data,
+          metadataStatus: deriveResourceStatus({
+            storedStatus: item.metadata.status,
+            hasData: item.metadata.data !== undefined,
+            inFlight: poolName ? hasInFlight(metadataKey) : false,
+          }),
+        };
+      });
+    const collectionStatus = deriveResourceStatus({
+      storedStatus: collection?.status ?? 'missing',
+      hasData: rows.length > 0,
+      inFlight: storeKey ? hasInFlight(storeKey) : false,
+    });
+
+    return {
+      rows,
+      total: rows.length,
+      collectionStatus,
+      status: combineResourceStatuses([
+        collectionStatus,
+        ...rows.map((row) => row.metadataStatus),
+      ]),
+      error:
+        collection?.status === 'error'
+          ? new Error(collection.error ?? 'Unable to load storage volumes.')
+          : null,
+    };
+  }, [
+    collection?.error,
+    collection?.status,
+    collectionKey,
+    hasInFlight,
+    poolName,
+    snapshot,
+    storeKey,
+    volumeType,
   ]);
 }

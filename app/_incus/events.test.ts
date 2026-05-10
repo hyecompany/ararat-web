@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import { routeIncusEventToStore } from './events';
-import { instanceKey } from './keys';
+import { instanceKey, storageVolumeKey } from './keys';
 import { IncusStore } from './store';
 import type { IncusEvent } from '@/app/_context/events';
 
@@ -205,5 +205,84 @@ describe('routeIncusEventToStore', () => {
       status: 'ready',
       names: [],
     });
+  });
+
+  test('adds a stale storage volume shell when a loaded collection receives a create event', () => {
+    const store = new IncusStore();
+    const pool = store.ensureStoragePool('default');
+    pool.volumes.collection.byProject.default = { status: 'ready' };
+    pool.volumes.collection.byProject.all = { status: 'ready' };
+
+    routeIncusEventToStore(store, {
+      type: 'lifecycle',
+      timestamp: new Date(0).toISOString(),
+      project: 'default',
+      metadata: {
+        action: 'storage-volume-created',
+        source:
+          '/1.0/storage-pools/default/volumes/custom/testVol?project=default',
+      },
+    });
+
+    const key = storageVolumeKey('default', 'custom', 'testVol');
+    const volumes = store.getSnapshot().state.storagePools.items.default.volumes;
+    expect(volumes.collection.byProject.default.status).toBe('stale');
+    expect(volumes.collection.byProject.all.status).toBe('stale');
+    expect(volumes.items[key].metadata.status).toBe('missing');
+  });
+
+  test('updates all-projects storage volume collections from concrete project events', () => {
+    const store = new IncusStore();
+    const pool = store.ensureStoragePool('default');
+    pool.volumes.collection.byProject.all = { status: 'ready' };
+
+    routeIncusEventToStore(store, {
+      type: 'lifecycle',
+      timestamp: new Date(0).toISOString(),
+      project: 'default',
+      metadata: {
+        action: 'storage-volume-created',
+        source:
+          '/1.0/storage-pools/default/volumes/custom/testVol?project=default',
+      },
+    });
+
+    const key = storageVolumeKey('default', 'custom', 'testVol');
+    const volumes = store.getSnapshot().state.storagePools.items.default.volumes;
+    expect(volumes.collection.byProject.all.status).toBe('stale');
+    expect(volumes.items[key].metadata.status).toBe('missing');
+  });
+
+  test('removes deleted storage volumes from a loaded collection', () => {
+    const store = new IncusStore();
+    const key = storageVolumeKey('default', 'custom', 'testVol');
+    const pool = store.ensureStoragePool('default');
+    pool.volumes.collection.byProject.default = { status: 'ready' };
+    pool.volumes.collection.byProject.all = { status: 'ready' };
+    store.ensureStorageVolume('default', key).metadata = {
+      status: 'ready',
+      data: {
+        name: 'testVol',
+        type: 'custom',
+        project: 'default',
+        content_type: 'block',
+      },
+    };
+
+    routeIncusEventToStore(store, {
+      type: 'lifecycle',
+      timestamp: new Date(0).toISOString(),
+      project: 'default',
+      metadata: {
+        action: 'storage-volume-deleted',
+        source:
+          '/1.0/storage-pools/default/volumes/custom/testVol?project=default',
+      },
+    });
+
+    const volumes = store.getSnapshot().state.storagePools.items.default.volumes;
+    expect(volumes.items[key]).toBeUndefined();
+    expect(volumes.collection.byProject.default.status).toBe('stale');
+    expect(volumes.collection.byProject.all.status).toBe('stale');
   });
 });
