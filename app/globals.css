@@ -129,6 +129,42 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  .monaco-editor,
+  .monaco-editor-background,
+  .monaco-editor .margin {
+    background-color: var(--card) !important;
+  }
+
+  .monaco-editor .line-numbers {
+    color: var(--muted-foreground) !important;
+  }
+
+  .monaco-editor .current-line,
+  .monaco-editor .view-overlays .current-line {
+    background-color: color-mix(in oklch, var(--muted) 45%, transparent) !important;
+    border-color: transparent !important;
+  }
+
+  .monaco-editor .cursor {
+    background-color: var(--foreground) !important;
+    color: var(--foreground) !important;
+  }
+
+  .monaco-editor .scrollbar .slider {
+    background-color: color-mix(
+      in oklch,
+      var(--muted-foreground) 28%,
+      transparent
+    ) !important;
+  }
+
+  .monaco-editor .suggest-widget,
+  .monaco-editor .monaco-hover {
+    background-color: var(--popover) !important;
+    border-color: var(--border) !important;
+    color: var(--popover-foreground) !important;
+  }
 }
 
 @keyframes status-halo-pulse {
@@ -202,6 +238,94 @@
   }
 }
 
+@keyframes file-row-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes file-row-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.985);
+  }
+}
+
+@keyframes file-editor-return-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes file-editor-close-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(12px) scale(0.995);
+  }
+}
+
+.file-row-presence-enter {
+  animation: 150ms ease-out both file-row-enter;
+}
+
+.file-row-presence-exit {
+  pointer-events: none;
+  animation: 120ms ease-in both file-row-exit;
+}
+
+.file-directory-return-enter {
+  animation: 220ms ease-out both file-editor-return-enter;
+}
+
+.file-editor-closing-layer {
+  pointer-events: none;
+  animation: 260ms ease-in both file-editor-close-exit;
+}
+
+@keyframes file-breadcrumb-enter {
+  from {
+    opacity: 0;
+    filter: blur(1px);
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+  }
+}
+
+@keyframes file-breadcrumb-exit {
+  from {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    filter: blur(1px);
+    transform: translateY(-5px);
+  }
+}
+
 ::view-transition-old(.nav-forward) {
   --slide-offset: -48px;
   animation:
@@ -240,6 +364,119 @@
   animation:
     var(--duration-enter) ease-out var(--duration-exit) both
     view-transition-fade;
+}
+
+::view-transition-old(.file-forward) {
+  --slide-offset: -28px;
+  animation:
+    var(--duration-exit) ease-in both view-transition-fade reverse,
+    var(--duration-move) ease-in-out both view-transition-slide-x reverse;
+}
+
+::view-transition-new(.file-forward) {
+  --slide-offset: 28px;
+  animation:
+    var(--duration-enter) ease-out var(--duration-exit) both
+      view-transition-fade,
+    var(--duration-move) ease-out both view-transition-slide-x;
+}
+
+::view-transition-old(.file-back) {
+  --slide-offset: 28px;
+  animation:
+    var(--duration-exit) ease-in both view-transition-fade reverse,
+    var(--duration-move) ease-in-out both view-transition-slide-x reverse;
+}
+
+::view-transition-new(.file-back) {
+  --slide-offset: -28px;
+  animation:
+    var(--duration-enter) ease-out var(--duration-exit) both
+      view-transition-fade,
+    var(--duration-move) ease-out both view-transition-slide-x;
+}
+
+::view-transition-old(.file-jump) {
+  animation: var(--duration-exit) ease-in both view-transition-fade reverse;
+}
+
+::view-transition-new(.file-jump) {
+  animation:
+    var(--duration-enter) ease-out var(--duration-exit) both
+      view-transition-fade;
+}
+
+::view-transition-old(.file-route-fade-out) {
+  animation: 120ms ease-out both view-transition-fade reverse;
+}
+
+::view-transition-new(.file-route-fade-in) {
+  animation: 160ms ease-out 40ms both view-transition-fade;
+}
+
+::view-transition-old(.file-loadable-route-out) {
+  animation: 90ms ease-out both view-transition-fade reverse;
+}
+
+::view-transition-new(.file-loadable-route-in) {
+  animation: 120ms ease-out both view-transition-fade;
+}
+
+::view-transition-old(.file-metadata-exit) {
+  animation: 90ms ease-out both view-transition-fade reverse;
+}
+
+::view-transition-new(.file-metadata-enter) {
+  animation: 130ms ease-out both view-transition-fade;
+}
+
+::view-transition-new(.file-breadcrumb-enter) {
+  animation: 180ms ease-out both file-breadcrumb-enter;
+}
+
+::view-transition-old(.file-breadcrumb-exit) {
+  animation: 180ms ease-in both file-breadcrumb-exit;
+}
+
+.file-breadcrumb-manual-exit {
+  pointer-events: none;
+  animation: 180ms ease-in both file-breadcrumb-exit;
+}
+
+::view-transition-group(.file-text-shared) {
+  animation-duration: var(--duration-move);
+}
+
+::view-transition-old(.file-text-shared) {
+  display: none;
+}
+
+::view-transition-new(.file-text-shared) {
+  animation: none;
+  object-fit: none;
+  object-position: left top;
+}
+
+::view-transition-old(.file-editor-open-exit) {
+  animation:
+    var(--duration-exit) ease-in both view-transition-fade reverse,
+    var(--duration-exit) ease-in both view-transition-slide-y reverse;
+}
+
+::view-transition-new(.file-editor-open-enter) {
+  animation:
+    var(--duration-enter) ease-out var(--duration-exit) both
+      view-transition-fade,
+    var(--duration-move) ease-out both view-transition-slide-y;
+}
+
+::view-transition-old(.file-editor-close-exit) {
+  animation: 260ms ease-in both file-editor-close-exit;
+}
+
+::view-transition-new(.file-editor-close-enter) {
+  animation:
+    220ms ease-out 35ms both file-editor-return-enter;
 }
 
 ::view-transition-old(.slide-down) {
@@ -346,6 +583,24 @@
 
   ::view-transition-old(.loadable-exit),
   ::view-transition-new(.loadable-reveal),
+  ::view-transition-old(.file-forward),
+  ::view-transition-new(.file-forward),
+  ::view-transition-old(.file-back),
+  ::view-transition-new(.file-back),
+  ::view-transition-old(.file-jump),
+  ::view-transition-new(.file-jump),
+  ::view-transition-old(.file-route-fade-out),
+  ::view-transition-new(.file-route-fade-in),
+  ::view-transition-old(.file-metadata-exit),
+  ::view-transition-new(.file-metadata-enter),
+  ::view-transition-old(.file-loadable-route-out),
+  ::view-transition-new(.file-loadable-route-in),
+  ::view-transition-new(.file-breadcrumb-enter),
+  ::view-transition-old(.file-breadcrumb-exit),
+  ::view-transition-old(.file-editor-open-exit),
+  ::view-transition-new(.file-editor-open-enter),
+  ::view-transition-old(.file-editor-close-exit),
+  ::view-transition-new(.file-editor-close-enter),
   ::view-transition-old(*),
   ::view-transition-new(*),
   ::view-transition-group(*) {
@@ -357,5 +612,9 @@
   .freshness-surface::after {
     animation: none;
     transform: none;
+  }
+
+  .file-breadcrumb-manual-exit {
+    animation-duration: 1ms !important;
   }
 }

@@ -4,6 +4,12 @@ import * as React from 'react';
 import Editor from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
 import { Badge } from 'ui-web/components/badge';
+import {
+  cn,
+  dashboardMonacoOptions,
+  dashboardMonacoTheme,
+  defineDashboardMonacoThemes,
+} from 'ui-web/lib/utils';
 import { Switch } from 'ui-web/components/switch';
 import { Label } from 'ui-web/components/label';
 import DataTable from 'ui-web/components/data-table';
@@ -15,7 +21,6 @@ import { useInstanceLogContent } from '../../_hooks/logs';
 import type { Instance } from '@/app/(main)/instances/_lib/instances.d';
 import { Spinner } from 'ui-web/components/spinner';
 import { Button } from 'ui-web/components/button';
-import { cn } from 'ui-web/lib/utils';
 import { Skeleton } from 'ui-web/components/skeleton';
 
 // --- Date Formatting Helpers ---
@@ -497,8 +502,10 @@ export function LogViewer({
               defaultLanguage="plaintext"
               language={filename.endsWith('.json') ? 'json' : 'plaintext'}
               value={content || ''}
-              theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
+              beforeMount={defineDashboardMonacoThemes}
+              theme={dashboardMonacoTheme(resolvedTheme)}
               options={{
+                ...dashboardMonacoOptions,
                 readOnly: true,
                 minimap: { enabled: false },
                 fontSize: 12,
