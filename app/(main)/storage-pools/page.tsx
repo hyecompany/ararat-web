@@ -19,6 +19,7 @@ import { LoadableSurface } from 'ui-web/components/loadable-surface';
 import { Progress } from 'ui-web/components/progress';
 import { Skeleton } from 'ui-web/components/skeleton';
 import { PageTransition } from 'ui-web/components/view-transitions';
+import { isStaleResourceStatus } from '@/app/_incus/status';
 import {
   Sheet,
   SheetContent,
@@ -56,7 +57,7 @@ function statusBadgeVariant(status?: string): React.ComponentProps<typeof Badge>
 }
 
 function isSoftLoading(status: ResourceStatus) {
-  return status === 'stale' || status === 'refreshing';
+  return isStaleResourceStatus(status);
 }
 
 export default function StoragePoolsPage() {

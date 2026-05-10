@@ -171,6 +171,28 @@ function createInitialState(): IncusStoreState {
   };
 }
 
+const emptyHydrationState = createInitialState();
+const emptyHydrationSnapshotCache = new Map<string, IncusScopedStoreSnapshot>();
+
+export function getEmptyHydrationSnapshotForKeys(
+  keys: IncusStoreKey[],
+): IncusScopedStoreSnapshot {
+  const signature = keys.map((key) => `${key}:0`).join('|');
+  const cached = emptyHydrationSnapshotCache.get(signature);
+  if (cached) return cached;
+
+  // Client store singletons can already contain persisted data before a new
+  // route hydrates. The server snapshot fallback must stay empty so React sees
+  // identical markup on the server render and the first client render; normal
+  // subscriptions replace it with the restored cache immediately after hydrate.
+  const snapshot = {
+    version: signature,
+    state: emptyHydrationState,
+  };
+  emptyHydrationSnapshotCache.set(signature, snapshot);
+  return snapshot;
+}
+
 export class IncusStore {
   private version = 0;
   private keyVersions = new Map<IncusStoreKey, number>();

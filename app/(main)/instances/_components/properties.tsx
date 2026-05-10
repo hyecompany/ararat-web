@@ -88,7 +88,7 @@ export default function InstanceProperties({
       />
       <Field>
         <FieldLabel htmlFor="profile">Profiles</FieldLabel>
-        <FreshnessSurface active={isProfilesStale || isProfilesRefreshing}>
+        <FreshnessSurface active={isProfilesStale}>
           <Combobox
             multiple
             values={profilesSelected}

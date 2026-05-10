@@ -367,7 +367,7 @@ function NavUser() {
   const { isMobile } = useSidebar();
   const {
     data: authData,
-    isRefreshing: authIsRefreshing,
+    isStale: authIsStale,
     isLoading: authIsLoading,
   } = React.use(AuthenticationContext);
   const {
@@ -402,7 +402,7 @@ function NavUser() {
     window.location.href = "/ui/authentication/login";
   }, [authData]);
   return (
-    <SidebarMenu className={authIsRefreshing ? 'freshness-shimmer' : ''}>
+    <SidebarMenu className={authIsStale ? 'freshness-shimmer' : ''}>
       <SidebarMenuItem>
         <DropdownMenu>
           <DropdownMenuTrigger
@@ -483,7 +483,7 @@ function NavUser() {
                   )}
                 </Avatar>
                 <div
-                  className={`grid flex-1 text-left text-sm leading-tight ${authIsRefreshing ? 'freshness-shimmer' : ''
+                  className={`grid flex-1 text-left text-sm leading-tight ${authIsStale ? 'freshness-shimmer' : ''
                     }`}
                 >
                   {authData?.method === "tls" ? (

@@ -9,15 +9,16 @@ import { useIncusResourceSnapshot } from '@/app/_incus/use-resource-snapshot';
 
 export function useStoragePools() {
   const result = useStoragePoolsResource({ include: { metadata: true } });
+  const flags = resourceStatusFlags(result.status);
   return {
     data: result.rows
       .map((row) => row.metadata)
       .filter((pool): pool is StoragePool => Boolean(pool)),
     error: null,
     status: result.status,
-    isLoading: result.status === 'loading',
-    isStale: result.status === 'stale',
-    isRefreshing: result.status === 'refreshing',
+    isLoading: flags.isLoading,
+    isStale: flags.isStale,
+    isRefreshing: flags.isRefreshing,
   };
 }
 

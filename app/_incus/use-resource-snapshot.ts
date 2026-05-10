@@ -2,6 +2,8 @@
 
 import React from 'react';
 import type { IncusClient } from './client';
+import { getEmptyRequestSnapshotForKeys } from './requests';
+import { getEmptyHydrationSnapshotForKeys } from './store';
 import type {
   IncusScopedStoreSnapshot,
   IncusStoreSnapshot,
@@ -23,7 +25,7 @@ export function useIncusResourceSnapshot(
       () => client.store.getSnapshotForKeys(keys),
       [client, signature],
     ),
-    () => serverSnapshot ?? client.store.getSnapshotForKeys(keys),
+    () => serverSnapshot ?? getEmptyHydrationSnapshotForKeys(keys),
   );
 
   const requestSnapshot = React.useSyncExternalStore(
@@ -35,7 +37,7 @@ export function useIncusResourceSnapshot(
       () => client.requestRegistry.getSnapshotForKeys(keys),
       [client, signature],
     ),
-    () => client.requestRegistry.getSnapshotForKeys(keys),
+    () => getEmptyRequestSnapshotForKeys(keys),
   );
 
   return {
