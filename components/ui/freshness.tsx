@@ -3,11 +3,12 @@
 import * as React from 'react';
 import { Slot } from '@radix-ui/react-slot';
 import type { ResourceStatus } from '@/app/_incus/types';
+import { isStaleResourceStatus } from '@/app/_incus/status';
 import { cn } from 'ui-web/lib/utils';
 
 function freshnessState(status?: ResourceStatus | boolean) {
   if (status === true) return 'refreshing';
-  if (status === 'stale' || status === 'refreshing') return status;
+  if (status && isStaleResourceStatus(status)) return 'refreshing';
   return 'ready';
 }
 

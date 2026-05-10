@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { ViewTransition, addTransitionType, startTransition } from 'react';
 import { Spinner } from 'ui-web/components/spinner';
 import { Button } from 'ui-web/components/button';
 import {
@@ -40,6 +40,7 @@ import { Label } from 'ui-web/components/label';
 import { Progress } from 'ui-web/components/progress';
 import {
   Breadcrumb,
+  BreadcrumbEllipsis,
   BreadcrumbItem,
   BreadcrumbLink,
   BreadcrumbList,
@@ -69,12 +70,21 @@ import {
   PenLine,
   ClipboardCopy,
   Link2,
-  Loader2,
+  SearchIcon,
 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
 import Editor from '@monaco-editor/react';
+import { useTheme } from 'next-themes';
 import DataTable from 'ui-web/components/data-table';
-import { FreshnessSurface } from 'ui-web/components/freshness';
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from 'ui-web/components/empty';
+import { FreshnessSurface, StaleShimmer } from 'ui-web/components/freshness';
 import { LoadableSurface } from 'ui-web/components/loadable-surface';
 import { Skeleton } from 'ui-web/components/skeleton';
 import { ColumnDef, Row } from '@tanstack/react-table';
@@ -99,7 +109,23 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { cn } from 'ui-web/lib/utils';
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  InputGroupText,
+} from '@/components/ui/input-group';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
+  dashboardMonacoOptions,
+  dashboardMonacoTheme,
+  defineDashboardMonacoThemes,
+  cn,
+} from 'ui-web/lib/utils';
 
 interface FileBrowserProps {
   files: (string | FileItem)[];
@@ -158,7 +184,14 @@ export interface FileItem {
   mode?: string;
   uid?: string;
   gid?: string;
+  symlinkTargetKind?: 'directory' | 'file' | 'missing';
+  symlinkTargetPath?: string;
 }
+
+type FileRowPresence = 'entering' | 'exiting';
+type RenderedFileItem = FileItem & {
+  __rowPresence?: FileRowPresence;
+};
 
 // Measured from tr[data-index] at 1201x979, 1920x1080, and 390x844.
 // If file row padding, font size, border, icon size, or wrapping changes,
@@ -166,9 +199,55 @@ export interface FileItem {
 // h-[49px] row class below.
 const FILE_TABLE_ROW_HEIGHT_PX = 49;
 const FILE_TABLE_VIRTUAL_OVERSCAN = 10;
+const FILE_TABLE_ROW_PRESENCE_MS = 140;
+const FILE_EDITOR_CLOSE_EXIT_MS = 260;
+const FILE_EDITOR_RETURN_ENTER_MS = 220;
 
 function normalizedPathKey(p: string): string {
   return normalizeAbsPath(p.trim() || '/');
+}
+
+function fileViewTransitionName(path: string) {
+  return `file-${normalizeAbsPath(path).replace(/[^a-zA-Z0-9_-]/g, (char) =>
+    `_${char.charCodeAt(0).toString(16)}_`,
+  )}`;
+}
+
+function filterFileItemsByName(items: FileItem[], rawQuery: string) {
+  const query = rawQuery.trim().toLowerCase();
+  if (!query) return items;
+  return items.filter((item) => item.name.toLowerCase().includes(query));
+}
+
+function reconcileRenderedFileRows(
+  previousRows: RenderedFileItem[],
+  nextRows: FileItem[],
+): RenderedFileItem[] {
+  const previousNames = new Set(previousRows.map((item) => item.name));
+  const nextByName = new Map(nextRows.map((item) => [item.name, item]));
+  const hasRemovedRows = previousRows.some((item) => !nextByName.has(item.name));
+
+  if (!hasRemovedRows) {
+    return nextRows.map((item) => ({
+      ...item,
+      __rowPresence: previousNames.has(item.name) ? undefined : 'entering',
+    }));
+  }
+
+  const stagedRows: RenderedFileItem[] = previousRows.map((item) => {
+    const nextItem = nextByName.get(item.name);
+    if (nextItem) return nextItem;
+    return { ...item, __rowPresence: 'exiting' as const };
+  });
+
+  const stagedNames = new Set(stagedRows.map((item) => item.name));
+  for (const item of nextRows) {
+    if (!stagedNames.has(item.name)) {
+      stagedRows.push({ ...item, __rowPresence: 'entering' });
+    }
+  }
+
+  return stagedRows;
 }
 
 /** One file or folder name — not a path with slashes. */
@@ -310,6 +389,25 @@ function FileDetailFade({
   );
 }
 
+function FileMetadataViewTransition({
+  stateKey,
+  children,
+}: {
+  stateKey: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <ViewTransition
+      key={stateKey}
+      enter="file-metadata-enter"
+      exit="file-metadata-exit"
+      default="none"
+    >
+      <span className="inline-block">{children}</span>
+    </ViewTransition>
+  );
+}
+
 function formatBytes(value?: number) {
   if (typeof value !== 'number' || Number.isNaN(value)) {
     return '—';
@@ -401,6 +499,14 @@ const EXTENSION_MONACO_LANG: Record<string, string> = {
   pyw: 'python',
   rb: 'ruby',
   rs: 'rust',
+  c: 'c',
+  h: 'c',
+  cpp: 'cpp',
+  cc: 'cpp',
+  cxx: 'cpp',
+  hpp: 'cpp',
+  hh: 'cpp',
+  hxx: 'cpp',
   go: 'go',
   mod: 'go',
   work: 'go',
@@ -474,7 +580,11 @@ function FileEntryIcon({
 }) {
   if (pending) {
     return (
-      <Loader2 className="text-muted-foreground size-4 shrink-0 animate-spin" />
+      <StaleShimmer
+        active
+        aria-label="Loading file metadata"
+        className="size-4 shrink-0 rounded-sm"
+      />
     );
   }
   if (isSymlink) {
@@ -628,6 +738,12 @@ const BreadcrumbDirPeek = React.memo(function BreadcrumbDirPeek({
       {entries.map((item) => {
         const isDir = rowIsDirectory(item);
         const childFullPath = joinAbsPath(dirPath, item.name);
+        const childListingPath =
+          item.type?.toLowerCase() === 'symlink' &&
+          item.symlinkTargetKind === 'directory' &&
+          item.symlinkTargetPath
+            ? item.symlinkTargetPath
+            : childFullPath;
         const expanded = expandedChildPaths.has(childFullPath);
         return (
           <li key={`${dirPath}:${item.name}`} className="list-none">
@@ -672,7 +788,7 @@ const BreadcrumbDirPeek = React.memo(function BreadcrumbDirPeek({
             {isDir && expanded ? (
               <div className="border-muted mt-1 ml-1 border-l pl-2">
                 <BreadcrumbDirPeek
-                  dirPath={childFullPath}
+                  dirPath={childListingPath}
                   depth={depth + 1}
                   fetchDirectoryEntries={fetchDirectoryEntries}
                   rowIsDirectory={rowIsDirectory}
@@ -690,9 +806,7 @@ const BreadcrumbDirPeek = React.memo(function BreadcrumbDirPeek({
 export function FileBrowser({
   files,
   isLoading,
-  isRoutePending = false,
   isListingRevalidating = false,
-  isMetadataLoading = false,
   isError,
   homePath = '/',
   currentPath,
@@ -713,15 +827,11 @@ export function FileBrowser({
   requestMetadataForNames,
   resolveSymlinkNavTarget,
 }: FileBrowserProps) {
+  const { resolvedTheme } = useTheme();
   const [actionError, setActionError] = React.useState<string | null>(null);
   const [isCreateDirOpen, setIsCreateDirOpen] = React.useState(false);
   const [isCreateFileOpen, setIsCreateFileOpen] = React.useState(false);
   const [isUploadOpen, setIsUploadOpen] = React.useState(false);
-
-  const [binaryOffer, setBinaryOffer] = React.useState<{
-    buffer: ArrayBuffer;
-    basename: string;
-  } | null>(null);
 
   const [selectedRows, setSelectedRows] = React.useState<Row<object>[]>([]);
   const currentPathRef = React.useRef(currentPath);
@@ -739,9 +849,13 @@ export function FileBrowser({
   } | null>(null);
 
   const [editingFile, setEditingFile] = React.useState<string | null>(null);
+  const [exitingEditorBreadcrumb, setExitingEditorBreadcrumb] =
+    React.useState<string | null>(null);
   const [fileContent, setFileContent] = React.useState<string>('');
   const [syncedContent, setSyncedContent] = React.useState<string>('');
   const [fileMode, setFileMode] = React.useState<string | undefined>(undefined);
+  const [isEditorClosing, setIsEditorClosing] = React.useState(false);
+  const [isDirectoryReturning, setIsDirectoryReturning] = React.useState(false);
   const [isFetchingContent, setIsFetchingContent] = React.useState(false);
   const [isSaving, setIsSaving] = React.useState(false);
   const [showSaved, setShowSaved] = React.useState(false);
@@ -754,16 +868,31 @@ export function FileBrowser({
   const [dropPhaseLabel, setDropPhaseLabel] = React.useState('');
 
   const pendingJumpOpen = React.useRef<{ targetPath: string } | null>(null);
+  const exitingEditorBreadcrumbTimerRef = React.useRef<number | null>(null);
+  const editorCloseTimerRef = React.useRef<number | null>(null);
+  const directoryReturnTimerRef = React.useRef<number | null>(null);
 
   const [pathJumpOpen, setPathJumpOpen] = React.useState(false);
   const [pathJumpValue, setPathJumpValue] = React.useState(currentPath);
-  const [pathJumpZoneHover, setPathJumpZoneHover] = React.useState(false);
 
   const [deleteConfirmOpen, setDeleteConfirmOpen] = React.useState(false);
   const [deleteConfirmPaths, setDeleteConfirmPaths] = React.useState<string[]>(
     [],
   );
   const [deleteBusy, setDeleteBusy] = React.useState(false);
+  const [fileNameSearch, setFileNameSearch] = React.useState('');
+  const [fileNameSearchFilter, setFileNameSearchFilter] = React.useState('');
+  const fileNameSearchInputRef = React.useRef<HTMLInputElement | null>(null);
+  const pathZoneRef = React.useRef<HTMLDivElement | null>(null);
+  const [pathZoneWidth, setPathZoneWidth] = React.useState(0);
+  const previousCurrentPathRef = React.useRef(currentPath);
+  const currentPathForRenderedRowsRef = React.useRef(currentPath);
+  const fileNameSearchFilterRef = React.useRef(fileNameSearchFilter);
+  const wasLoadingRenderedRowsRef = React.useRef(isLoading);
+  const rowPresenceSettleTimerRef = React.useRef<number | null>(null);
+  const settledFileRowsRef = React.useRef<FileItem[]>([]);
+  const [probingLikelyDirectoryPath, setProbingLikelyDirectoryPath] =
+    React.useState<string | null>(null);
 
   const entryFullPath = React.useCallback(
     (name: string) => joinAbsPath(currentPath, name),
@@ -815,8 +944,48 @@ export function FileBrowser({
     );
 
   React.useEffect(() => {
-    setSelectedRows([]);
+    if (previousCurrentPathRef.current === currentPath) return;
+    previousCurrentPathRef.current = currentPath;
+    setProbingLikelyDirectoryPath(null);
+    setFileNameSearch('');
+    setFileNameSearchFilter('');
+    fileNameSearchFilterRef.current = '';
   }, [currentPath]);
+
+  React.useEffect(() => {
+    setSelectedRows([]);
+  }, [currentPath, fileNameSearchFilter]);
+
+  React.useEffect(() => {
+    return () => {
+      if (rowPresenceSettleTimerRef.current !== null) {
+        window.clearTimeout(rowPresenceSettleTimerRef.current);
+      }
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (editingFile) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey)) return;
+      if (event.key.toLowerCase() !== 'f') return;
+      event.preventDefault();
+      fileNameSearchInputRef.current?.focus();
+      fileNameSearchInputRef.current?.select();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [editingFile]);
+
+  React.useLayoutEffect(() => {
+    const node = pathZoneRef.current;
+    if (!node) return;
+    const update = () => setPathZoneWidth(Math.floor(node.getBoundingClientRect().width));
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
 
   const isDragOverlay =
     dragDepth > 0 || dropUploading || dropProgressPct !== null;
@@ -827,13 +996,90 @@ export function FileBrowser({
       return f as FileItem;
     });
   }, [files]);
+  const [renderedFileData, setRenderedFileData] =
+    React.useState<RenderedFileItem[]>(fileData);
+  const filteredFileData = React.useMemo(() => {
+    return filterFileItemsByName(fileData, fileNameSearchFilter);
+  }, [fileData, fileNameSearchFilter]);
+  React.useEffect(() => {
+    const nextRows = filterFileItemsByName(
+      fileData,
+      fileNameSearchFilterRef.current,
+    );
+    const wasLoadingRows = wasLoadingRenderedRowsRef.current;
+    wasLoadingRenderedRowsRef.current = isLoading;
+
+    if (
+      currentPathForRenderedRowsRef.current !== currentPath ||
+      isLoading ||
+      wasLoadingRows
+    ) {
+      currentPathForRenderedRowsRef.current = currentPath;
+      settledFileRowsRef.current = nextRows;
+      setRenderedFileData(nextRows);
+      return;
+    }
+
+    settledFileRowsRef.current = nextRows;
+    setRenderedFileData((previousRows) =>
+      reconcileRenderedFileRows(previousRows, nextRows),
+    );
+    if (rowPresenceSettleTimerRef.current !== null) {
+      window.clearTimeout(rowPresenceSettleTimerRef.current);
+    }
+    rowPresenceSettleTimerRef.current = window.setTimeout(() => {
+      setRenderedFileData(settledFileRowsRef.current);
+      rowPresenceSettleTimerRef.current = null;
+    }, FILE_TABLE_ROW_PRESENCE_MS);
+  }, [currentPath, fileData, isLoading]);
+  const tableFileData =
+    currentPathForRenderedRowsRef.current === currentPath
+      ? renderedFileData
+      : filteredFileData;
   const tableStatus = isLoading
     ? 'loading'
     : isError
       ? 'error'
-      : isListingRevalidating
-        ? 'refreshing'
-        : 'ready';
+      : probingLikelyDirectoryPath
+        ? 'loading'
+        : isListingRevalidating
+          ? 'refreshing'
+          : 'ready';
+  const hasFileTableData =
+    fileData.length > 0 && probingLikelyDirectoryPath === null;
+  const loadableViewKey = hasFileTableData
+    ? 'content'
+    : tableStatus === 'ready'
+      ? 'empty'
+      : tableStatus === 'error'
+        ? 'error'
+        : 'skeleton';
+  const searchResultCountPending = loadableViewKey === 'skeleton';
+  const previousLoadableViewRef = React.useRef(loadableViewKey);
+  const animateLoadableSurfaceForRoute =
+    loadableViewKey !== 'content' || previousLoadableViewRef.current !== 'content';
+  React.useEffect(() => {
+    previousLoadableViewRef.current = loadableViewKey;
+  }, [loadableViewKey]);
+  const loadableImmediateViews = React.useMemo<
+    NonNullable<React.ComponentProps<typeof LoadableSurface>['immediateViews']>
+  >(() => ['skeleton'], []);
+  const loadableRouteTransitionEnter = animateLoadableSurfaceForRoute
+    ? {
+        'file-forward': 'file-loadable-route-in',
+        'file-back': 'file-loadable-route-in',
+        'file-jump': 'file-loadable-route-in',
+        default: 'none',
+      }
+    : undefined;
+  const loadableRouteTransitionExit = animateLoadableSurfaceForRoute
+    ? {
+        'file-forward': 'file-loadable-route-out',
+        'file-back': 'file-loadable-route-out',
+        'file-jump': 'file-loadable-route-out',
+        default: 'none',
+      }
+    : undefined;
 
   const onVirtualVisibleFileRows = React.useCallback(
     (visibleRows: Row<object>[]) => {
@@ -853,16 +1099,108 @@ export function FileBrowser({
     return window.confirm('Discard unsaved changes?');
   }, [isDirty]);
 
-  const navigateOrDiscard = React.useCallback(
-    (path: string) => {
-      if (!confirmLeaveEditor()) return;
+  const showEditorForFile = React.useCallback((path: string) => {
+    if (editorCloseTimerRef.current !== null) {
+      window.clearTimeout(editorCloseTimerRef.current);
+      editorCloseTimerRef.current = null;
+    }
+    if (directoryReturnTimerRef.current !== null) {
+      window.clearTimeout(directoryReturnTimerRef.current);
+      directoryReturnTimerRef.current = null;
+    }
+    if (exitingEditorBreadcrumbTimerRef.current !== null) {
+      window.clearTimeout(exitingEditorBreadcrumbTimerRef.current);
+      exitingEditorBreadcrumbTimerRef.current = null;
+    }
+    setIsEditorClosing(false);
+    setIsDirectoryReturning(false);
+    setExitingEditorBreadcrumb(null);
+    startTransition(() => {
+      addTransitionType('file-editor-open');
+      setEditingFile(path);
+    });
+  }, []);
+
+  const closeEditor = React.useCallback((closingPath = editingFile) => {
+    const closingFile = closingPath;
+    if (!closingFile) return;
+    if (exitingEditorBreadcrumbTimerRef.current !== null) {
+      window.clearTimeout(exitingEditorBreadcrumbTimerRef.current);
+      exitingEditorBreadcrumbTimerRef.current = null;
+    }
+    setExitingEditorBreadcrumb(closingFile);
+    setIsEditorClosing(true);
+    if (editorCloseTimerRef.current !== null) {
+      window.clearTimeout(editorCloseTimerRef.current);
+    }
+    editorCloseTimerRef.current = window.setTimeout(() => {
       setEditingFile(null);
       setFileContent('');
       setSyncedContent('');
       setFileMode(undefined);
+      setIsEditorClosing(false);
+      setIsDirectoryReturning(true);
+      editorCloseTimerRef.current = null;
+      directoryReturnTimerRef.current = window.setTimeout(() => {
+        setIsDirectoryReturning(false);
+        directoryReturnTimerRef.current = null;
+      }, FILE_EDITOR_RETURN_ENTER_MS);
+    }, FILE_EDITOR_CLOSE_EXIT_MS);
+  }, [editingFile]);
+
+  React.useEffect(() => {
+    return () => {
+      if (editorCloseTimerRef.current !== null) {
+        window.clearTimeout(editorCloseTimerRef.current);
+      }
+      if (directoryReturnTimerRef.current !== null) {
+        window.clearTimeout(directoryReturnTimerRef.current);
+      }
+      if (exitingEditorBreadcrumbTimerRef.current !== null) {
+        window.clearTimeout(exitingEditorBreadcrumbTimerRef.current);
+      }
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (!exitingEditorBreadcrumb || editingFile) return;
+    if (exitingEditorBreadcrumbTimerRef.current !== null) {
+      window.clearTimeout(exitingEditorBreadcrumbTimerRef.current);
+    }
+    exitingEditorBreadcrumbTimerRef.current = window.setTimeout(() => {
+      setExitingEditorBreadcrumb(null);
+      exitingEditorBreadcrumbTimerRef.current = null;
+    }, 190);
+    return () => {
+      if (exitingEditorBreadcrumbTimerRef.current !== null) {
+        window.clearTimeout(exitingEditorBreadcrumbTimerRef.current);
+        exitingEditorBreadcrumbTimerRef.current = null;
+      }
+    };
+  }, [editingFile, exitingEditorBreadcrumb]);
+
+  const runFileMutationTransition = React.useCallback(<T,>(
+    work: () => T | Promise<T>,
+  ) => {
+    return new Promise<T>((resolve, reject) => {
+      startTransition(async () => {
+        addTransitionType('file-mutation');
+        try {
+          resolve(await work());
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+  }, []);
+
+  const navigateOrDiscard = React.useCallback(
+    (path: string) => {
+      if (!confirmLeaveEditor()) return;
+      closeEditor();
       onNavigate(path);
     },
-    [confirmLeaveEditor, onNavigate],
+    [closeEditor, confirmLeaveEditor, onNavigate],
   );
 
   const applyPathJump = React.useCallback(async () => {
@@ -895,9 +1233,12 @@ export function FileBrowser({
     return !item.name.includes('.');
   };
 
-  /** Breadcrumb peek treats symlinks as navigable containers (listing follows the link). */
-  const rowIsTreeFolder = (item: FileItem) =>
-    rowIsDirectory(item) || item.type?.toLowerCase() === 'symlink';
+  const rowIsTreeFolder = (item: FileItem) => {
+    if (item.type?.toLowerCase() === 'symlink') {
+      return item.symlinkTargetKind === 'directory';
+    }
+    return rowIsDirectory(item);
+  };
 
   const handleOpenEntry = async (
     item: FileItem,
@@ -915,10 +1256,17 @@ export function FileBrowser({
     // to keep folder navigation reliable when row type is ambiguous.
     let kindFromProbe: 'directory' | 'file' | 'missing' | null = null;
     if (!normalizedType || !['directory', 'file', 'symlink'].includes(normalizedType)) {
+      if (rowIsDirectory(item)) {
+        setProbingLikelyDirectoryPath(fullPath);
+      }
       try {
         kindFromProbe = await probePathKind(fullPath);
       } catch {
         kindFromProbe = null;
+      } finally {
+        setProbingLikelyDirectoryPath((pendingPath) =>
+          pendingPath === fullPath ? null : pendingPath,
+        );
       }
     }
 
@@ -977,14 +1325,12 @@ export function FileBrowser({
       onNavigate(fileParentDir);
     }
 
-    setEditingFile(fullPath);
     setIsFetchingContent(true);
     try {
       const raw = await onFetchRaw(fullPath);
       const isBin = classifyBufferIsBinary(fileName, raw.buffer);
       if (isBin) {
-        setEditingFile(null);
-        setBinaryOffer({ buffer: raw.buffer, basename: fileName });
+        downloadArrayBufferAsFile(raw.buffer, fileName);
         return;
       }
       const content = new TextDecoder('utf-8', { fatal: false }).decode(
@@ -993,7 +1339,7 @@ export function FileBrowser({
       setFileContent(content);
       setSyncedContent(content);
       setFileMode(raw.mode);
-      setEditingFile(fullPath);
+      showEditorForFile(fullPath);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       if (message.includes('IS_DIRECTORY')) {
@@ -1001,9 +1347,7 @@ export function FileBrowser({
         return;
       }
       setActionError(message);
-      setEditingFile(null);
-      setSyncedContent('');
-      setFileMode(undefined);
+      closeEditor(fullPath);
     } finally {
       setIsFetchingContent(false);
     }
@@ -1086,19 +1430,21 @@ export function FileBrowser({
     setDeleteBusy(true);
     setActionError(null);
     try {
-      for (const p of deleteConfirmPaths) {
-        await onDelete(p);
-      }
-      setSelectedRows([]);
-      setDeleteConfirmOpen(false);
-      setDeleteConfirmPaths([]);
+      await runFileMutationTransition(async () => {
+        for (const p of deleteConfirmPaths) {
+          await onDelete(p);
+        }
+        setSelectedRows([]);
+        setDeleteConfirmOpen(false);
+        setDeleteConfirmPaths([]);
+      });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       setActionError(message);
     } finally {
       setDeleteBusy(false);
     }
-  }, [deleteConfirmPaths, onDelete]);
+  }, [deleteConfirmPaths, onDelete, runFileMutationTransition]);
 
   const handleSave = React.useCallback(async () => {
     if (!editingFile) return;
@@ -1118,12 +1464,7 @@ export function FileBrowser({
     }
   }, [editingFile, fileContent, fileMode, onSaveContent]);
 
-  const handleCancel = () => {
-    setEditingFile(null);
-    setFileContent('');
-    setSyncedContent('');
-    setFileMode(undefined);
-  };
+  const handleCancel = () => closeEditor();
 
   const breadcrumbs = React.useMemo(() => {
     const path = editingFile ? editingFile : currentPath;
@@ -1133,6 +1474,53 @@ export function FileBrowser({
       return { name: part, path: crumbPath };
     });
   }, [currentPath, editingFile]);
+  const exitingEditorBreadcrumbName = React.useMemo(() => {
+    if (!exitingEditorBreadcrumb) return null;
+    if (editingFile) return null;
+    if (absPathParent(exitingEditorBreadcrumb) !== normalizeAbsPath(currentPath)) {
+      return null;
+    }
+    return basenameFromPath(exitingEditorBreadcrumb);
+  }, [currentPath, editingFile, exitingEditorBreadcrumb]);
+
+  const collapsedBreadcrumbs = React.useMemo(() => {
+    if (breadcrumbs.length <= 3) {
+      return { hidden: [] as typeof breadcrumbs, visible: breadcrumbs };
+    }
+
+    /**
+     * Keep breadcrumbs adaptive without measuring every item on each render.
+     * The path controls live beside the list, so reserve their footprint and
+     * then show as many trailing segments as the remaining width can hold.
+     */
+    const available = Math.max(140, pathZoneWidth || 420);
+    const rootWidth = 28;
+    const separatorWidth = 16;
+    const ellipsisWidth = 32;
+    const estimateCrumbWidth = (name: string) =>
+      Math.min(120, Math.max(30, name.length * 7 + 16));
+
+    for (let visibleCount = breadcrumbs.length; visibleCount >= 1; visibleCount--) {
+      const hiddenCount = breadcrumbs.length - visibleCount;
+      const visible = breadcrumbs.slice(hiddenCount);
+      const visibleWidth = visible.reduce(
+        (sum, crumb) => sum + separatorWidth + estimateCrumbWidth(crumb.name),
+        0,
+      );
+      const hiddenWidth = hiddenCount > 0 ? separatorWidth + ellipsisWidth : 0;
+      if (rootWidth + hiddenWidth + visibleWidth <= available) {
+        return {
+          hidden: breadcrumbs.slice(0, hiddenCount),
+          visible,
+        };
+      }
+    }
+
+    return {
+      hidden: breadcrumbs.slice(0, -1),
+      visible: breadcrumbs.slice(-1),
+    };
+  }, [breadcrumbs, pathZoneWidth]);
 
   const showBreadcrumbPeek = React.useCallback(
     (segmentPath: string, crumbIndex: number, crumbTotal: number) => {
@@ -1157,6 +1545,117 @@ export function FileBrowser({
     void handleOpenEntry(item, item.name);
   };
 
+  const getFileActionItems = (item: FileItem) => {
+    const name = item.name;
+    const isDirectory = rowIsDirectory(item);
+    const isSymlink = item.type?.toLowerCase() === 'symlink';
+    const fullPath = joinAbsPath(currentPath, name);
+
+    return [
+      ...(!isDirectory && !isSymlink
+        ? [
+            {
+              key: 'edit',
+              label: 'Edit',
+              icon: PencilIcon,
+              onSelect: () => void handleOpenEntry(item, name),
+            },
+          ]
+        : []),
+      {
+        key: 'download',
+        label: 'Download',
+        icon: DownloadIcon,
+        onSelect: () => onDownload(fullPath),
+      },
+      {
+        key: 'open',
+        label: 'Open',
+        icon: FolderIcon,
+        onSelect: () =>
+          isDirectory
+            ? navigateOrDiscard(fullPath)
+            : void handleOpenEntry(item, name),
+      },
+      ...(!isDirectory && !isSymlink
+        ? [
+            {
+              key: 'rename',
+              label: 'Rename',
+              icon: PenLine,
+              onSelect: () => {
+                setRenameTarget({ fullPath, baseName: name });
+                setRenameOpen(true);
+              },
+            },
+            {
+              key: 'move',
+              label: 'Move',
+              icon: ArrowRightLeft,
+              onSelect: () => openMoveDialogForFile(item),
+            },
+          ]
+        : []),
+      {
+        key: 'delete',
+        label: 'Delete',
+        icon: TrashIcon,
+        destructive: true,
+        onSelect: () => requestDeletePaths([fullPath]),
+      },
+    ];
+  };
+
+  const renderDropdownFileActions = (item: FileItem) =>
+    getFileActionItems(item).map((action) => {
+      const Icon = action.icon;
+      if (action.key === 'delete') {
+        return (
+          <React.Fragment key={action.key}>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={action.onSelect}
+              variant="destructive"
+            >
+              <Icon className="mr-2 h-4 w-4" />
+              {action.label}
+            </DropdownMenuItem>
+          </React.Fragment>
+        );
+      }
+      return (
+        <DropdownMenuItem key={action.key} onClick={action.onSelect}>
+          <Icon className="mr-2 h-4 w-4" />
+          {action.label}
+        </DropdownMenuItem>
+      );
+    });
+
+  const renderContextFileActions = (item: FileItem) =>
+    getFileActionItems(item).map((action) => {
+      const Icon = action.icon;
+      if (action.key === 'delete') {
+        return (
+          <React.Fragment key={action.key}>
+            <ContextMenuSeparator />
+            <ContextMenuItem
+              variant="destructive"
+              onClick={action.onSelect}
+            >
+              <Icon className="mr-2 h-4 w-4" />
+              {action.label}
+            </ContextMenuItem>
+          </React.Fragment>
+        );
+      }
+      return (
+        <ContextMenuItem key={action.key} onClick={action.onSelect}>
+          <Icon className="mr-2 h-4 w-4" />
+          {action.label}
+        </ContextMenuItem>
+      );
+    });
+
   const columns: ColumnDef<FileItem>[] = [
     {
       accessorKey: 'name',
@@ -1164,24 +1663,38 @@ export function FileBrowser({
       cell: ({ row }) => {
         const item = row.original;
         const name = item.name;
+        const fullPath = joinAbsPath(currentPath, name);
         const pendingMeta = item.type === undefined;
         const isSymlink = item.type?.toLowerCase() === 'symlink';
         const isDirectory = rowIsDirectory(item);
 
         return (
           <div className="flex min-w-0 items-center gap-2 whitespace-nowrap">
-            <FileEntryIcon
-              name={name}
-              pending={pendingMeta}
-              isDirectory={isDirectory}
-              isSymlink={isSymlink}
-            />
-            <span
-              className="min-w-0 cursor-pointer truncate font-medium hover:underline"
-              onClick={() => openRow(item)}
+            <FileMetadataViewTransition
+              stateKey={`icon:${pendingMeta ? 'pending' : item.type ?? 'unknown'}`}
             >
-              {name}
-            </span>
+              <FileEntryIcon
+                name={name}
+                pending={pendingMeta}
+                isDirectory={isDirectory}
+                isSymlink={isSymlink}
+              />
+            </FileMetadataViewTransition>
+            {/* When navigating up to a cached parent folder, this text can pair
+                with the breadcrumb segment that just unmounted. Keep the shared
+                target scoped to the label so the folder icon stays local. */}
+            <ViewTransition
+              name={fileViewTransitionName(fullPath)}
+              share="file-text-shared"
+              default="none"
+            >
+              <span
+                className="block min-w-0 cursor-pointer truncate font-medium hover:underline"
+                onClick={() => openRow(item)}
+              >
+                {name}
+              </span>
+            </ViewTransition>
           </div>
         );
       },
@@ -1193,31 +1706,40 @@ export function FileBrowser({
         const item = row.original;
         if (item.type === undefined) {
           return (
-            <Spinner
-              className="text-muted-foreground size-4"
-              aria-label="Loading size"
-            />
+            <FileMetadataViewTransition stateKey="size:pending">
+              <StaleShimmer
+                active
+                className="inline-block h-4 w-14"
+                aria-label="Loading size"
+              />
+            </FileMetadataViewTransition>
           );
         }
         const kind = item.type.toLowerCase();
         if (kind === 'directory') {
           return (
-            <span className="text-muted-foreground">
-              <FileDetailFade show>—</FileDetailFade>
-            </span>
+            <FileMetadataViewTransition stateKey="size:empty">
+              <span className="text-muted-foreground">
+                <FileDetailFade show>—</FileDetailFade>
+              </span>
+            </FileMetadataViewTransition>
           );
         }
         if (typeof item.size !== 'number') {
           return (
-            <span className="text-muted-foreground">
-              <FileDetailFade show>—</FileDetailFade>
-            </span>
+            <FileMetadataViewTransition stateKey="size:empty">
+              <span className="text-muted-foreground">
+                <FileDetailFade show>—</FileDetailFade>
+              </span>
+            </FileMetadataViewTransition>
           );
         }
         return (
-          <span className="whitespace-nowrap tabular-nums">
-            {formatBytes(item.size)}
-          </span>
+          <FileMetadataViewTransition stateKey="size:value">
+            <span className="whitespace-nowrap tabular-nums">
+              {formatBytes(item.size)}
+            </span>
+          </FileMetadataViewTransition>
         );
       },
     },
@@ -1229,10 +1751,13 @@ export function FileBrowser({
         const type = item.type?.toLowerCase();
         if (type === undefined) {
           return (
-            <Spinner
-              className="text-muted-foreground size-4"
-              aria-label="Loading type"
-            />
+            <FileMetadataViewTransition stateKey="type:pending">
+              <StaleShimmer
+                active
+                className="inline-block h-4 w-20"
+                aria-label="Loading type"
+              />
+            </FileMetadataViewTransition>
           );
         }
         const label =
@@ -1244,9 +1769,11 @@ export function FileBrowser({
                 ? 'File'
                 : item.type ?? '—';
         return (
-          <FileDetailFade show>
-            <span className="whitespace-nowrap">{label}</span>
-          </FileDetailFade>
+          <FileMetadataViewTransition stateKey={`type:${type}`}>
+            <FileDetailFade show>
+              <span className="whitespace-nowrap">{label}</span>
+            </FileDetailFade>
+          </FileMetadataViewTransition>
         );
       },
     },
@@ -1255,10 +1782,6 @@ export function FileBrowser({
       size: 50,
       cell: ({ row }) => {
         const item = row.original;
-        const name = item.name;
-        const isDirectory = rowIsDirectory(item);
-        const isSymlink = item.type?.toLowerCase() === 'symlink';
-        const fullPath = joinAbsPath(currentPath, name);
 
         return (
           <div className="flex justify-end whitespace-nowrap">
@@ -1271,55 +1794,7 @@ export function FileBrowser({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                {!isDirectory && !isSymlink && (
-                  <DropdownMenuItem
-                    onClick={() => void handleOpenEntry(item, name)}
-                  >
-                    <PencilIcon className="mr-2 h-4 w-4" />
-                    Edit
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem onClick={() => onDownload(fullPath)}>
-                  <DownloadIcon className="mr-2 h-4 w-4" />
-                  Download
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() =>
-                    isDirectory
-                      ? navigateOrDiscard(fullPath)
-                      : void handleOpenEntry(item, name)
-                  }
-                >
-                  <FolderIcon className="mr-2 h-4 w-4" />
-                  Open
-                </DropdownMenuItem>
-                {!isDirectory && !isSymlink ? (
-                  <>
-                    <DropdownMenuItem
-                      onClick={() => {
-                        setRenameTarget({ fullPath, baseName: name });
-                        setRenameOpen(true);
-                      }}
-                    >
-                      <PenLine className="mr-2 h-4 w-4" />
-                      Rename
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => openMoveDialogForFile(item)}
-                    >
-                      <ArrowRightLeft className="mr-2 h-4 w-4" />
-                      Move
-                    </DropdownMenuItem>
-                  </>
-                ) : null}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => requestDeletePaths([fullPath])}
-                  className="text-red-600"
-                >
-                  <TrashIcon className="mr-2 h-4 w-4" />
-                  Delete
-                </DropdownMenuItem>
+                {renderDropdownFileActions(item)}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -1408,17 +1883,19 @@ export function FileBrowser({
     setMoveBusy(true);
     setActionError(null);
     try {
-      await onMoveFiles(moveQueue, dest, (phase, pct, detail) => {
-        setDropPhaseLabel(
-          `${phase === 'download' ? 'Reading' : 'Uploading'} ${detail.label} (${detail.index}/${detail.total})`,
-        );
-        setDropProgressPct(pct);
+      await runFileMutationTransition(async () => {
+        await onMoveFiles(moveQueue, dest, (phase, pct, detail) => {
+          setDropPhaseLabel(
+            `${phase === 'download' ? 'Reading' : 'Uploading'} ${detail.label} (${detail.index}/${detail.total})`,
+          );
+          setDropProgressPct(pct);
+        });
+        setMoveDestOpen(false);
+        setMoveQueue([]);
+        setSelectedRows([]);
+        setDropProgressPct(null);
+        setDropPhaseLabel('');
       });
-      setMoveDestOpen(false);
-      setMoveQueue([]);
-      setSelectedRows([]);
-      setDropProgressPct(null);
-      setDropPhaseLabel('');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       setActionError(message);
@@ -1458,12 +1935,14 @@ export function FileBrowser({
     setDropUploading(true);
     setDropProgressPct(null);
     try {
-      for (let i = 0; i < list.length; i++) {
-        const file = list.item(i);
-        if (!file) continue;
-        setDropPhaseLabel(`Uploading ${file.name} (${i + 1}/${list.length})`);
-        await onUpload(file, (pct) => setDropProgressPct(pct));
-      }
+      await runFileMutationTransition(async () => {
+        for (let i = 0; i < list.length; i++) {
+          const file = list.item(i);
+          if (!file) continue;
+          setDropPhaseLabel(`Uploading ${file.name} (${i + 1}/${list.length})`);
+          await onUpload(file, (pct) => setDropProgressPct(pct));
+        }
+      });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       setActionError(message);
@@ -1480,8 +1959,8 @@ export function FileBrowser({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-3 min-[960px]:flex-row min-[960px]:items-center min-[960px]:justify-between">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           {homePath !== '/' ? (
             <HoverCard openDelay={250} closeDelay={80}>
               <HoverCardTrigger asChild>
@@ -1507,20 +1986,17 @@ export function FileBrowser({
               </HoverCardContent>
             </HoverCard>
           ) : null}
-          <div
-            className="flex min-w-0 items-center gap-1"
-            onMouseEnter={() => setPathJumpZoneHover(true)}
-            onMouseLeave={() => setPathJumpZoneHover(false)}
-          >
-            <Breadcrumb>
-              <BreadcrumbList>
+          <div className="flex min-w-0 flex-1 items-center gap-1">
+            <div ref={pathZoneRef} className="min-w-0 flex-1">
+            <Breadcrumb className="min-w-0">
+              <BreadcrumbList className="flex-nowrap overflow-hidden">
                 <BreadcrumbItem>
                   {showRootBreadcrumbPeek ? (
                     <HoverCard openDelay={250} closeDelay={80}>
                       <HoverCardTrigger asChild>
                         <BreadcrumbLink
                           onClick={() => navigateOrDiscard('/')}
-                          className="cursor-pointer select-none"
+                          className="max-w-32 cursor-pointer truncate whitespace-nowrap select-none lg:max-w-40"
                         >
                           /
                         </BreadcrumbLink>
@@ -1539,58 +2015,136 @@ export function FileBrowser({
                   ) : (
                     <BreadcrumbLink
                       onClick={() => navigateOrDiscard('/')}
-                      className="cursor-pointer select-none"
+                      className="max-w-32 cursor-pointer truncate whitespace-nowrap select-none lg:max-w-40"
                     >
                       /
                     </BreadcrumbLink>
                   )}
                 </BreadcrumbItem>
-                {breadcrumbs.map((crumb, index) => (
-                  <React.Fragment key={crumb.path}>
-                    <BreadcrumbSeparator />
+                {collapsedBreadcrumbs.hidden.length > 0 ? (
+                  <>
+                    <ViewTransition
+                      key="collapsed-breadcrumbs-separator"
+                      enter="file-breadcrumb-enter"
+                      exit="file-breadcrumb-exit"
+                      default="none"
+                    >
+                      <BreadcrumbSeparator />
+                    </ViewTransition>
                     <BreadcrumbItem>
-                      {showBreadcrumbPeek(
-                        crumb.path,
-                        index,
-                        breadcrumbs.length,
-                      ) ? (
-                        <HoverCard openDelay={250} closeDelay={80}>
-                          <HoverCardTrigger asChild>
-                            <BreadcrumbLink
-                              onClick={() => navigateOrDiscard(crumb.path)}
-                              className="cursor-pointer select-none"
-                            >
-                              {crumb.name}
-                            </BreadcrumbLink>
-                          </HoverCardTrigger>
-                          <HoverCardContent
-                            align="start"
-                            className="w-72 p-2"
-                            side="bottom"
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="size-7"
+                            title="Show hidden path segments"
                           >
-                            <BreadcrumbDirPeek
-                              dirPath={crumb.path}
-                              fetchDirectoryEntries={fetchPeekDirectoryEntries}
-                              rowIsDirectory={rowIsTreeFolder}
-                              onActivate={(item, name, parent) =>
-                                void handleOpenEntry(item, name, parent)
-                              }
-                            />
-                          </HoverCardContent>
-                        </HoverCard>
-                      ) : (
-                        <BreadcrumbLink
-                          onClick={() => navigateOrDiscard(crumb.path)}
-                          className="cursor-pointer select-none"
-                        >
-                          {crumb.name}
-                        </BreadcrumbLink>
-                      )}
+                            <BreadcrumbEllipsis className="size-4" />
+                            <span className="sr-only">
+                              Show hidden path segments
+                            </span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start">
+                          {collapsedBreadcrumbs.hidden.map((crumb) => (
+                            <DropdownMenuItem
+                              key={crumb.path}
+                              className="max-w-64"
+                              onSelect={() => navigateOrDiscard(crumb.path)}
+                            >
+                              <span className="truncate">{crumb.name}</span>
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </BreadcrumbItem>
+                  </>
+                ) : null}
+                {collapsedBreadcrumbs.visible.map((crumb) => {
+                  const index = breadcrumbs.findIndex((item) => item.path === crumb.path);
+                  return (
+                  <React.Fragment key={crumb.path}>
+                    <ViewTransition
+                      key={`${crumb.path}:separator`}
+                      enter="file-breadcrumb-enter"
+                      exit="file-breadcrumb-exit"
+                      default="none"
+                    >
+                      <BreadcrumbSeparator />
+                    </ViewTransition>
+                    <ViewTransition
+                      key={`${crumb.path}:item`}
+                      enter="file-breadcrumb-enter"
+                      exit="file-breadcrumb-exit"
+                      default="none"
+                    >
+                      <BreadcrumbItem>
+                        {showBreadcrumbPeek(
+                          crumb.path,
+                          index,
+                          breadcrumbs.length,
+                        ) ? (
+                          <HoverCard openDelay={250} closeDelay={80}>
+                            <HoverCardTrigger asChild>
+                              <BreadcrumbLink
+                                onClick={() => navigateOrDiscard(crumb.path)}
+                                className="max-w-32 cursor-pointer truncate whitespace-nowrap select-none lg:max-w-40"
+                              >
+                                <span className="block truncate">
+                                  {crumb.name}
+                                </span>
+                              </BreadcrumbLink>
+                            </HoverCardTrigger>
+                            <HoverCardContent
+                              align="start"
+                              className="w-72 p-2"
+                              side="bottom"
+                            >
+                              <BreadcrumbDirPeek
+                                dirPath={crumb.path}
+                                fetchDirectoryEntries={fetchPeekDirectoryEntries}
+                                rowIsDirectory={rowIsTreeFolder}
+                                onActivate={(item, name, parent) =>
+                                  void handleOpenEntry(item, name, parent)
+                                }
+                              />
+                            </HoverCardContent>
+                          </HoverCard>
+                        ) : (
+                          <BreadcrumbLink
+                            onClick={() => navigateOrDiscard(crumb.path)}
+                            className="max-w-32 cursor-pointer truncate whitespace-nowrap select-none lg:max-w-40"
+                          >
+                            <span className="block truncate">
+                              {crumb.name}
+                            </span>
+                          </BreadcrumbLink>
+                        )}
+                      </BreadcrumbItem>
+                    </ViewTransition>
                   </React.Fragment>
-                ))}
+                  );
+                })}
+                {exitingEditorBreadcrumbName ? (
+                  <span
+                    aria-hidden="true"
+                    className="file-breadcrumb-manual-exit inline-flex items-center gap-1.5"
+                  >
+                    <BreadcrumbSeparator className="inline-flex" />
+                    <BreadcrumbItem
+                      aria-hidden="true"
+                    >
+                      <span className="block max-w-32 truncate whitespace-nowrap lg:max-w-40">
+                        {exitingEditorBreadcrumbName}
+                      </span>
+                    </BreadcrumbItem>
+                  </span>
+                ) : null}
               </BreadcrumbList>
             </Breadcrumb>
+            </div>
+            <div className="bg-background/95 flex shrink-0 items-center gap-1 rounded-md pl-1">
             <Popover
               open={pathJumpOpen}
               onOpenChange={(open) => {
@@ -1604,14 +2158,12 @@ export function FileBrowser({
                 }
               }}
             >
+              <Tooltip>
+                <TooltipTrigger asChild>
               <PopoverTrigger asChild>
                 <button
                   type="button"
-                  title="Go to path (Ctrl+K)"
-                  className={cn(
-                    'text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex size-9 shrink-0 items-center justify-center rounded-md transition-[color,opacity] select-none hover:bg-muted/60 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
-                    !(pathJumpOpen || pathJumpZoneHover) && 'opacity-0',
-                  )}
+                  className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex size-9 shrink-0 items-center justify-center rounded-md transition-colors select-none hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
                 >
                   <TextCursorInput
                     className="size-4 shrink-0 transition-opacity"
@@ -1620,6 +2172,11 @@ export function FileBrowser({
                   <span className="sr-only">Go to path</span>
                 </button>
               </PopoverTrigger>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" sideOffset={6}>
+                  Go to path
+                </TooltipContent>
+              </Tooltip>
             <PopoverContent className="w-[min(100vw-2rem,22rem)]" align="start">
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1.5">
@@ -1645,13 +2202,11 @@ export function FileBrowser({
               </div>
             </PopoverContent>
           </Popover>
+            <Tooltip>
+              <TooltipTrigger asChild>
             <button
               type="button"
-              title="Copy path"
-              className={cn(
-                'text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex size-9 shrink-0 items-center justify-center rounded-md transition-[color,opacity] select-none hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
-                !(pathJumpOpen || pathJumpZoneHover) && 'opacity-0',
-              )}
+              className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex size-9 shrink-0 items-center justify-center rounded-md transition-colors select-none hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
               onClick={() => {
                 const path = normalizeAbsPath(editingFile ?? currentPath);
                 if (
@@ -1665,27 +2220,17 @@ export function FileBrowser({
               <ClipboardCopy className="size-4" aria-hidden />
               <span className="sr-only">Copy path</span>
             </button>
-            {(isRoutePending ||
-              isListingRevalidating ||
-              isMetadataLoading) && (
-              <span className="text-muted-foreground ml-1 flex min-w-0 max-w-[min(100%,14rem)] items-center gap-1.5 text-xs shrink-0 sm:max-w-[20rem]">
-                <Spinner className="size-3.5 shrink-0" />
-                <span className="truncate">
-                  {[
-                    isRoutePending ? 'Navigating' : null,
-                    isListingRevalidating ? 'Updating listing' : null,
-                    isMetadataLoading ? 'Loading details' : null,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </span>
-              </span>
-            )}
+              </TooltipTrigger>
+              <TooltipContent side="bottom" sideOffset={6}>
+                Copy path
+              </TooltipContent>
+            </Tooltip>
+            </div>
           </div>
         </div>
 
         {editingFile ? (
-          <div className="flex items-center gap-2">
+          <div className="flex w-full flex-wrap items-center justify-end gap-2 min-[960px]:w-auto">
             {showSaved ? (
               <span className="text-muted-foreground text-sm">Saved</span>
             ) : null}
@@ -1703,7 +2248,7 @@ export function FileBrowser({
             </Button>
           </div>
         ) : selectedRows.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex w-full flex-wrap items-center justify-end gap-2 min-[960px]:w-auto">
             <span className="text-muted-foreground text-sm">
               {selectedRows.length} selected
             </span>
@@ -1733,7 +2278,61 @@ export function FileBrowser({
             </Button>
           </div>
         ) : (
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex w-full flex-wrap items-center justify-start gap-2 min-[960px]:w-auto min-[960px]:flex-nowrap min-[960px]:justify-end">
+            <InputGroup className="min-w-36 flex-[1_1_9rem] sm:min-w-48 sm:flex-[1_1_14rem] min-[960px]:w-64 min-[960px]:flex-none lg:w-72 xl:w-80">
+              <InputGroupAddon>
+                <SearchIcon />
+              </InputGroupAddon>
+              <InputGroupInput
+                ref={fileNameSearchInputRef}
+                type="text"
+                value={fileNameSearch}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setFileNameSearch(value);
+                  startTransition(() => {
+                    fileNameSearchFilterRef.current = value;
+                    setFileNameSearchFilter(value);
+                    const nextRows = filterFileItemsByName(fileData, value);
+                    settledFileRowsRef.current = nextRows;
+                    setRenderedFileData((previousRows) =>
+                      reconcileRenderedFileRows(previousRows, nextRows),
+                    );
+                    if (rowPresenceSettleTimerRef.current !== null) {
+                      window.clearTimeout(rowPresenceSettleTimerRef.current);
+                    }
+                    rowPresenceSettleTimerRef.current = window.setTimeout(() => {
+                      setRenderedFileData(settledFileRowsRef.current);
+                      rowPresenceSettleTimerRef.current = null;
+                    }, FILE_TABLE_ROW_PRESENCE_MS);
+                  });
+                }}
+                placeholder="Search files"
+                aria-label="Search file names"
+              />
+              <InputGroupAddon align="inline-end">
+                <InputGroupText
+                  aria-busy={searchResultCountPending || undefined}
+                  className="whitespace-nowrap text-xs tabular-nums sm:text-sm"
+                >
+                  {searchResultCountPending ? (
+                    <>
+                      <span className="sr-only">Loading result count</span>
+                      <span
+                        aria-hidden="true"
+                        className="freshness-shimmer bg-accent inline-block h-4 w-[1ch] rounded-sm align-[-0.125em]"
+                        data-slot="skeleton"
+                      />
+                    </>
+                  ) : (
+                    filteredFileData.length
+                  )}{' '}
+                  {!searchResultCountPending && filteredFileData.length === 1
+                    ? 'result'
+                    : 'results'}
+                </InputGroupText>
+              </InputGroupAddon>
+            </InputGroup>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline">
@@ -1746,11 +2345,13 @@ export function FileBrowser({
                 <DropdownMenuItem
                   onSelect={() => setIsCreateFileOpen(true)}
                 >
+                  <FileText className="mr-2 h-4 w-4" />
                   New file
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onSelect={() => setIsCreateDirOpen(true)}
                 >
+                  <FolderIcon className="mr-2 h-4 w-4" />
                   New folder
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -1760,8 +2361,8 @@ export function FileBrowser({
               open={isCreateFileOpen}
               onOpenChange={setIsCreateFileOpen}
               onCreate={(name) =>
-                onCreateEmptyFile(name).catch((e: Error) =>
-                  setActionError(e.message),
+                runFileMutationTransition(() => onCreateEmptyFile(name)).catch(
+                  (e: Error) => setActionError(e.message),
                 )
               }
               existingFiles={fileData}
@@ -1772,8 +2373,8 @@ export function FileBrowser({
               onOpenChange={setIsCreateDirOpen}
               existingFiles={fileData}
               onCreate={(name) =>
-                onCreateDirectory(name).catch((e: Error) =>
-                  setActionError(e.message),
+                runFileMutationTransition(() => onCreateDirectory(name)).catch(
+                  (e: Error) => setActionError(e.message),
                 )
               }
             />
@@ -1786,9 +2387,9 @@ export function FileBrowser({
               open={isUploadOpen}
               onOpenChange={setIsUploadOpen}
               onUpload={(file, onProgress) =>
-                onUpload(file, onProgress).catch((e: Error) =>
-                  setActionError(e.message),
-                )
+                runFileMutationTransition(() =>
+                  onUpload(file, onProgress),
+                ).catch((e: Error) => setActionError(e.message))
               }
             />
           </div>
@@ -1821,26 +2422,28 @@ export function FileBrowser({
                 ? 'Delete this item?'
                 : `Delete ${deleteConfirmPaths.length} items?`}
             </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2">
-              <p>This cannot be undone.</p>
-              {deleteConfirmPaths.length === 1 ? (
-                <p className="text-foreground font-mono text-xs break-all">
-                  {deleteConfirmPaths[0]}
-                </p>
-              ) : (
-                <ul className="text-foreground max-h-32 list-inside list-disc overflow-y-auto font-mono text-xs">
-                  {deleteConfirmPaths.slice(0, 12).map((p) => (
-                    <li key={p} className="break-all">
-                      {p}
-                    </li>
-                  ))}
-                  {deleteConfirmPaths.length > 12 ? (
-                    <li className="text-muted-foreground list-none">
-                      …and {deleteConfirmPaths.length - 12} more
-                    </li>
-                  ) : null}
-                </ul>
-              )}
+            <AlertDialogDescription asChild>
+              <div className="text-muted-foreground flex flex-col gap-2 text-sm">
+                <span>This cannot be undone.</span>
+                {deleteConfirmPaths.length === 1 ? (
+                  <span className="text-foreground font-mono text-xs break-all">
+                    {deleteConfirmPaths[0]}
+                  </span>
+                ) : (
+                  <ul className="text-foreground max-h-32 list-inside list-disc overflow-y-auto font-mono text-xs">
+                    {deleteConfirmPaths.slice(0, 12).map((p) => (
+                      <li key={p} className="break-all">
+                        {p}
+                      </li>
+                    ))}
+                    {deleteConfirmPaths.length > 12 ? (
+                      <li className="text-muted-foreground list-none">
+                        …and {deleteConfirmPaths.length - 12} more
+                      </li>
+                    ) : null}
+                  </ul>
+                )}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1856,41 +2459,6 @@ export function FileBrowser({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      <Dialog
-        open={!!binaryOffer}
-        onOpenChange={(open) => {
-          if (!open) setBinaryOffer(null);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Binary file</DialogTitle>
-            <DialogDescription>
-              This file looks binary. Save the copy that was downloaded to your
-              machine (no extra server request).
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="flex gap-2">
-            <Button variant="outline" onClick={() => setBinaryOffer(null)}>
-              Close
-            </Button>
-            <Button
-              onClick={() => {
-                if (!binaryOffer) return;
-                downloadArrayBufferAsFile(
-                  binaryOffer.buffer,
-                  binaryOffer.basename,
-                );
-                setBinaryOffer(null);
-              }}
-            >
-              <DownloadIcon className="mr-2 h-4 w-4" />
-              Save to disk
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <Dialog
         open={moveDestOpen}
@@ -1964,7 +2532,9 @@ export function FileBrowser({
         currentPath={currentPath}
         target={renameTarget}
         existingFiles={fileData}
-        onRename={onRenameFile}
+        onRename={(path, nextName) =>
+          runFileMutationTransition(() => onRenameFile(path, nextName))
+        }
       />
 
       <div
@@ -1993,64 +2563,150 @@ export function FileBrowser({
         ) : null}
 
         {editingFile ? (
-          <div className="h-[600px] w-full">
-            {isFetchingContent ? (
-              <div className="flex h-full items-center justify-center">
-                <Spinner className="size-8" />
-              </div>
-            ) : (
-              <Editor
-                key={editingFile}
-                height="100%"
-                language={editorLang}
-                value={fileContent}
-                onChange={(value) => setFileContent(value || '')}
-                theme="vs-dark"
-                onMount={(editor, monaco) => {
-                  editor.addCommand(
-                    monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS,
-                    () => void handleSave(),
-                  );
-                }}
-                options={{
-                  minimap: { enabled: false },
-                  fontSize: 14,
-                }}
-              />
-            )}
-          </div>
-        ) : (
-          <LoadableSurface
-            status={tableStatus}
-            hasData={fileData.length > 0}
-            skeleton={
-              <DataTable
-                data={[]}
-                cols={columns as ColumnDef<object, unknown>[]}
-                enableSelection
-                disablePagination
-                loading
-                skeletonRows={12}
-                virtualRowEstimatePx={FILE_TABLE_ROW_HEIGHT_PX}
-                renderSkeletonCell={renderFileTableSkeletonCell}
-              />
-            }
-            error={
-              <Alert variant="destructive" className="m-4">
-                <AlertTitle>Error</AlertTitle>
-                <AlertDescription>Failed to load files.</AlertDescription>
-              </Alert>
-            }
+          <ViewTransition
+            key="editor"
+            enter={{
+              'file-editor-open': 'file-editor-open-enter',
+              default: 'none',
+            }}
+            exit={{
+              'file-editor-open': 'file-editor-open-exit',
+              default: 'none',
+            }}
+            default="none"
           >
-            <FreshnessSurface active={isListingRevalidating}>
+            <div
+              className={cn(
+                'h-[600px] w-full overflow-hidden rounded-md border bg-card',
+                isEditorClosing && 'file-editor-closing-layer',
+              )}
+            >
+              {isFetchingContent ? (
+                <div className="flex h-full items-center justify-center">
+                  <Spinner className="size-8" />
+                </div>
+              ) : (
+                <Editor
+                  key={editingFile}
+                  height="100%"
+                  language={editorLang}
+                  value={fileContent}
+                  onChange={(value) => setFileContent(value || '')}
+                  beforeMount={defineDashboardMonacoThemes}
+                  theme={dashboardMonacoTheme(resolvedTheme)}
+                  onMount={(editor, monaco) => {
+                    editor.addCommand(
+                      monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS,
+                      () => void handleSave(),
+                    );
+                  }}
+                  options={{
+                    ...dashboardMonacoOptions,
+                    minimap: {
+                      enabled: true,
+                      autohide: 'none',
+                      showSlider: 'always',
+                    },
+                    fontSize: 14,
+                    lineHeight: 22,
+                    scrollBeyondLastLine: false,
+                    automaticLayout: true,
+                    padding: { top: 12, bottom: 12 },
+                  }}
+                />
+              )}
+            </div>
+          </ViewTransition>
+        ) : null}
+        {!editingFile ? (
+          <ViewTransition
+            key="table"
+            enter={{
+              'file-editor-open': 'file-editor-open-enter',
+              default: 'none',
+            }}
+            exit={{
+              'file-editor-open': 'file-editor-open-exit',
+              default: 'none',
+            }}
+            default="none"
+          >
+            <div className={cn(isDirectoryReturning && 'file-directory-return-enter')}>
+              <LoadableSurface
+                status={tableStatus}
+                hasData={hasFileTableData}
+                transitionMs={90}
+                immediateViews={loadableImmediateViews}
+                transitionEnter={loadableRouteTransitionEnter}
+                transitionExit={loadableRouteTransitionExit}
+                skeleton={
                   <DataTable
-                    key={currentPath}
-                    data={fileData}
+                    data={[]}
+                    cols={columns as ColumnDef<object, unknown>[]}
+                    enableSelection
+                    disablePagination
+                    loading
+                    skeletonRows={12}
+                    virtualRowEstimatePx={FILE_TABLE_ROW_HEIGHT_PX}
+                    renderSkeletonCell={renderFileTableSkeletonCell}
+                  />
+                }
+                error={
+                  <Alert variant="destructive" className="m-4">
+                    <AlertTitle>Error</AlertTitle>
+                    <AlertDescription>Failed to load files.</AlertDescription>
+                  </Alert>
+                }
+                empty={
+                  <Empty className="min-h-[320px]">
+                    <EmptyHeader>
+                      <EmptyMedia variant="icon">
+                        <FolderIcon />
+                      </EmptyMedia>
+                      <EmptyTitle>Folder is empty</EmptyTitle>
+                      <EmptyDescription>
+                        Upload files or create a new file to add content here.
+                      </EmptyDescription>
+                    </EmptyHeader>
+                    <EmptyContent className="flex-row justify-center gap-2">
+                      <Button onClick={() => setIsCreateFileOpen(true)}>
+                        <FileText className="mr-2 h-4 w-4" />
+                        New file
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsCreateDirOpen(true)}
+                      >
+                        <FolderIcon className="mr-2 h-4 w-4" />
+                        New folder
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsUploadOpen(true)}
+                      >
+                        <UploadIcon className="mr-2 h-4 w-4" />
+                        Upload
+                      </Button>
+                    </EmptyContent>
+                  </Empty>
+                }
+              >
+                <FreshnessSurface active={isListingRevalidating}>
+                  <DataTable
+                    data={tableFileData}
                     cols={columns as ColumnDef<object, unknown>[]}
                     enableSelection
                     disablePagination
                     onSelectionChange={(rows) => setSelectedRows(rows)}
-                    getRowClassName={() => 'h-[49px]'}
+                    getRowClassName={(row) => {
+                      const presence = (row.original as RenderedFileItem)
+                        .__rowPresence;
+                      return cn(
+                        'h-[49px]',
+                        presence === 'entering' && 'file-row-presence-enter',
+                        presence === 'exiting' && 'file-row-presence-exit',
+                      );
+                    }}
                     virtualizeRows
                     virtualRowEstimatePx={FILE_TABLE_ROW_HEIGHT_PX}
                     virtualOverscan={FILE_TABLE_VIRTUAL_OVERSCAN}
@@ -2060,81 +2716,65 @@ export function FileBrowser({
                         ? onVirtualVisibleFileRows
                         : undefined
                     }
+                    emptyState={
+                      fileNameSearchFilter.trim()
+                        ? (
+                            <Empty className="min-h-56 border-0 p-6">
+                              <EmptyHeader>
+                                <EmptyMedia variant="icon">
+                                  <SearchIcon />
+                                </EmptyMedia>
+                                <EmptyTitle>No matching files</EmptyTitle>
+                                <EmptyDescription>
+                                  No files in this folder match{' '}
+                                  <span className="font-medium text-foreground">
+                                    {fileNameSearchFilter.trim()}
+                                  </span>
+                                  .
+                                </EmptyDescription>
+                              </EmptyHeader>
+                            </Empty>
+                          )
+                        : undefined
+                    }
                     wrapTableRow={(row, rowEl) => {
                       const item = row.original as FileItem;
-                      const name = item.name;
-                      const isDirectory = rowIsDirectory(item);
-                      const isSymlink = item.type?.toLowerCase() === 'symlink';
-                      const fullPath = joinAbsPath(currentPath, name);
+                      const rowPath = joinAbsPath(currentPath, item.name);
 
                       return (
-                        <ContextMenu>
-                          <ContextMenuTrigger asChild>
-                            {rowEl}
-                          </ContextMenuTrigger>
-                          <ContextMenuContent>
-                            {!isDirectory && !isSymlink && (
-                              <ContextMenuItem
-                                onClick={() => void handleOpenEntry(item, name)}
-                              >
-                                <PencilIcon className="mr-2 h-4 w-4" />
-                                Edit
-                              </ContextMenuItem>
-                            )}
-                            <ContextMenuItem
-                              onClick={() => onDownload(fullPath)}
-                            >
-                              <DownloadIcon className="mr-2 h-4 w-4" />
-                              Download
-                            </ContextMenuItem>
-                            <ContextMenuItem
-                              onClick={() =>
-                                isDirectory
-                                  ? navigateOrDiscard(fullPath)
-                                  : void handleOpenEntry(item, name)
-                              }
-                            >
-                              <FolderIcon className="mr-2 h-4 w-4" />
-                              Open
-                            </ContextMenuItem>
-                            {!isDirectory && !isSymlink ? (
-                              <>
-                                <ContextMenuItem
-                                  onClick={() => {
-                                    setRenameTarget({
-                                      fullPath,
-                                      baseName: name,
-                                    });
-                                    setRenameOpen(true);
-                                  }}
-                                >
-                                  <PenLine className="mr-2 h-4 w-4" />
-                                  Rename
-                                </ContextMenuItem>
-                                <ContextMenuItem
-                                  onClick={() => openMoveDialogForFile(item)}
-                                >
-                                  <ArrowRightLeft className="mr-2 h-4 w-4" />
-                                  Move
-                                </ContextMenuItem>
-                              </>
-                            ) : null}
-                            <ContextMenuSeparator />
-                            <ContextMenuItem
-                              variant="destructive"
-                              onClick={() => requestDeletePaths([fullPath])}
-                            >
-                              <TrashIcon className="mr-2 h-4 w-4" />
-                              Delete
-                            </ContextMenuItem>
-                          </ContextMenuContent>
-                        </ContextMenu>
+                        <ViewTransition
+                          key={rowPath}
+                          enter={{
+                            'file-forward': 'file-route-fade-in',
+                            'file-back': 'file-route-fade-in',
+                            'file-jump': 'file-route-fade-in',
+                            default: 'none',
+                          }}
+                          exit={{
+                            'file-forward': 'file-route-fade-out',
+                            'file-back': 'file-route-fade-out',
+                            'file-jump': 'file-route-fade-out',
+                            default: 'none',
+                          }}
+                          default="none"
+                        >
+                          <ContextMenu>
+                            <ContextMenuTrigger asChild>
+                              {rowEl}
+                            </ContextMenuTrigger>
+                            <ContextMenuContent>
+                              {renderContextFileActions(item)}
+                            </ContextMenuContent>
+                          </ContextMenu>
+                        </ViewTransition>
                       );
                     }}
                   />
-            </FreshnessSurface>
-          </LoadableSurface>
-        )}
+                </FreshnessSurface>
+              </LoadableSurface>
+            </div>
+          </ViewTransition>
+        ) : null}
       </div>
     </div>
   );

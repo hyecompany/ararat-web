@@ -25,6 +25,35 @@ export function absPathParent(filePath: string): string {
   return p.slice(0, idx) || '/';
 }
 
+function isPathDescendant(parentPath: string, childPath: string): boolean {
+  const parent = normalizeAbsPath(parentPath);
+  const child = normalizeAbsPath(childPath);
+  if (parent === '/') return child !== '/';
+  return child.startsWith(`${parent}/`);
+}
+
+export type FileNavigationTransitionType =
+  | 'file-forward'
+  | 'file-back'
+  | 'file-jump';
+
+/**
+ * Shared file hosts (instance files, storage volumes, etc.) use the same spatial
+ * model: child paths move forward, ancestor paths move back, unrelated absolute
+ * jumps crossfade in place.
+ */
+export function classifyFileNavigationTransition(
+  fromPath: string,
+  toPath: string,
+): FileNavigationTransitionType {
+  const from = normalizeAbsPath(fromPath);
+  const to = normalizeAbsPath(toPath);
+  if (from === to) return 'file-jump';
+  if (isPathDescendant(from, to)) return 'file-forward';
+  if (isPathDescendant(to, from)) return 'file-back';
+  return 'file-jump';
+}
+
 /** Final segment of an absolute Unix path (may be empty for `/`). */
 export function basenameAbsPath(filePath: string): string {
   const p = normalizeAbsPath(filePath);

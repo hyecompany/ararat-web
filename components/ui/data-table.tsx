@@ -298,7 +298,6 @@ export default function DataTable({
     // accurate estimate, but real DOM measurement protects against CSS drift.
     measureElement: (el) => el.getBoundingClientRect().height,
   });
-
   const virtualItems =
     useVirtual ? rowVirtualizer.getVirtualItems() : [];
 
