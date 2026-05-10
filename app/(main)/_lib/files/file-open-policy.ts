@@ -1,5 +1,3 @@
-import { isBinary } from 'istextorbinary';
-
 /** Ask before loading full body into editor for very large files. */
 export const LARGE_FILE_CONFIRM_BYTES = 8 * 1024 * 1024;
 
@@ -33,7 +31,7 @@ export function looksLikelyTextFilename(fileName: string): boolean {
 
 /**
  * Force download without opening editor (extension-level).
- * istextorbinary also uses binaryextensions; this list catches media/codecs we always stream.
+ * Keep this limited to formats we always stream without fetching a body.
  */
 const FORCE_DOWNLOAD_EXT = new Set([
   'mp4',
@@ -52,7 +50,17 @@ const FORCE_DOWNLOAD_EXT = new Set([
   'xz',
   '7z',
   'rar',
+  'doc',
+  'docx',
+  'ppt',
+  'pptx',
+  'xls',
+  'xlsx',
   'pdf',
+  'o',
+  'obj',
+  'a',
+  'lib',
   'exe',
   'dll',
   'so',
@@ -106,12 +114,96 @@ export function preflightOpen(fileName: string): PreflightOpen {
   return { kind: 'fetch_then_classify' };
 }
 
+const BINARY_MAGIC_NUMBERS = [
+  // Archive/container formats. OOXML (.docx/.pptx/.xlsx) starts as a ZIP.
+  [0x50, 0x4b, 0x03, 0x04],
+  [0x50, 0x4b, 0x05, 0x06],
+  [0x50, 0x4b, 0x07, 0x08],
+  // Native object/executable formats.
+  [0x7f, 0x45, 0x4c, 0x46], // ELF
+  [0xca, 0xfe, 0xba, 0xbe], // Mach-O universal
+  [0xfe, 0xed, 0xfa, 0xce], // Mach-O 32-bit
+  [0xce, 0xfa, 0xed, 0xfe],
+  [0xfe, 0xed, 0xfa, 0xcf], // Mach-O 64-bit
+  [0xcf, 0xfa, 0xed, 0xfe],
+  [0x4d, 0x5a], // DOS/PE
+  // Common document/media signatures not already caught by extension preflight.
+  [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1], // OLE compound docs
+  [0x25, 0x50, 0x44, 0x46], // PDF
+] as const;
+
+function startsWithBytes(bytes: Uint8Array, prefix: readonly number[]) {
+  if (bytes.length < prefix.length) return false;
+  return prefix.every((value, index) => bytes[index] === value);
+}
+
+function hasBinaryMagicNumber(bytes: Uint8Array) {
+  return BINARY_MAGIC_NUMBERS.some((magic) => startsWithBytes(bytes, magic));
+}
+
+function isAllowedTextControlByte(byte: number) {
+  return byte === 0x09 || byte === 0x0a || byte === 0x0c || byte === 0x0d || byte === 0x1b;
+}
+
+function isValidUtf8(bytes: Uint8Array) {
+  let index = 0;
+  while (index < bytes.length) {
+    const byte = bytes[index];
+    if (byte <= 0x7f) {
+      index += 1;
+      continue;
+    }
+
+    let needed = 0;
+    let minCodePoint = 0;
+    let codePoint = 0;
+    if (byte >= 0xc2 && byte <= 0xdf) {
+      needed = 1;
+      minCodePoint = 0x80;
+      codePoint = byte & 0x1f;
+    } else if (byte >= 0xe0 && byte <= 0xef) {
+      needed = 2;
+      minCodePoint = 0x800;
+      codePoint = byte & 0x0f;
+    } else if (byte >= 0xf0 && byte <= 0xf4) {
+      needed = 3;
+      minCodePoint = 0x10000;
+      codePoint = byte & 0x07;
+    } else {
+      return false;
+    }
+
+    if (index + needed >= bytes.length) return false;
+    for (let offset = 1; offset <= needed; offset += 1) {
+      const continuation = bytes[index + offset];
+      if ((continuation & 0xc0) !== 0x80) return false;
+      codePoint = (codePoint << 6) | (continuation & 0x3f);
+    }
+    if (codePoint < minCodePoint) return false;
+    if (codePoint >= 0xd800 && codePoint <= 0xdfff) return false;
+    if (codePoint > 0x10ffff) return false;
+    index += needed + 1;
+  }
+  return true;
+}
+
 export function classifyBufferIsBinary(
   fileName: string,
   buffer: ArrayBuffer,
 ): boolean {
+  void fileName;
   const u8 = new Uint8Array(buffer);
-  const result = isBinary(fileName, u8 as unknown as Buffer);
-  if (result === null) return true;
-  return result;
+  if (u8.length === 0) return false;
+  if (hasBinaryMagicNumber(u8)) return true;
+
+  let suspiciousControlBytes = 0;
+  for (const byte of u8) {
+    if (byte === 0) return true;
+    if (byte < 0x20 && !isAllowedTextControlByte(byte)) {
+      suspiciousControlBytes += 1;
+    }
+  }
+
+  if (!isValidUtf8(u8)) return true;
+  return suspiciousControlBytes / u8.length > 0.01;
 }
