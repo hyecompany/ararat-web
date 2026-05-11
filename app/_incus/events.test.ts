@@ -87,6 +87,87 @@ describe('routeIncusEventToStore', () => {
     expect(instance.metadata.status).toBe('ready');
   });
 
+  test('removes deleted instance logs from log lifecycle events', () => {
+    const store = new IncusStore();
+    const key = instanceKey('default', 'test');
+    const instance = store.ensureInstance(key);
+    instance.logs.collection = { status: 'ready' };
+    instance.logs.items['lxc.log'] = {
+      metadata: { status: 'ready', data: { name: 'lxc.log' } },
+      content: { status: 'ready', data: 'log content' },
+    };
+
+    routeIncusEventToStore(store, {
+      type: 'lifecycle',
+      timestamp: new Date(0).toISOString(),
+      project: 'default',
+      metadata: {
+        action: 'instance-log-deleted',
+        source: '/1.0/instances/test/logs/lxc.log?project=default',
+      },
+    });
+
+    expect(store.getSnapshot().state.instances.items[key].logs.items['lxc.log']).toBeUndefined();
+    expect(store.getSnapshot().state.instances.items[key].logs.collection.status).toBe('stale');
+  });
+
+  test('routes exec-output instance log lifecycle paths to log cache entries', () => {
+    const store = new IncusStore();
+    const key = instanceKey('default', 'test');
+    const instance = store.ensureInstance(key);
+    instance.logs.collection = { status: 'ready' };
+    instance.logs.items['exec-output/exec-1.stdout'] = {
+      metadata: {
+        status: 'ready',
+        data: { name: 'exec-output/exec-1.stdout' },
+      },
+      content: { status: 'ready', data: 'stdout' },
+    };
+
+    routeIncusEventToStore(store, {
+      type: 'lifecycle',
+      timestamp: new Date(0).toISOString(),
+      project: 'default',
+      metadata: {
+        action: 'instance-log-retrieved',
+        source: '/1.0/instances/test/logs/exec-output/exec-1.stdout?project=default',
+      },
+    });
+
+    const log =
+      store.getSnapshot().state.instances.items[key].logs.items['exec-output/exec-1.stdout'];
+    expect(log.metadata.status).toBe('stale');
+    expect(log.content.status).toBe('stale');
+    expect(store.getSnapshot().state.instances.items[key].logs.collection.status).toBe('stale');
+  });
+
+  test('ignores root logging events for instance log file caches', () => {
+    const store = new IncusStore();
+    const key = instanceKey('default', 'test');
+    const instance = store.ensureInstance(key);
+    instance.logs.collection = { status: 'ready' };
+    instance.logs.items['lxc.log'] = {
+      metadata: { status: 'ready', data: { name: 'lxc.log' } },
+      content: { status: 'ready', data: 'log content' },
+    };
+
+    routeIncusEventToStore(store, {
+      type: 'logging',
+      timestamp: new Date(0).toISOString(),
+      project: 'default',
+      metadata: {
+        message: 'server log message',
+        level: 'info',
+        context: {},
+      },
+    });
+
+    const log = store.getSnapshot().state.instances.items[key].logs.items['lxc.log'];
+    expect(log.metadata.status).toBe('ready');
+    expect(log.content.status).toBe('ready');
+    expect(store.getSnapshot().state.instances.items[key].logs.collection.status).toBe('ready');
+  });
+
   test('keeps an established empty parent listing ready after event deletion', () => {
     const store = new IncusStore();
     const key = instanceKey('default', 'test');
@@ -112,9 +193,7 @@ describe('routeIncusEventToStore', () => {
       },
     });
 
-    expect(
-      store.getSnapshot().state.instances.items[key].files.items['/empty'].children,
-    ).toEqual({
+    expect(store.getSnapshot().state.instances.items[key].files.items['/empty'].children).toEqual({
       status: 'ready',
       names: [],
     });
@@ -219,8 +298,7 @@ describe('routeIncusEventToStore', () => {
       project: 'default',
       metadata: {
         action: 'storage-volume-created',
-        source:
-          '/1.0/storage-pools/default/volumes/custom/testVol?project=default',
+        source: '/1.0/storage-pools/default/volumes/custom/testVol?project=default',
       },
     });
 
@@ -242,8 +320,7 @@ describe('routeIncusEventToStore', () => {
       project: 'default',
       metadata: {
         action: 'storage-volume-created',
-        source:
-          '/1.0/storage-pools/default/volumes/custom/testVol?project=default',
+        source: '/1.0/storage-pools/default/volumes/custom/testVol?project=default',
       },
     });
 
@@ -275,8 +352,7 @@ describe('routeIncusEventToStore', () => {
       project: 'default',
       metadata: {
         action: 'storage-volume-deleted',
-        source:
-          '/1.0/storage-pools/default/volumes/custom/testVol?project=default',
+        source: '/1.0/storage-pools/default/volumes/custom/testVol?project=default',
       },
     });
 
