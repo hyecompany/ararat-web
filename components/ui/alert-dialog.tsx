@@ -5,6 +5,7 @@ import * as AlertDialogPrimitive from '@radix-ui/react-alert-dialog';
 
 import { cn } from 'ui-web/lib/utils';
 import { buttonVariants } from '@/components/ui/button';
+import { ViewTransitionSurfaceProvider } from 'ui-web/components/view-transitions';
 
 function AlertDialog({
   ...props
@@ -46,6 +47,7 @@ function AlertDialogOverlay({
 
 function AlertDialogContent({
   className,
+  children,
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Content>) {
   return (
@@ -58,7 +60,11 @@ function AlertDialogContent({
           className,
         )}
         {...props}
-      />
+      >
+        <ViewTransitionSurfaceProvider surface="dialog">
+          {children}
+        </ViewTransitionSurfaceProvider>
+      </AlertDialogPrimitive.Content>
     </AlertDialogPortal>
   );
 }

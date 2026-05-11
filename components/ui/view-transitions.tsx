@@ -10,6 +10,79 @@ type PageTransitionProps = {
   className?: string;
 };
 
+type ViewTransitionSurface = 'page' | 'dialog';
+
+type KeyedTransitionProps = {
+  children: React.ReactNode;
+  transitionKey: React.Key;
+  className?: string;
+  enabled?: boolean;
+  variant?: TabContentTransitionVariant;
+};
+
+type TabContentTransitionVariant =
+  | 'default'
+  | 'tab'
+  | 'side-tab-body';
+
+const tabContentTransitions = {
+  default: {
+    enter: {
+      'nav-lateral': 'tab-content-enter',
+      'tab-lateral': 'tab-content-enter',
+      default: 'none',
+    },
+    exit: {
+      'nav-lateral': 'tab-content-exit',
+      'tab-lateral': 'tab-content-exit',
+      default: 'none',
+    },
+  },
+  tab: {
+    enter: {
+      'tab-next': 'tab-next-enter',
+      'tab-prev': 'tab-prev-enter',
+      default: 'none',
+    },
+    exit: {
+      'tab-next': 'tab-next-exit',
+      'tab-prev': 'tab-prev-exit',
+      default: 'none',
+    },
+  },
+  'side-tab-body': {
+    enter: {
+      'side-tab-select': 'side-tab-body-enter',
+      default: 'none',
+    },
+    exit: {
+      'side-tab-select': 'side-tab-body-exit',
+      default: 'none',
+    },
+  },
+} as const;
+
+const ViewTransitionSurfaceContext =
+  React.createContext<ViewTransitionSurface>('page');
+
+function ViewTransitionSurfaceProvider({
+  children,
+  surface,
+}: {
+  children: React.ReactNode;
+  surface: ViewTransitionSurface;
+}) {
+  return (
+    <ViewTransitionSurfaceContext.Provider value={surface}>
+      {children}
+    </ViewTransitionSurfaceContext.Provider>
+  );
+}
+
+function useViewTransitionSurface() {
+  return React.useContext(ViewTransitionSurfaceContext);
+}
+
 function useHydrated() {
   const [hydrated, setHydrated] = React.useState(false);
 
@@ -54,6 +127,70 @@ function PageTransition({ children, className }: PageTransitionProps) {
   );
 }
 
+function TabContentTransition({
+  children,
+  transitionKey,
+  className,
+  enabled = true,
+  variant = 'default',
+}: KeyedTransitionProps) {
+  const hydrated = useHydrated();
+  const surface = useViewTransitionSurface();
+  const useLocalTransition = surface === 'dialog' && enabled;
+  const content = (
+    <div
+      key={useLocalTransition ? transitionKey : undefined}
+      className={cn(
+        'min-h-0 min-w-0',
+        useLocalTransition && 'local-tab-content-enter',
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+  const transition = tabContentTransitions[variant];
+
+  if (!hydrated || !enabled || useLocalTransition) {
+    return content;
+  }
+
+  return (
+    <ViewTransition
+      key={transitionKey}
+      enter={transition.enter}
+      exit={transition.exit}
+      default="none"
+    >
+      {content}
+    </ViewTransition>
+  );
+}
+
+function ListItemTransition({
+  children,
+  transitionKey,
+  enabled = true,
+}: KeyedTransitionProps) {
+  const hydrated = useHydrated();
+  const surface = useViewTransitionSurface();
+
+  if (!hydrated || !enabled || surface === 'dialog') {
+    return <>{children}</>;
+  }
+
+  return (
+    <ViewTransition
+      key={transitionKey}
+      enter="list-item-enter"
+      exit="list-item-exit"
+      default="none"
+    >
+      {children}
+    </ViewTransition>
+  );
+}
+
 type SuspenseRevealProps = {
   children: React.ReactNode;
 };
@@ -85,4 +222,11 @@ function SuspenseFallback({ children }: SuspenseRevealProps) {
   );
 }
 
-export { PageTransition, SuspenseFallback, SuspenseReveal };
+export {
+  ListItemTransition,
+  PageTransition,
+  SuspenseFallback,
+  SuspenseReveal,
+  TabContentTransition,
+  ViewTransitionSurfaceProvider,
+};

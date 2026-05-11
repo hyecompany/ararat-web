@@ -282,6 +282,32 @@
   }
 }
 
+@keyframes log-detail-enter {
+  from {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes log-detail-exit {
+  from {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
 .file-row-presence-enter {
   animation: 150ms ease-out both file-row-enter;
 }
@@ -298,6 +324,19 @@
 .file-editor-closing-layer {
   pointer-events: none;
   animation: 260ms ease-in both file-editor-close-exit;
+}
+
+.local-tab-content-enter {
+  animation: 150ms ease-out both file-row-enter;
+}
+
+.log-detail-enter {
+  animation: 140ms ease-out both log-detail-enter;
+}
+
+.log-detail-exit {
+  pointer-events: none;
+  animation: 120ms ease-in both log-detail-exit;
 }
 
 @keyframes file-breadcrumb-enter {
@@ -364,6 +403,66 @@
   animation:
     var(--duration-enter) ease-out var(--duration-exit) both
     view-transition-fade;
+}
+
+::view-transition-old(.tab-content-exit) {
+  animation: 110ms ease-out both loadable-surface-fade-out;
+}
+
+::view-transition-new(.tab-content-enter) {
+  animation: 150ms ease-out 35ms both loadable-surface-fade-in;
+}
+
+::view-transition-old(.tab-next-exit) {
+  --slide-offset: -24px;
+  animation:
+    120ms ease-in both view-transition-fade reverse,
+    240ms ease-in-out both view-transition-slide-x reverse;
+}
+
+::view-transition-new(.tab-next-enter) {
+  --slide-offset: 24px;
+  animation:
+    170ms ease-out 70ms both view-transition-fade,
+    240ms ease-in-out both view-transition-slide-x;
+}
+
+::view-transition-old(.tab-prev-exit) {
+  --slide-offset: 24px;
+  animation:
+    120ms ease-in both view-transition-fade reverse,
+    240ms ease-in-out both view-transition-slide-x reverse;
+}
+
+::view-transition-new(.tab-prev-enter) {
+  --slide-offset: -24px;
+  animation:
+    170ms ease-out 70ms both view-transition-fade,
+    240ms ease-in-out both view-transition-slide-x;
+}
+
+::view-transition-old(.side-tab-body-exit) {
+  animation: 90ms ease-out both loadable-surface-fade-out;
+}
+
+::view-transition-new(.side-tab-body-enter) {
+  animation: 140ms ease-out 35ms both loadable-surface-fade-in;
+}
+
+::view-transition-old(.log-mode-exit) {
+  animation: 80ms ease-out both loadable-surface-fade-out;
+}
+
+::view-transition-new(.log-mode-enter) {
+  animation: 120ms ease-out 25ms both loadable-surface-fade-in;
+}
+
+::view-transition-old(.list-item-exit) {
+  animation: 120ms ease-in both file-row-exit;
+}
+
+::view-transition-new(.list-item-enter) {
+  animation: 150ms ease-out both file-row-enter;
 }
 
 ::view-transition-old(.file-forward) {
@@ -601,6 +700,14 @@
   ::view-transition-new(.file-editor-open-enter),
   ::view-transition-old(.file-editor-close-exit),
   ::view-transition-new(.file-editor-close-enter),
+  ::view-transition-old(.tab-next-exit),
+  ::view-transition-new(.tab-next-enter),
+  ::view-transition-old(.tab-prev-exit),
+  ::view-transition-new(.tab-prev-enter),
+  ::view-transition-old(.side-tab-body-exit),
+  ::view-transition-new(.side-tab-body-enter),
+  ::view-transition-old(.log-mode-exit),
+  ::view-transition-new(.log-mode-enter),
   ::view-transition-old(*),
   ::view-transition-new(*),
   ::view-transition-group(*) {
@@ -615,6 +722,11 @@
   }
 
   .file-breadcrumb-manual-exit {
+    animation-duration: 1ms !important;
+  }
+
+  .log-detail-enter,
+  .log-detail-exit {
     animation-duration: 1ms !important;
   }
 }

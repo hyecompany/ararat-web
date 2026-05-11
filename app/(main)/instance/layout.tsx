@@ -44,7 +44,7 @@ import {
 } from 'ui-web/components/breadcrumb';
 import { cn } from 'ui-web/lib/utils';
 import Link from 'next/link';
-import { PageTransition } from 'ui-web/components/view-transitions';
+import { PageTransition, TabContentTransition } from 'ui-web/components/view-transitions';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,12 +59,12 @@ function InstanceLayoutContent({ children }: { children: React.ReactNode }) {
 
   const getTabFromPathname = (path: string) => {
     const pathSegments = path.split('/').filter(Boolean);
-    const rawTab = pathSegments.length > 1 ? pathSegments[1] : 'Dashboard';
+    const rawTab = pathSegments.length > 1 ? pathSegments[1] : 'dashboard';
     const label = rawTab.charAt(0).toUpperCase() + rawTab.slice(1);
     return { rawTab, label };
   };
 
-  const { label: formattedTab } = getTabFromPathname(pathname);
+  const { rawTab: currentTab, label: formattedTab } = getTabFromPathname(pathname);
   const instanceQuery = React.useMemo(() => {
     if (!name) return undefined;
 
@@ -96,14 +96,20 @@ function InstanceLayoutContent({ children }: { children: React.ReactNode }) {
         <div className="flex min-h-0 flex-1 flex-col gap-4">
           <InstanceTabs />
           <div className="mt-4 min-h-0 flex-1">
-            {isError ? (
-              <Alert variant="destructive">
-                <AlertTitle>Error</AlertTitle>
-                <AlertDescription>{isError.message}</AlertDescription>
-              </Alert>
-            ) : (
-              children
-            )}
+            <TabContentTransition
+              transitionKey={currentTab}
+              className="h-full"
+              variant="tab"
+            >
+              {isError ? (
+                <Alert variant="destructive">
+                  <AlertTitle>Error</AlertTitle>
+                  <AlertDescription>{isError.message}</AlertDescription>
+                </Alert>
+              ) : (
+                children
+              )}
+            </TabContentTransition>
           </div>
         </div>
       </div>
@@ -575,6 +581,7 @@ function InstanceTabs() {
       currentTab = segment;
     }
   }
+  const currentIndex = TABS.findIndex((tab) => tab.value === currentTab);
 
   return (
     <Tabs value={currentTab} className="w-full">
@@ -582,6 +589,9 @@ function InstanceTabs() {
         <TabsList className="inline-flex min-w-full">
           {TABS.map((tab) => {
             const targetPath = tab.value === 'dashboard' ? '/instance' : `/instance/${tab.value}`;
+            const targetIndex = TABS.findIndex((candidate) => candidate.value === tab.value);
+            const transitionType =
+              targetIndex > currentIndex ? 'tab-next' : 'tab-prev';
 
             const query = instanceName
               ? {
@@ -597,7 +607,7 @@ function InstanceTabs() {
                     pathname: targetPath,
                     query,
                   }}
-                  transitionTypes={['nav-lateral']}
+                  transitionTypes={[transitionType]}
                 >
                   <tab.icon aria-hidden="true" className="mr-2 h-4 w-4" />
                   {tab.label}
