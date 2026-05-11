@@ -48,15 +48,25 @@ import { useConfigurableOptions } from '@/app/_hooks/server';
 import {
   useStoragePools,
   useStoragePoolVolumes,
-} from '@/app/(main)/_hooks/storagePools';
+} from '@/app/_incus/resources/storage-pools/hooks';
 import { useNetworks } from '@/app/(main)/_hooks/networks';
 import type { Device } from '@/app/(main)/instances/_lib/instances.d';
 import type { ConfigOption, DeviceTypeConfig } from '@/app/_lib/server.d';
+import type { StoragePool, StorageVolume } from '@/app/_incus/types';
 import { UnitInput } from '@/app/(main)/_components/unit-input';
 import { useResources } from '@/app/(main)/_hooks/resources';
 import { VerticalTabsLayout } from '@/app/_components/layout/vertical-tabs-layout';
 import { ConfigDescription, collectReferenceOptions } from '@/app/(main)/_components/config-description';
 import stableStringify from 'fast-json-stable-stringify';
+import {
+  getSelectedStorageVolume,
+  configOptionSupportsInstanceType,
+  configOptionSupportsSelectedDiskContent,
+  deviceMatchesTab,
+  deviceHasRequiredFieldIssues,
+  isDeviceFieldRequired,
+  shouldOmitEmptyDeviceProperty,
+} from './device-rules';
 
 // Utility function to validate port specifications (Issue 3)
 function validatePort(portSpec: string): boolean {
@@ -172,6 +182,33 @@ function singularizeDeviceTypeLabel(label: string): string {
   }
 
   return label;
+}
+
+function normalizeDeviceForInheritanceComparison(name: string, device: Device) {
+  const normalized = { ...device };
+
+  if (
+    normalized.type === 'nic' &&
+    Object.prototype.hasOwnProperty.call(normalized, 'name') &&
+    normalized.name === name
+  ) {
+    delete normalized.name;
+  }
+
+  return normalized;
+}
+
+function devicesMatchInheritedValue(
+  name: string,
+  device: Device,
+  inheritedDevice: Device,
+) {
+  return (
+    stableStringify(normalizeDeviceForInheritanceComparison(name, device)) ===
+    stableStringify(
+      normalizeDeviceForInheritanceComparison(name, inheritedDevice),
+    )
+  );
 }
 
 function splitCsvValue(value?: string) {
@@ -433,6 +470,7 @@ export interface DevicesProps {
   flags?: {
     type?: 'virtual-machine' | 'container';
   };
+  project?: string | null;
 }
 
 // ============================================================================
@@ -535,6 +573,7 @@ const DeviceValidator = {
     isNetworkDevice: boolean,
     isGPUDevice: boolean,
     instanceType: 'container' | 'virtual-machine',
+    selectedStorageVolume?: StorageVolume | null,
   ): ValidationError[] {
     const errors: ValidationError[] = [];
 
@@ -542,13 +581,15 @@ const DeviceValidator = {
     if (deviceConfig?.keys) {
       deviceConfig.keys.forEach((keyObj) => {
         Object.entries(keyObj).forEach(([key, config]) => {
-          // Use required_for if present, otherwise fall back to required === "yes"
-          let isRequired = false;
-          if (Array.isArray(config.required_for)) {
-            isRequired = config.required_for.includes(instanceType);
-          } else if (config.required === 'yes') {
-            isRequired = true;
-          }
+          const isRequired = isDeviceFieldRequired({
+            key,
+            config,
+            deviceType,
+            properties,
+            isRoot,
+            instanceType,
+            selectedStorageVolume,
+          });
 
           if (isRequired) {
             if (isRoot && key === 'pool' && !properties.pool) {
@@ -613,6 +654,7 @@ const DeviceValidator = {
     isNetworkDevice?: boolean,
     isGPUDevice?: boolean,
     instanceType: 'container' | 'virtual-machine' = 'container',
+    selectedStorageVolume?: StorageVolume | null,
   ): ValidationResult {
     const errors: ValidationError[] = [];
 
@@ -661,6 +703,7 @@ const DeviceValidator = {
       isNetworkDevice || false,
       isGPUDevice || false,
       instanceType,
+      selectedStorageVolume,
     );
     errors.push(...requiredErrors);
 
@@ -841,6 +884,74 @@ function DeviceListItem({
   );
 }
 
+type DeviceListItemWithIssuesProps = Omit<DeviceListItemProps, 'hasIssues'> & {
+  deviceConfig?: { keys: Array<Record<string, ConfigOption>> };
+  instanceType: 'container' | 'virtual-machine';
+  project?: string | null;
+};
+
+function DeviceListItemWithIssues(props: DeviceListItemWithIssuesProps) {
+  const { name, device, deviceConfig, instanceType, ...listItemProps } = props;
+
+  if (device.type === 'disk') {
+    return <DiskDeviceListItemWithIssues {...props} />;
+  }
+
+  const hasIssues = deviceHasRequiredFieldIssues({
+    device,
+    deviceConfig,
+    instanceType,
+  });
+
+  return (
+    <DeviceListItem
+      {...listItemProps}
+      name={name}
+      device={device}
+      hasIssues={hasIssues}
+    />
+  );
+}
+
+function DiskDeviceListItemWithIssues({
+  name,
+  device,
+  deviceConfig,
+  instanceType,
+  project,
+  ...props
+}: DeviceListItemWithIssuesProps) {
+  const { rows: storageVolumeRows } = useStoragePoolVolumes(device.pool, {
+    project,
+  });
+  const storageVolumes = React.useMemo(
+    () =>
+      storageVolumeRows
+        .map((row) => row.metadata)
+        .filter((volume): volume is StorageVolume => Boolean(volume)),
+    [storageVolumeRows],
+  );
+  const selectedStorageVolume = React.useMemo(
+    () => getSelectedStorageVolume(device.source, storageVolumes),
+    [device.source, storageVolumes],
+  );
+  const hasIssues = deviceHasRequiredFieldIssues({
+    device,
+    deviceConfig,
+    instanceType,
+    selectedStorageVolume,
+  });
+
+  return (
+    <DeviceListItem
+      {...props}
+      name={name}
+      device={device}
+      hasIssues={hasIssues}
+    />
+  );
+}
+
 interface AddDeviceFormProps {
   deviceType: string;
   deviceConfig?: { keys: Array<Record<string, ConfigOption>> };
@@ -855,6 +966,7 @@ interface AddDeviceFormProps {
   flags?: {
     type?: 'virtual-machine' | 'container';
   };
+  project?: string | null;
 }
 
 function AddDeviceForm({
@@ -869,6 +981,7 @@ function AddDeviceForm({
   inheritedDevices = {},
   registerFlushPendingAutoApply,
   flags,
+  project,
 }: AddDeviceFormProps) {
   const [name, setName] = React.useState('');
   const [properties, setProperties] = React.useState<Record<string, string>>(
@@ -876,6 +989,11 @@ function AddDeviceForm({
   );
   // Counter used to force a rerender/reset of certain controlled inputs (e.g. pool combobox)
   const [resetCounter, setResetCounter] = React.useState(0);
+  const keepPoolOnly = React.useCallback(
+    (prev: Record<string, string>): Record<string, string> =>
+      prev.pool ? { pool: prev.pool } : {},
+    [],
+  );
   const setPropertyValue = React.useCallback((key: string, value: string | undefined) => {
     setProperties((prev) => {
       const next = { ...prev };
@@ -900,7 +1018,7 @@ function AddDeviceForm({
   const isRoot =
     (isCreatingRootDisk && !hasRootDiskAlready && deviceType === 'disk') ||
     editingDevice?.name === 'root' ||
-    (editingDevice &&
+    Boolean(editingDevice &&
       editingDevice.device.path === '/' &&
       deviceType === 'disk');
   // Name is readonly if it's root disk OR if it originated from inheritance (pure or overridden)
@@ -910,9 +1028,31 @@ function AddDeviceForm({
   const isNetworkDevice = deviceType === 'nic' || deviceType.startsWith('nic_');
   const isGPUDevice = deviceType === 'gpu' || deviceType.startsWith('gpu_');
 
-  const { data: storagePools, error: storagePoolsError } = useStoragePools();
-  const { data: storageVolumes, error: storageVolumesError } =
-    useStoragePoolVolumes(properties.pool);
+  const { rows: storagePoolRows } = useStoragePools({
+    include: { metadata: true },
+  });
+  const storagePools = React.useMemo(
+    () =>
+      storagePoolRows
+        .map((row) => row.metadata)
+        .filter((pool): pool is StoragePool => Boolean(pool)),
+    [storagePoolRows],
+  );
+  const {
+    rows: storageVolumeRows,
+    error: storageVolumesError,
+  } = useStoragePoolVolumes(properties.pool, { project });
+  const storageVolumes = React.useMemo(
+    () =>
+      storageVolumeRows
+        .map((row) => row.metadata)
+        .filter((volume): volume is StorageVolume => Boolean(volume)),
+    [storageVolumeRows],
+  );
+  const selectedStorageVolume = React.useMemo(
+    () => getSelectedStorageVolume(properties.source, storageVolumes),
+    [properties.source, storageVolumes],
+  );
   const { data: networks, error: networksError } = useNetworks();
   const { data: resources, error: resourcesError } = useResources();
 
@@ -1073,7 +1213,7 @@ function AddDeviceForm({
       } else {
         // Root disk already exists, create a regular disk instead
         setName('');
-        setProperties({});
+        setProperties(keepPoolOnly);
       }
     } else {
       // For new network devices, default name to eth{#}
@@ -1097,7 +1237,9 @@ function AddDeviceForm({
         setProperties({ gputype: 'physical' });
       } else {
         setName('');
-        setProperties({});
+        setProperties((prev) =>
+          deviceType === 'disk' ? keepPoolOnly(prev) : {},
+        );
       }
     }
   }, [
@@ -1109,6 +1251,7 @@ function AddDeviceForm({
     existingDevices,
     inheritedDevices,
     deviceType,
+    keepPoolOnly,
   ]);
 
   type FieldCategory = {
@@ -1131,6 +1274,12 @@ function AddDeviceForm({
           // For source category, ensure pool appears first if present
           if (a.config.fullKey === 'pool') return -1;
           if (b.config.fullKey === 'pool') return 1;
+          if (a.config.fullKey === 'source' && b.config.fullKey === 'path') {
+            return -1;
+          }
+          if (a.config.fullKey === 'path' && b.config.fullKey === 'source') {
+            return 1;
+          }
           return a.key.localeCompare(b.key);
         }),
       }));
@@ -1178,7 +1327,30 @@ function AddDeviceForm({
         if (deviceType === 'disk' && key === 'pool') {
           return;
         }
-        const targetMap = config.required === 'yes' ? requiredMap : optionalMap;
+        if (
+          !configOptionSupportsInstanceType(config, flags?.type ?? 'container')
+        ) {
+          return;
+        }
+        if (
+          deviceType === 'disk' &&
+          !configOptionSupportsSelectedDiskContent({
+            config,
+            selectedStorageVolume,
+          })
+        ) {
+          return;
+        }
+        const isRequired = isDeviceFieldRequired({
+          key,
+          config,
+          deviceType,
+          properties,
+          isRoot,
+          instanceType: flags?.type ?? 'container',
+          selectedStorageVolume,
+        });
+        const targetMap = isRequired ? requiredMap : optionalMap;
 
         if (!targetMap.has(category)) {
           targetMap.set(category, []);
@@ -1195,7 +1367,16 @@ function AddDeviceForm({
       requiredCategories: sortCategories(requiredMap),
       optionalCategories: sortCategories(optionalMap),
     };
-  }, [effectiveDeviceConfig, isRoot, deviceType, isCephPool, sortCategories]);
+  }, [
+    effectiveDeviceConfig,
+    isRoot,
+    deviceType,
+    isCephPool,
+    sortCategories,
+    properties,
+    flags?.type,
+    selectedStorageVolume,
+  ]);
 
   const formatLabel = (key: string) => {
     return key
@@ -1554,6 +1735,8 @@ function AddDeviceForm({
       isRoot,
       isNetworkDevice,
       isGPUDevice,
+      flags?.type ?? 'container',
+      selectedStorageVolume,
     );
   }, [
     name,
@@ -1566,10 +1749,35 @@ function AddDeviceForm({
     isRoot,
     isNetworkDevice,
     isGPUDevice,
+    flags?.type,
+    selectedStorageVolume,
   ]);
+
+  const configByKey = React.useMemo(() => {
+    const configMap = new Map<string, ConfigOption>();
+    effectiveDeviceConfig?.keys?.forEach((keyObj) => {
+      Object.entries(keyObj).forEach(([key, config]) => {
+        configMap.set(key, config);
+      });
+    });
+    return configMap;
+  }, [effectiveDeviceConfig]);
 
   const buildDevicePayload = React.useCallback(() => {
     const finalProps = { ...properties };
+    for (const [key, value] of Object.entries(finalProps)) {
+      if (
+        shouldOmitEmptyDeviceProperty({
+          deviceType,
+          config: configByKey.get(key),
+          selectedStorageVolume,
+          key,
+          value,
+        })
+      ) {
+        delete finalProps[key];
+      }
+    }
     if (isRoot) {
       finalProps.path = '/';
     }
@@ -1585,7 +1793,15 @@ function AddDeviceForm({
       name,
       device: { type: finalType, ...finalProps } as Device,
     };
-  }, [deviceType, isGPUDevice, isRoot, name, properties]);
+  }, [
+    configByKey,
+    deviceType,
+    isGPUDevice,
+    isRoot,
+    name,
+    properties,
+    selectedStorageVolume,
+  ]);
 
   const lastAutoAppliedSignature = React.useRef<string | null>(null);
   const isInitializingEditState = React.useRef(false);
@@ -1793,17 +2009,20 @@ function AddDeviceForm({
         return false;
       }
 
-      // Check shortdesc for type restrictions (memoize the lowercase conversion)
-      if (flags?.type && config.shortdesc) {
-        const shortdesc = config.shortdesc.toLowerCase();
-        const isVMOnly =
-          shortdesc.includes('only for vms') || shortdesc.includes('vm only');
-        const isContainerOnly =
-          shortdesc.includes('only for containers') ||
-          shortdesc.includes('container only');
-
-        if (isVMOnly && flags.type !== 'virtual-machine') return false;
-        if (isContainerOnly && flags.type !== 'container') return false;
+      if (
+        flags?.type &&
+        !configOptionSupportsInstanceType(config, flags.type)
+      ) {
+        return false;
+      }
+      if (
+        deviceType === 'disk' &&
+        !configOptionSupportsSelectedDiskContent({
+          config,
+          selectedStorageVolume,
+        })
+      ) {
+        return false;
       }
 
       // Disk-specific rules
@@ -1911,7 +2130,15 @@ function AddDeviceForm({
 
       return true;
     },
-    [isRoot, flags, deviceType, properties, isNetworkDevice, isGPUDevice],
+    [
+      isRoot,
+      flags,
+      deviceType,
+      properties,
+      isNetworkDevice,
+      isGPUDevice,
+      selectedStorageVolume,
+    ],
   );
 
   const renderField = (
@@ -1934,6 +2161,20 @@ function AddDeviceForm({
     let effectiveConfig = config;
     if (isRoot && fieldKey === 'pool') {
       effectiveConfig = { ...config, required: 'yes' as const };
+    } else if (
+      deviceType === 'disk' &&
+      (fieldKey === 'path' || fieldKey.startsWith('path.')) &&
+      !isDeviceFieldRequired({
+        key: fieldKey,
+        config,
+        deviceType,
+        properties,
+        isRoot,
+        instanceType: flags?.type ?? 'container',
+        selectedStorageVolume,
+      })
+    ) {
+      effectiveConfig = { ...config, required: 'no' as const };
     } else if (
       isNetworkDevice &&
       fieldKey === 'parent' &&
@@ -2281,8 +2522,7 @@ function AddDeviceForm({
   };
 
   // Show error states if any data fetching failed
-  const hasDataError =
-    storagePoolsError || storageVolumesError || networksError || resourcesError;
+  const hasDataError = storageVolumesError || networksError || resourcesError;
 
   return (
     <div className="flex flex-col h-full">
@@ -2294,7 +2534,6 @@ function AddDeviceForm({
                 Failed to load configuration data
               </p>
               <p className="text-xs text-destructive/80 mt-1">
-                {storagePoolsError ? 'Storage pools unavailable. ' : ''}
                 {storageVolumesError ? 'Storage volumes unavailable. ' : ''}
                 {networksError ? 'Networks unavailable. ' : ''}
                 {resourcesError ? 'GPU resources unavailable. ' : ''}
@@ -2490,6 +2729,7 @@ export default function Devices({
   readonly = false,
   className,
   flags,
+  project,
 }: DevicesProps) {
   const [selectedType, setSelectedType] = React.useState('disk');
   const [localDevices, setLocalDevices] =
@@ -2523,26 +2763,36 @@ export default function Devices({
 
   // Clear selected device when changing tabs or when device is removed
   React.useEffect(() => {
-    if (selectedDevice && selectedDevice.device.type !== selectedType) {
+    if (selectedDevice && !deviceMatchesTab(selectedDevice.device, selectedType)) {
       setSelectedDeviceName(null);
     }
   }, [selectedType, selectedDevice]);
 
   const filteredDevices = React.useMemo(() => {
     const allDevices = { ...inheritedDevices, ...localDevices };
-    return Object.entries(allDevices).filter(([, device]) => {
-      // For GPU type, match all gpu_* types
-      if (selectedType === 'gpu') {
-        return device.type === 'gpu' || device.type.startsWith('gpu_');
-      }
-      return device.type === selectedType;
-    });
+    return Object.entries(allDevices).filter(([, device]) =>
+      deviceMatchesTab(device, selectedType),
+    );
   }, [localDevices, inheritedDevices, selectedType]);
 
-  const isInherited = (name: string) =>
-    name in inheritedDevices && !(name in localDevices);
-  const isOverridden = (name: string) =>
-    name in inheritedDevices && name in localDevices;
+  const isOverridden = React.useCallback(
+    (name: string) => {
+      if (!(name in inheritedDevices) || !(name in localDevices)) {
+        return false;
+      }
+
+      return !devicesMatchInheritedValue(
+        name,
+        localDevices[name],
+        inheritedDevices[name],
+      );
+    },
+    [inheritedDevices, localDevices],
+  );
+  const isInherited = React.useCallback(
+    (name: string) => name in inheritedDevices && !isOverridden(name),
+    [inheritedDevices, isOverridden],
+  );
 
   const hasRootDisk = React.useMemo(() => {
     const allDevices = { ...inheritedDevices, ...localDevices };
@@ -2550,36 +2800,6 @@ export default function Devices({
       (device) => device.type === 'disk' && device.path === '/',
     );
   }, [localDevices, inheritedDevices]);
-
-  const hasIssues = (name: string, device: Device) => {
-    const isRootDisk = device.path === '/' && device.type === 'disk';
-
-    // Special case: root disk must have a pool
-    if (isRootDisk) {
-      if (!device.pool || device.pool === '') {
-        return true;
-      }
-    }
-
-    const deviceConfig = configurableOptions?.configs?.devices?.[device.type];
-    if (!deviceConfig?.keys) return false;
-
-    for (const keyObj of deviceConfig.keys) {
-      for (const [key, config] of Object.entries(keyObj)) {
-        if (config.required === 'yes') {
-          // For root disk, path/source are auto-managed
-          if (isRootDisk) {
-            if (key.startsWith('path') || key.startsWith('source')) continue;
-            if (key === 'pool') continue; // already checked above
-          }
-          if (!device[key as keyof Device]) {
-            return true;
-          }
-        }
-      }
-    }
-    return false;
-  };
 
   const handleAdd = (name: string, device: Device) => {
     const updated = { ...localDevices, [name]: device };
@@ -2591,6 +2811,23 @@ export default function Devices({
   };
 
   const handleUpdate = (oldName: string, newName: string, device: Device) => {
+    const inheritedDevice = inheritedDevices[oldName];
+    const matchesInheritedDevice =
+      oldName === newName &&
+      inheritedDevice !== undefined &&
+      devicesMatchInheritedValue(oldName, device, inheritedDevice);
+
+    if (matchesInheritedDevice) {
+      if (oldName in localDevices) {
+        const rest = { ...localDevices };
+        delete rest[oldName];
+        skipSyncFromProps.current = true;
+        setLocalDevices(rest);
+        onDevicesChange?.(rest);
+      }
+      return;
+    }
+
     const updated = { ...localDevices };
 
     // If name changed, remove old entry
@@ -2671,9 +2908,7 @@ export default function Devices({
       const count = Object.values({
         ...inheritedDevices,
         ...localDevices,
-      }).filter(
-        (d) => d.type === type.value || d.type.startsWith(`${type.value}_`),
-      ).length;
+      }).filter((device) => deviceMatchesTab(device, type.value)).length;
 
       return {
         value: type.value,
@@ -2755,6 +2990,7 @@ export default function Devices({
             flushPendingAutoApplyRef.current = flush;
           }}
           flags={flags}
+          project={project}
         />
       </div>
     </div>
@@ -2834,15 +3070,17 @@ export default function Devices({
               </div>
             ) : (
               filteredDevices.map(([name, device]) => (
-                <DeviceListItem
+                <DeviceListItemWithIssues
                   key={name}
                   name={name}
                   device={device}
+                  deviceConfig={configurableOptions?.configs?.devices?.[device.type]}
+                  instanceType={flags?.type ?? 'container'}
+                  project={project}
                   inherited={isInherited(name)}
                   overridden={isOverridden(name)}
                   readonly={readonly}
                   selected={selectedDevice?.name === name}
-                  hasIssues={hasIssues(name, device)}
                   onRemove={handleRemove}
                   onReset={handleReset}
                   onClick={() => handleDeviceClick(name)}

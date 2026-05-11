@@ -14,6 +14,9 @@ import { parseDevicesYaml, serializeDevicesYaml } from '../../_lib/settings-yaml
 import { ManagementFooter } from './footer';
 import { ManagementShell } from './shell';
 
+const editorTransitionClassName =
+  'h-full animate-in fade-in-0 slide-in-from-bottom-1 duration-200';
+
 export default function Devices({
   instance,
   onMutate,
@@ -83,6 +86,7 @@ export default function Devices({
       setYamlContent(serializeDevicesYaml(draftDevices));
       setYamlError(null);
     }
+
     setShowYamlEditor((current) => !current);
   };
 
@@ -164,22 +168,32 @@ export default function Devices({
       }
     >
       {showYamlEditor ? (
-        <SettingsYamlEditor
-          value={yamlContent}
-          error={yamlError}
-          onChange={handleYamlChange}
-          description="Edit the raw instance devices YAML. Changes stay synced with the structured editor."
-          className="h-full"
-        />
-      ) : (
-        <div className="h-full overflow-y-auto">
-          <InstanceDevices
-            profiles={instance.profiles ?? ['default']}
-            devices={draftDevices}
-            onDevicesChange={setDraftDevices}
-            instanceType={instanceType}
-            className="rounded-xl border"
+        <div
+          key="yaml-editor"
+          className={editorTransitionClassName}
+        >
+          <SettingsYamlEditor
+            value={yamlContent}
+            error={yamlError}
+            onChange={handleYamlChange}
+            className="h-full"
           />
+        </div>
+      ) : (
+        <div
+          key="device-editor"
+          className={editorTransitionClassName}
+        >
+          <div className="h-full overflow-y-auto">
+            <InstanceDevices
+              profiles={instance.profiles ?? ['default']}
+              devices={draftDevices}
+              onDevicesChange={setDraftDevices}
+              instanceType={instanceType}
+              project={instance.project ?? null}
+              className="rounded-xl border"
+            />
+          </div>
         </div>
       )}
     </ManagementShell>

@@ -3,7 +3,7 @@
 import { mapWithConcurrency } from '../../concurrency';
 import { debugIncusData } from '../../debug';
 import { chunkFilterNames, nameEqualsFilter } from '../../filters';
-import { storageVolumeKey } from '../../keys';
+import { splitStorageVolumeKey, storageVolumeKey } from '../../keys';
 import { resourceKeys } from '../../resources';
 import { applyProjectSelection, collectionStatusKey } from '../../scope';
 import type { RequestRegistry } from '../../requests';
@@ -128,6 +128,27 @@ export async function ensureStoragePoolVolumes(
           const nextPool = state.storagePools.items[poolName] ??
             store.ensureStoragePool(poolName);
           nextPool.volumes.collection.byProject[collectionKey] = { status: 'ready' };
+          const returnedKeys = new Set(
+            response.metadata.map((volume) =>
+              storageVolumeKey(
+                volume.project ?? collectionKey,
+                volume.type ?? 'custom',
+                volume.name,
+              ),
+            ),
+          );
+          for (const key of Object.keys(nextPool.volumes.items)) {
+            const identity = splitStorageVolumeKey(key);
+            const matchesCollection =
+              collectionKey === 'all' || identity.project === collectionKey;
+            if (
+              matchesCollection &&
+              identity.type === 'custom' &&
+              !returnedKeys.has(key)
+            ) {
+              delete nextPool.volumes.items[key];
+            }
+          }
           for (const volume of response.metadata) {
             const key = storageVolumeKey(
               volume.project ?? collectionKey,

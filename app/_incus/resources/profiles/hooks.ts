@@ -15,9 +15,16 @@ import {
 import type { Profile } from '../../types';
 import { useIncusResourceSnapshot } from '../../use-resource-snapshot';
 
-export function useProfilesResource(names?: string[]) {
+export type UseProfilesOptions = {
+  project?: string | null;
+};
+
+export function useProfilesResource(
+  names?: string[],
+  options: UseProfilesOptions = {},
+) {
   const client = useIncusClient();
-  const project = client.getProject();
+  const project = options.project || client.getProject();
   const effectiveProject = resolveProjectResourceScope(
     client.store.getSnapshot().state,
     project,
@@ -50,8 +57,8 @@ export function useProfilesResource(names?: string[]) {
   );
 
   React.useEffect(() => {
-    void client.profiles.ensure({ names });
-  }, [client, requestKey, snapshot.version]);
+    void client.profiles.ensure({ names }, project);
+  }, [client, project, requestKey, snapshot.version]);
 
   return React.useMemo(() => {
     const collection =

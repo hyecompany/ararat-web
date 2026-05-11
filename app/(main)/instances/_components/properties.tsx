@@ -38,6 +38,7 @@ interface InstancePropertiesProps {
   setInstanceType: React.Dispatch<
     React.SetStateAction<'virtual-machine' | 'container'>
   >;
+  project?: string | null;
 }
 
 export default function InstanceProperties({
@@ -46,13 +47,14 @@ export default function InstanceProperties({
   setProfilesSelected,
   instanceType,
   setInstanceType,
+  project,
 }: InstancePropertiesProps) {
   const {
     data: profiles,
     isLoading: isLoadingProfiles,
     isStale: isProfilesStale,
     isRefreshing: isProfilesRefreshing,
-  } = useProfiles();
+  } = useProfiles(undefined, { project });
   return (
     <div className="flex flex-col gap-2">
       <FormField

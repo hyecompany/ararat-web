@@ -85,7 +85,7 @@ export function createProfilesResource(
   getProject: () => string,
 ) {
   return {
-    ensure: (request?: ProfilesRequest) =>
-      ensureProfiles(store, requests, getProject(), request),
+    ensure: (request?: ProfilesRequest, project?: string | null) =>
+      ensureProfiles(store, requests, project || getProject(), request),
   };
 }

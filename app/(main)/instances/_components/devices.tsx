@@ -19,6 +19,8 @@ export interface InstanceDevicesProps {
   instanceType?: 'virtual-machine' | 'container';
   /** Optional class name passed to the shared device manager layout */
   className?: string;
+  /** Project used for project-scoped child resources such as storage volumes */
+  project?: string | null;
 }
 
 /**
@@ -31,8 +33,11 @@ export default function InstanceDevices({
   onDevicesChange,
   instanceType,
   className,
+  project,
 }: InstanceDevicesProps) {
-  const { data: profilesData, isLoading, error } = useProfiles(profiles);
+  const { data: profilesData, isLoading, error } = useProfiles(profiles, {
+    project,
+  });
 
   // Aggregate all inherited devices from profiles
   const inheritedDevices = React.useMemo(() => {
@@ -52,50 +57,9 @@ export default function InstanceDevices({
     return inherited;
   }, [profilesData]);
 
-  // Ensure root disk is present for instances
   const effectiveDevices = React.useMemo(() => {
-    const result = { ...devices };
-
-    // If root is now inherited but we have an auto-created minimal root, remove it
-    if (
-      inheritedDevices.root &&
-      devices.root &&
-      Object.keys(devices.root).length === 1 &&
-      devices.root.type === 'disk'
-    ) {
-      delete result.root;
-    }
-
-    // Only add root disk if not inherited and not already present
-    if (!inheritedDevices.root && !devices.root) {
-      result.root = { type: 'disk', path: '/' };
-    }
-    return result;
+    return { ...devices };
   }, [devices, inheritedDevices]);
-
-  // Sync effectiveDevices changes to parent
-  React.useEffect(() => {
-    // Add root disk when needed (not inherited and not present)
-    if (
-      !inheritedDevices.root &&
-      effectiveDevices.root &&
-      !devices.root &&
-      onDevicesChange
-    ) {
-      onDevicesChange(effectiveDevices);
-    }
-    // Remove auto-created root disk when profile now provides one
-    if (
-      inheritedDevices.root &&
-      devices.root &&
-      Object.keys(devices.root).length === 1 &&
-      devices.root.type === 'disk' &&
-      onDevicesChange
-    ) {
-      const { root, ...rest } = devices;
-      onDevicesChange(rest);
-    }
-  }, [effectiveDevices, devices, onDevicesChange, inheritedDevices]);
 
   if (error) {
     return (
@@ -130,6 +94,7 @@ export default function InstanceDevices({
         onDevicesChange={onDevicesChange}
         className={className}
         flags={instanceType ? { type: instanceType } : undefined}
+        project={project}
       />
     </div>
   );

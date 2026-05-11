@@ -30,7 +30,8 @@ import {
 } from 'ui-web/components/select';
 
 import { useConfigurableOptions } from '@/app/_hooks/server';
-import { useStoragePools } from '@/app/(main)/_hooks/storagePools';
+import { useStoragePools } from '@/app/_incus/resources/storage-pools/hooks';
+import type { StoragePool } from '@/app/_incus/types';
 import { useClusterGroups } from '@/app/(main)/_hooks/clusters';
 import { useAllNetworks } from '@/app/(main)/_hooks/networks';
 import { useNetworkIntegrations } from '@/app/(main)/_hooks/networkIntegrations';
@@ -692,7 +693,16 @@ export default function GeneralConfiguration({
 }: GeneralConfigurationProps) {
   const { resolvedTheme } = useTheme();
   const { data: configurableOptions } = useConfigurableOptions();
-  const { data: storagePools } = useStoragePools();
+  const { rows: storagePoolRows } = useStoragePools({
+    include: { metadata: true },
+  });
+  const storagePools = React.useMemo(
+    () =>
+      storagePoolRows
+        .map((row) => row.metadata)
+        .filter((pool): pool is StoragePool => Boolean(pool)),
+    [storagePoolRows],
+  );
   const { data: clusterGroups, isLoading: isLoadingClusterGroups } = useClusterGroups();
   const { data: allNetworks, isLoading: isLoadingAllNetworks } = useAllNetworks();
   const { data: networkIntegrations, isLoading: isLoadingNetworkIntegrations } =
