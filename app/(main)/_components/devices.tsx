@@ -57,6 +57,7 @@ import { UnitInput } from '@/app/(main)/_components/unit-input';
 import { useResources } from '@/app/(main)/_hooks/resources';
 import { VerticalTabsLayout } from '@/app/_components/layout/vertical-tabs-layout';
 import { ConfigDescription, collectReferenceOptions } from '@/app/(main)/_components/config-description';
+import { ListItemTransition } from 'ui-web/components/view-transitions';
 import stableStringify from 'fast-json-stable-stringify';
 import {
   getSelectedStorageVolume,
@@ -3010,8 +3011,7 @@ export default function Devices({
         !readonly && showDetailPanel ? renderDetailForm() : undefined
       }
       contentSize={readonly ? 80 : 50}
-    >
-      <div className="h-full flex flex-col">
+      contentHeader={
         <div className="p-4 border-b flex justify-between items-center">
           <div className="flex items-center gap-2">
             {selectedDeviceType && (
@@ -3028,50 +3028,52 @@ export default function Devices({
             </Button>
           )}
         </div>
-        <ScrollArea className="flex-1">
-          <div className="p-4 space-y-3">
-            {!readonly &&
-              selectedType === 'disk' &&
-              !hasRootDisk &&
-              !isCreatingRootDisk && (
-                <Card className="border-dashed border-primary/50 bg-primary/5">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-semibold">
-                      No Root Disk
-                    </CardTitle>
-                    <CardDescription className="text-xs">
-                      A root disk is typically required for instances. Would you
-                      like to add one?
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <Button
-                      size="sm"
-                      className="w-full"
-                      onClick={handleAddClick}
-                    >
-                      <IconPlus className="h-4 w-4 mr-2" />
-                      Add Root Disk
-                    </Button>
-                  </CardContent>
-                </Card>
-              )}
-            {filteredDevices.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <div className="rounded-full bg-muted p-4 mb-4">
-                  {selectedDeviceType && (
-                    <selectedDeviceType.icon className="h-8 w-8 text-muted-foreground" />
-                  )}
-                </div>
-                <p className="text-sm font-medium">No devices configured</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Add a {selectedType} device to get started
-                </p>
+      }
+    >
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="p-4 space-y-3">
+          {!readonly &&
+            selectedType === 'disk' &&
+            !hasRootDisk &&
+            !isCreatingRootDisk && (
+              <Card className="border-dashed border-primary/50 bg-primary/5">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-semibold">
+                    No Root Disk
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    A root disk is typically required for instances. Would you
+                    like to add one?
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    onClick={handleAddClick}
+                  >
+                    <IconPlus className="h-4 w-4 mr-2" />
+                    Add Root Disk
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+          {filteredDevices.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="rounded-full bg-muted p-4 mb-4">
+                {selectedDeviceType && (
+                  <selectedDeviceType.icon className="h-8 w-8 text-muted-foreground" />
+                )}
               </div>
-            ) : (
-              filteredDevices.map(([name, device]) => (
+              <p className="text-sm font-medium">No devices configured</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Add a {selectedType} device to get started
+              </p>
+            </div>
+          ) : (
+            filteredDevices.map(([name, device]) => (
+              <ListItemTransition key={name} transitionKey={name}>
                 <DeviceListItemWithIssues
-                  key={name}
                   name={name}
                   device={device}
                   deviceConfig={configurableOptions?.configs?.devices?.[device.type]}
@@ -3085,11 +3087,11 @@ export default function Devices({
                   onReset={handleReset}
                   onClick={() => handleDeviceClick(name)}
                 />
-              ))
-            )}
-          </div>
-        </ScrollArea>
-      </div>
+              </ListItemTransition>
+            ))
+          )}
+        </div>
+      </ScrollArea>
     </VerticalTabsLayout>
   );
 }

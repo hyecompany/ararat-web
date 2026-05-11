@@ -178,7 +178,7 @@ export default function Configuration({
           className="h-full"
         />
       ) : (
-        <div className="h-full overflow-y-auto">
+        <div className="h-full min-h-0 overflow-hidden">
           <GeneralConfiguration
             config={draftConfig}
             expandedConfig={expandedConfig}

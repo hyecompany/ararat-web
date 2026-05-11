@@ -44,6 +44,7 @@ import type { Network } from '@/app/(main)/_hooks/networks';
 import { UnitInput } from '@/app/(main)/_components/unit-input';
 import { VerticalTabsLayout } from '@/app/_components/layout/vertical-tabs-layout';
 import { ConfigDescription, collectReferenceOptions } from '@/app/(main)/_components/config-description';
+import { ListItemTransition } from 'ui-web/components/view-transitions';
 import {
   Combobox,
   ComboboxContent,
@@ -239,9 +240,11 @@ function renderConfigTree(
 
   return (
     <div className="space-y-6">
-      {node.keys.map(({ fullKey, leafName, metadata, templateParts }) =>
-        renderInput(fullKey, metadata, leafName, templateParts),
-      )}
+      {node.keys.map(({ fullKey, leafName, metadata, templateParts }) => (
+        <ListItemTransition key={fullKey} transitionKey={fullKey}>
+          {renderInput(fullKey, metadata, leafName, templateParts)}
+        </ListItemTransition>
+      ))}
 
       {Object.entries(node.children).map(([name, childNode]) => {
         const duplicatedHeading = leafNames.has(name);
@@ -2045,8 +2048,11 @@ export default function GeneralConfiguration({
             placeholder="Search settings..."
             value={searchQuery}
             onChange={(event) => {
-              setSearchQuery(event.target.value);
-              setHighlightedKey(null);
+              const nextSearchQuery = event.target.value;
+              React.startTransition(() => {
+                setSearchQuery(nextSearchQuery);
+                setHighlightedKey(null);
+              });
             }}
             className="h-9 pl-8 text-xs"
           />
@@ -2055,29 +2061,29 @@ export default function GeneralConfiguration({
       sidebarSize={25}
       contentSize={75}
       className={cn('h-full min-h-0 overflow-hidden', className)}
-    >
-      <div className="flex h-full min-h-0 overflow-hidden flex-col">
+      contentHeader={
         <div className="flex h-[57px] items-center border-b p-4">
           <h3 className="text-sm font-semibold select-none">
             {selectedCategory ? formatCategoryName(selectedCategory) : ''}
           </h3>
         </div>
-        <ScrollArea
-          key={selectedCategory || 'empty-category'}
-          ref={scrollAreaRef}
-          className="min-h-0 flex-1"
-        >
-          <div className="space-y-6 p-6">
-            {activeConfigTree ? (
-              renderConfigTree(activeConfigTree, renderInput, formatCategoryName)
-            ) : (
-              <div className="text-muted-foreground py-12 text-center text-sm">
-                Select a category to view settings
-              </div>
-            )}
-          </div>
-        </ScrollArea>
-      </div>
+      }
+    >
+      <ScrollArea
+        key={selectedCategory || 'empty-category'}
+        ref={scrollAreaRef}
+        className="min-h-0 flex-1"
+      >
+        <div className="space-y-6 p-6">
+          {activeConfigTree ? (
+            renderConfigTree(activeConfigTree, renderInput, formatCategoryName)
+          ) : (
+            <div className="text-muted-foreground py-12 text-center text-sm">
+              Select a category to view settings
+            </div>
+          )}
+        </div>
+      </ScrollArea>
     </VerticalTabsLayout>
   );
 }

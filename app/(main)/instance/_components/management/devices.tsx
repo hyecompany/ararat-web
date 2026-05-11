@@ -184,7 +184,7 @@ export default function Devices({
           key="device-editor"
           className={editorTransitionClassName}
         >
-          <div className="h-full overflow-y-auto">
+          <div className="h-full min-h-0 overflow-hidden">
             <InstanceDevices
               profiles={instance.profiles ?? ['default']}
               devices={draftDevices}
