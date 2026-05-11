@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { ViewTransition, addTransitionType } from 'react';
 import Editor from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
 import { Badge } from 'ui-web/components/badge';
@@ -14,13 +15,21 @@ import { Switch } from 'ui-web/components/switch';
 import { Label } from 'ui-web/components/label';
 import DataTable from 'ui-web/components/data-table';
 import { ColumnDef, Row } from '@tanstack/react-table';
-import { Trash2Icon, ChevronDown, ChevronRight } from 'lucide-react';
+import { Trash2Icon, ChevronDown, ChevronRight, LogsIcon } from 'lucide-react';
 import { Separator } from 'ui-web/components/separator';
 
 import { useInstanceLogContent } from '../_hooks/logs';
 import { Spinner } from 'ui-web/components/spinner';
 import { Button } from 'ui-web/components/button';
 import { Skeleton } from 'ui-web/components/skeleton';
+import { LoadableSurface } from 'ui-web/components/loadable-surface';
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from 'ui-web/components/empty';
 
 // --- Date Formatting Helpers ---
 
@@ -372,7 +381,7 @@ export function LogViewer({
   const { resolvedTheme } = useTheme();
   const {
     data: content,
-    isLoading,
+    status,
     error,
   } = useInstanceLogContent(instanceName, project, filename);
   const [isRawView, setIsRawView] = React.useState(false);
@@ -397,24 +406,6 @@ export function LogViewer({
     if (isQmpLog) return parseQmpLog(content);
     return [];
   }, [canUseStructuredView, isLxcLog, isQmpLog, content]);
-
-  if (isLoading) {
-    return <LogViewerSkeleton filename={filename} />;
-  }
-
-  if (error) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center p-4 text-center">
-        <div className="text-destructive mb-4 text-sm font-medium">
-          Error loading log content: {error.message}
-        </div>
-        <Button variant="outline" size="sm" onClick={onDelete} disabled={isDeleting}>
-          <Trash2Icon className="mr-2 size-4" />
-          Delete Corrupt File
-        </Button>
-      </div>
-    );
-  }
 
   const renderExpandedContent = (row: Row<any>) => {
     const data = row.original;
@@ -473,6 +464,93 @@ export function LogViewer({
     return null;
   };
 
+  const handleRawViewChange = (checked: boolean) => {
+    React.startTransition(() => {
+      addTransitionType('log-mode-toggle');
+      setIsRawView(checked);
+    });
+  };
+
+  const viewerMode = shouldShowStructuredView ? 'structured' : 'raw';
+  const hasContent = content !== null;
+  const errorView = (
+    <div className="flex h-full flex-col items-center justify-center p-4 text-center">
+      <div className="text-destructive mb-4 text-sm font-medium">
+        Error loading log content: {error?.message ?? 'Unable to load log content.'}
+      </div>
+      <Button variant="outline" size="sm" onClick={onDelete} disabled={isDeleting}>
+        <Trash2Icon className="mr-2 size-4" />
+        Delete Corrupt File
+      </Button>
+    </div>
+  );
+  const viewerBody = (
+    <LogViewerBodyTransition transitionKey={`${filename}:${viewerMode}`}>
+      {shouldShowStructuredView ? (
+        <div className="relative h-full w-0 min-w-full flex-1 overflow-hidden">
+          <DataTable
+            data={parsedEntries}
+            cols={(isLxcLog ? lxcColumns : qmpColumns) as any}
+            containerClassName="h-full"
+            innerClassName="rounded-none border-0 h-full overflow-auto"
+            virtualizeRows={true}
+            disablePagination
+            virtualScrollMaxHeightClassName="h-full"
+            virtualRowEstimatePx={30}
+            onRowClick={(row) => row.toggleExpanded()}
+            getRowClassName={(row) =>
+              cn(
+                row.getIsExpanded() && 'bg-muted/50',
+                'border-b border-muted/30 last:border-b-0 hover:bg-muted/20',
+              )
+            }
+            fixedLayout={true}
+            emptyState={<LogEntriesEmptyState filename={filename} />}
+            wrapTableRow={(row, rowElement) => (
+              <React.Fragment key={row.id}>
+                {rowElement}
+                <LogExpandedDetailRow
+                  row={row}
+                  colSpan={row.getVisibleCells().length}
+                  renderContent={renderExpandedContent}
+                />
+              </React.Fragment>
+            )}
+          />
+        </div>
+      ) : (
+        <div
+          className="h-full"
+          onKeyDownCapture={(e) => {
+            if (e.key === 'Escape') {
+              e.stopPropagation();
+            }
+          }}
+        >
+          <Editor
+            height="100%"
+            defaultLanguage="plaintext"
+            language={filename.endsWith('.json') ? 'json' : 'plaintext'}
+            value={content || ''}
+            beforeMount={defineDashboardMonacoThemes}
+            theme={dashboardMonacoTheme(resolvedTheme)}
+            options={{
+              ...dashboardMonacoOptions,
+              readOnly: true,
+              minimap: { enabled: true },
+              fontSize: 12,
+              lineNumbers: 'on',
+              scrollBeyondLastLine: false,
+              automaticLayout: true,
+              wordWrap: 'on',
+              contextmenu: true,
+            }}
+          />
+        </div>
+      )}
+    </LogViewerBodyTransition>
+  );
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <div className="bg-muted/20 flex shrink-0 items-center justify-between border-b px-4 py-1">
@@ -505,7 +583,7 @@ export function LogViewer({
                 <Switch
                   id="raw-view"
                   checked={isRawView}
-                  onCheckedChange={setIsRawView}
+                  onCheckedChange={handleRawViewChange}
                   className="h-3.5 w-6.5 [&>span]:h-2.5 [&>span]:w-2.5 [&>span]:data-[state=checked]:translate-x-3"
                 />
                 <Label
@@ -525,94 +603,233 @@ export function LogViewer({
         </div>
       </div>
 
-      <div className="bg-background flex min-h-0 flex-1 flex-col overflow-hidden">
-        {shouldShowStructuredView ? (
-          <div className="relative h-full w-0 min-w-full flex-1 overflow-hidden">
-            <DataTable
-              data={parsedEntries}
-              cols={(isLxcLog ? lxcColumns : qmpColumns) as any}
-              containerClassName="h-full"
-              innerClassName="rounded-none border-0 h-full overflow-auto"
-              virtualizeRows={true}
-              disablePagination
-              virtualScrollMaxHeightClassName="h-full"
-              virtualRowEstimatePx={30}
-              onRowClick={(row) => row.toggleExpanded()}
-              getRowClassName={(row) =>
-                cn(
-                  row.getIsExpanded() && 'bg-muted/50',
-                  'border-b border-muted/30 last:border-b-0 hover:bg-muted/20',
-                )
-              }
-              fixedLayout={true}
-              wrapTableRow={(row, rowElement) => (
-                <React.Fragment key={row.id}>
-                  {rowElement}
-                  {row.getIsExpanded() && (
-                    <tr>
-                      <td colSpan={row.getVisibleCells().length} className="border-none p-0">
-                        {renderExpandedContent(row)}
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              )}
-            />
-          </div>
-        ) : (
-          <div
-            className="h-full"
-            onKeyDownCapture={(e) => {
-              if (e.key === 'Escape') {
-                e.stopPropagation();
-              }
-            }}
-          >
-            <Editor
-              height="100%"
-              defaultLanguage="plaintext"
-              language={filename.endsWith('.json') ? 'json' : 'plaintext'}
-              value={content || ''}
-              beforeMount={defineDashboardMonacoThemes}
-              theme={dashboardMonacoTheme(resolvedTheme)}
-              options={{
-                ...dashboardMonacoOptions,
-                readOnly: true,
-                minimap: { enabled: true },
-                fontSize: 12,
-                lineNumbers: 'on',
-                scrollBeyondLastLine: false,
-                automaticLayout: true,
-                wordWrap: 'on',
-                contextmenu: true,
-              }}
-            />
-          </div>
-        )}
-      </div>
+      <LoadableSurface
+        status={status}
+        hasData={hasContent}
+        skeleton={<LogViewerSkeletonBody filename={filename} />}
+        error={errorView}
+        className="bg-background flex min-h-0 flex-1 flex-col overflow-hidden"
+        stageClassName="min-h-0 flex-1 overflow-hidden"
+      >
+        {viewerBody}
+      </LoadableSurface>
     </div>
   );
 }
 
-function LogViewerSkeleton({ filename }: { filename: string }) {
+function LogEntriesEmptyState({ filename }: { filename: string }) {
+  return (
+    <Empty className="min-h-48 border-0 p-6">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <LogsIcon aria-hidden="true" />
+        </EmptyMedia>
+        <EmptyTitle>No log entries</EmptyTitle>
+        <EmptyDescription>
+          {filename} is available, but it does not contain any entries yet.
+        </EmptyDescription>
+      </EmptyHeader>
+    </Empty>
+  );
+}
+
+function LogExpandedDetailRow({
+  row,
+  colSpan,
+  renderContent,
+}: {
+  row: Row<any>;
+  colSpan: number;
+  renderContent: (row: Row<any>) => React.ReactNode;
+}) {
+  const expanded = row.getIsExpanded();
+  const [isRendered, setIsRendered] = React.useState(expanded);
+  const [isExiting, setIsExiting] = React.useState(false);
+
+  React.useEffect(() => {
+    if (expanded) {
+      setIsRendered(true);
+      setIsExiting(false);
+      return;
+    }
+
+    if (!isRendered) return;
+
+    setIsExiting(true);
+    const timeout = window.setTimeout(() => {
+      setIsRendered(false);
+      setIsExiting(false);
+    }, 120);
+
+    return () => window.clearTimeout(timeout);
+  }, [expanded, isRendered]);
+
+  if (!isRendered) {
+    return null;
+  }
+
+  return (
+    <tr>
+      <td colSpan={colSpan} className="border-none p-0">
+        <div
+          className={cn(
+            'grid overflow-hidden',
+            isExiting ? 'log-detail-exit' : 'log-detail-enter',
+          )}
+        >
+          <div className="min-h-0 overflow-hidden">{renderContent(row)}</div>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function LogViewerBodyTransition({
+  children,
+  transitionKey,
+}: {
+  children: React.ReactNode;
+  transitionKey: React.Key;
+}) {
+  const [hydrated, setHydrated] = React.useState(false);
+
+  React.useEffect(() => {
+    setHydrated(true);
+  }, []);
+
+  const content = <div className="h-full min-h-0 min-w-0">{children}</div>;
+
+  if (!hydrated) {
+    return content;
+  }
+
+  return (
+    <ViewTransition
+      key={transitionKey}
+      enter={{
+        'side-tab-select': 'side-tab-body-enter',
+        'log-mode-toggle': 'log-mode-enter',
+        default: 'none',
+      }}
+      exit={{
+        'side-tab-select': 'side-tab-body-exit',
+        'log-mode-toggle': 'log-mode-exit',
+        default: 'none',
+      }}
+      default="none"
+    >
+      {content}
+    </ViewTransition>
+  );
+}
+
+export function LogViewerSkeleton({ filename }: { filename?: string | null }) {
   return (
     <div className="flex h-full flex-col overflow-hidden" aria-busy="true">
-      <div className="bg-muted/20 flex items-center justify-between border-b px-4 py-1">
-        <Skeleton className="h-3 w-40 max-w-[50%]" />
-        <div className="flex items-center gap-3">
+      <div className="bg-muted/20 flex shrink-0 items-center justify-between border-b px-4 py-1">
+        <div className="mr-4 flex items-center gap-3 overflow-hidden">
+          {filename ? (
+            <span className="text-muted-foreground truncate font-mono text-[10px] font-medium">
+              {filename}
+            </span>
+          ) : (
+            <Skeleton className="h-3 w-40 max-w-[50%]" />
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-4">
           <Skeleton className="h-5 w-16" />
-          <Skeleton className="h-4 w-20" />
+          {filename ? (
+            <>
+              <Separator orientation="vertical" className="h-3" />
+              <div className="flex items-center space-x-2">
+                <Skeleton className="h-3.5 w-6.5 rounded-full" />
+                <Skeleton className="h-3 w-14" />
+              </div>
+            </>
+          ) : (
+            <Skeleton className="h-4 w-20" />
+          )}
         </div>
       </div>
-      <div className="bg-background min-h-0 flex-1 space-y-2 overflow-hidden p-4 font-mono text-xs">
-        <Skeleton className="h-3 w-52" />
-        <Skeleton className="h-3 w-4/5" />
-        <Skeleton className="h-3 w-3/5" />
-        <Skeleton className="h-3 w-11/12" />
-        <Skeleton className="h-3 w-2/3" />
-        <Skeleton className="h-3 w-5/6" />
+      <LogViewerSkeletonBody filename={filename} />
+    </div>
+  );
+}
+
+function getStructuredSkeletonColumns(filename?: string | null) {
+  if (filename?.endsWith('lxc.log')) return lxcColumns;
+  if (filename?.endsWith('qemu.qmp.log')) return qmpColumns;
+  return null;
+}
+
+function renderLogTableSkeletonCell(columnId: string, rowIndex: number) {
+  if (columnId === 'expander') {
+    return <Skeleton className="mx-auto h-3 w-3 rounded-full" />;
+  }
+
+  if (columnId === 'timestamp') {
+    return <Skeleton className="h-3 w-20" />;
+  }
+
+  if (columnId === 'level') {
+    return <Skeleton className="h-4 w-10 rounded-full" />;
+  }
+
+  if (columnId === 'type') {
+    return <Skeleton className="h-4 w-12 rounded-full" />;
+  }
+
+  if (columnId === 'component') {
+    return <Skeleton className="h-3 w-12" />;
+  }
+
+  return (
+    <Skeleton
+      className={cn(
+        'h-3',
+        rowIndex % 3 === 0 ? 'w-11/12' : rowIndex % 3 === 1 ? 'w-2/3' : 'w-5/6',
+      )}
+    />
+  );
+}
+
+function LogViewerSkeletonBody({ filename }: { filename?: string | null }) {
+  const structuredColumns = getStructuredSkeletonColumns(filename);
+
+  if (structuredColumns) {
+    return (
+      <div className="bg-background min-h-0 flex-1 overflow-hidden">
+        <DataTable
+          data={[]}
+          cols={structuredColumns as any}
+          containerClassName="h-full"
+          innerClassName="rounded-none border-0 h-full overflow-auto"
+          virtualizeRows={true}
+          disablePagination
+          virtualScrollMaxHeightClassName="h-full"
+          virtualRowEstimatePx={30}
+          fixedLayout={true}
+          loading
+          skeletonRows={12}
+          renderSkeletonCell={renderLogTableSkeletonCell}
+        />
         <span className="sr-only">Loading {filename}</span>
       </div>
+    );
+  }
+
+  return (
+    <div
+      className="bg-background min-h-0 flex-1 space-y-2 overflow-hidden p-4 font-mono text-xs"
+      aria-busy="true"
+    >
+      <Skeleton className="h-3 w-52" />
+      <Skeleton className="h-3 w-4/5" />
+      <Skeleton className="h-3 w-3/5" />
+      <Skeleton className="h-3 w-11/12" />
+      <Skeleton className="h-3 w-2/3" />
+      <Skeleton className="h-3 w-5/6" />
+      <span className="sr-only">Loading {filename ?? 'log viewer'}</span>
     </div>
   );
 }

@@ -1,14 +1,16 @@
 'use client';
 
 import * as React from 'react';
+import { addTransitionType } from 'react';
 import { LogsIcon } from 'lucide-react';
 
 import { ScrollArea } from 'ui-web/components/scroll-area';
 import { cn } from 'ui-web/lib/utils';
+import { ListItemTransition } from 'ui-web/components/view-transitions';
 
 import { useInstanceLogs } from '../_hooks/logs';
 import { useIncusClient } from '@/app/_incus/provider';
-import { LogViewer } from './log-viewer';
+import { LogViewer, LogViewerSkeleton } from './log-viewer';
 import { Spinner } from 'ui-web/components/spinner';
 import { Skeleton } from 'ui-web/components/skeleton';
 import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
@@ -48,18 +50,37 @@ export default function Logs({
   const client = useIncusClient();
   const [selectedLog, setSelectedLog] = React.useState<string | null>(null);
   const [logToDelete, setLogToDelete] = React.useState<string | null>(null);
+  const [hiddenLogs, setHiddenLogs] = React.useState<Set<string>>(() => new Set());
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [deleteError, setDeleteError] = React.useState<string | null>(null);
+  const visibleLogs = React.useMemo(
+    () => logs?.filter((filename) => !hiddenLogs.has(filename)) ?? [],
+    [hiddenLogs, logs],
+  );
+  const defaultLog = React.useMemo(
+    () => visibleLogs.find((filename) => filename.endsWith('lxc.log')) ?? visibleLogs[0] ?? null,
+    [visibleLogs],
+  );
+  const effectiveSelectedLog =
+    selectedLog && visibleLogs.includes(selectedLog) ? selectedLog : defaultLog;
+
+  const selectLog = React.useCallback((filename: string | null) => {
+    React.startTransition(() => {
+      addTransitionType('side-tab-select');
+      setSelectedLog(filename);
+    });
+  }, []);
 
   React.useEffect(() => {
-    if (logs && logs.length > 0 && !selectedLog) {
-      const defaultLog = logs.find((l) => l.endsWith('lxc.log')) || logs[0];
-      setSelectedLog(defaultLog);
+    if (selectedLog && !visibleLogs.includes(selectedLog)) {
+      selectLog(null);
     }
-  }, [logs, selectedLog]);
+  }, [visibleLogs, selectedLog, selectLog]);
 
   const confirmDelete = async () => {
     if (!logToDelete) return;
+    const filename = logToDelete;
+    let hidDeletedLog = false;
 
     try {
       setDeleteError(null);
@@ -67,16 +88,33 @@ export default function Logs({
       await client.instanceLogs.delete({
         instanceName,
         project,
-        filename: logToDelete,
+        filename,
+      });
+
+      React.startTransition(() => {
+        addTransitionType('side-tab-select');
+        setHiddenLogs((current) => new Set(current).add(filename));
+        hidDeletedLog = true;
+        if (effectiveSelectedLog === filename) {
+          setSelectedLog(null);
+        }
+        setLogToDelete(null);
       });
 
       await mutate();
-
-      if (selectedLog === logToDelete) {
-        setSelectedLog(null);
-      }
-      setLogToDelete(null);
+      setHiddenLogs((current) => {
+        const next = new Set(current);
+        next.delete(filename);
+        return next;
+      });
     } catch (error) {
+      if (hidDeletedLog) {
+        setHiddenLogs((current) => {
+          const next = new Set(current);
+          next.delete(filename);
+          return next;
+        });
+      }
       setDeleteError(error instanceof Error ? error.message : 'Unable to delete log file.');
     } finally {
       setIsDeleting(false);
@@ -105,40 +143,44 @@ export default function Logs({
                 {isLoading ? (
                   <LogsListSkeleton />
                 ) : (
-                  logs?.map((filename) => {
+                  visibleLogs.map((filename) => {
                     const title = LOG_TITLES[filename];
                     return (
-                      <button
+                      <ListItemTransition
                         key={filename}
-                        type="button"
-                        className={cn(
-                          'group flex flex-col items-start rounded-md px-3 py-2 text-left transition-colors select-none',
-                          selectedLog === filename
-                            ? 'bg-primary text-primary-foreground'
-                            : 'hover:bg-accent hover:text-accent-foreground',
-                        )}
-                        onClick={() => setSelectedLog(filename)}
+                        transitionKey={filename}
                       >
-                        <span className="text-sm leading-tight font-medium">
-                          {title || filename}
-                        </span>
-                        {title && (
-                          <span
-                            className={cn(
-                              'mt-0.5 font-mono text-[10px]',
-                              selectedLog === filename
-                                ? 'text-primary-foreground/70'
-                                : 'text-muted-foreground',
-                            )}
-                          >
-                            {filename}
+                        <button
+                          type="button"
+                          className={cn(
+                            'group flex flex-col items-start rounded-md px-3 py-2 text-left transition-colors select-none',
+                            effectiveSelectedLog === filename
+                              ? 'bg-primary text-primary-foreground'
+                              : 'hover:bg-accent hover:text-accent-foreground',
+                          )}
+                          onClick={() => selectLog(filename)}
+                        >
+                          <span className="text-sm leading-tight font-medium">
+                            {title || filename}
                           </span>
-                        )}
-                      </button>
+                          {title && (
+                            <span
+                              className={cn(
+                                'mt-0.5 font-mono text-[10px]',
+                                effectiveSelectedLog === filename
+                                  ? 'text-primary-foreground/70'
+                                  : 'text-muted-foreground',
+                              )}
+                            >
+                              {filename}
+                            </span>
+                          )}
+                        </button>
+                      </ListItemTransition>
                     );
                   })
                 )}
-                {!isLoading && logs?.length === 0 && (
+                {!isLoading && visibleLogs.length === 0 && (
                   <Empty className="min-h-40 border-0 p-4">
                     <EmptyHeader>
                       <EmptyTitle>No log files</EmptyTitle>
@@ -154,18 +196,20 @@ export default function Logs({
 
           {/* Right Pane: Log Viewer */}
           <div className="bg-background flex flex-1 flex-col overflow-hidden">
-            {selectedLog ? (
+            {effectiveSelectedLog ? (
               <LogViewer
                 instanceName={instanceName}
                 project={project}
-                filename={selectedLog}
-                onDelete={() => setLogToDelete(selectedLog)}
-                isDeleting={isDeleting && logToDelete === selectedLog}
+                filename={effectiveSelectedLog}
+                onDelete={() => setLogToDelete(effectiveSelectedLog)}
+                isDeleting={isDeleting && logToDelete === effectiveSelectedLog}
               />
+            ) : isLoading ? (
+              <LogViewerSkeleton filename={defaultLog} />
             ) : (
               <Empty className="h-full min-h-0 border-0">
                 <EmptyHeader>
-                  <EmptyTitle>Select a log file</EmptyTitle>
+                  <EmptyTitle>No log selected</EmptyTitle>
                   <EmptyDescription>
                     Choose a log from the list to view its content.
                   </EmptyDescription>
@@ -210,9 +254,25 @@ function LogsListSkeleton() {
   return (
     <>
       {Array.from({ length: 5 }).map((_, index) => (
-        <div key={index} className="space-y-1 rounded-md px-3 py-2">
-          <Skeleton className="h-4 w-28" />
-          <Skeleton className="h-3 w-20" />
+        <div
+          key={index}
+          className={cn(
+            'space-y-1 rounded-md px-3 py-2',
+            index === 0 && 'bg-primary',
+          )}
+        >
+          <Skeleton
+            className={cn(
+              'h-4 w-28',
+              index === 0 && 'bg-primary-foreground/35',
+            )}
+          />
+          <Skeleton
+            className={cn(
+              'h-3 w-20',
+              index === 0 && 'bg-primary-foreground/25',
+            )}
+          />
         </div>
       ))}
     </>
