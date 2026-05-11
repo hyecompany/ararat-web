@@ -7,6 +7,8 @@ description: Provides access to the dynamically generated Incus OpenAPI specific
 
 This skill allows you to efficiently query the Incus REST API specification, which is served dynamically by the development proxy at `http://localhost:3001/documentation/rest-api.yaml`.
 
+Incus event stream semantics are documented separately from the OpenAPI spec. When working with `/1.0/events`, lifecycle events, operation events, logging events, or event-backed cache invalidation, read `http://localhost:3001/documentation/_sources/events.md.txt` before implementing changes.
+
 ## ⚠️ MANDATORY: Check Before Implementation
 
 **You MUST use this skill BEFORE implementing any new API integration or modifying existing ones.** Never assume the shape of an API response or request body. The Incus API has specific behaviors (e.g., sync vs async responses, specific metadata structures) that must be verified first.
