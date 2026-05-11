@@ -7,7 +7,6 @@ import {
   ArrowRightIcon,
   CopyPlusIcon,
   HardDriveIcon,
-  LogsIcon,
   RefreshCcwDotIcon,
   Settings2Icon,
   SquaresIntersectIcon,
@@ -44,7 +43,6 @@ import Clone from './management/clone';
 import Configuration from './management/configuration';
 import Delete from './management/delete';
 import Devices from './management/devices';
-import Logs from './management/logs';
 import Profiles from './management/profiles';
 import Rebuild from './management/rebuild';
 import Repair from './management/repair';
@@ -56,7 +54,6 @@ type ActionView =
   | 'devices'
   | 'configuration'
   | 'profiles'
-  | 'logs'
   | 'rebuild'
   | 'clone'
   | 'repair'
@@ -94,13 +91,6 @@ const menuActions: MenuAction[] = [
     description: 'Add or remove profiles applied to this instance.',
     icon: SquaresIntersectIcon,
     section: 'settings',
-  },
-  {
-    view: 'logs',
-    title: 'Manage Logs',
-    description: 'View and delete instance log files.',
-    icon: LogsIcon,
-    section: 'utilities',
   },
   {
     view: 'clone',
@@ -191,7 +181,6 @@ export function InstanceActionsMenu({
   }, [handleClose, router]);
 
   const viewSizing: Record<ActionView, string> = {
-    logs: 'h-[90vh] max-h-[90vh] sm:max-w-[95vw]',
     configuration: 'h-[90vh] max-h-[90vh] sm:max-w-6xl',
     devices: 'h-[90vh] max-h-[90vh] sm:max-w-6xl',
     rebuild: 'h-[90vh] max-h-[90vh] sm:max-w-6xl',
@@ -218,7 +207,7 @@ export function InstanceActionsMenu({
                 variant="ghost"
                 size="icon"
                 disabled={disabled}
-                className="group bg-muted hover:bg-muted/90 focus-visible:scale-105 hover:scale-105 relative h-16 w-16 rounded-lg border p-0 shadow-sm transition-transform duration-200"
+                className="group bg-muted hover:bg-muted/90 relative h-16 w-16 rounded-lg border p-0 shadow-sm transition-transform duration-200 hover:scale-105 focus-visible:scale-105"
                 aria-label={`Manage instance ${instance.name}`}
               >
                 <OSLogo brand={getBaseImage(instance)} className="size-8" />
@@ -281,8 +270,6 @@ export function InstanceActionsMenu({
           {view === 'profiles' ? (
             <Profiles instance={instance} onMutate={onMutate} onBack={() => setView('menu')} />
           ) : null}
-
-          {view === 'logs' ? <Logs instance={instance} onBack={() => setView('menu')} /> : null}
 
           {view === 'rebuild' ? (
             <Rebuild
@@ -423,8 +410,6 @@ function getDialogTitle(view: ActionView, instanceName: string) {
       return 'Edit Configuration';
     case 'profiles':
       return 'Manage Profiles';
-    case 'logs':
-      return 'Manage Logs';
     case 'rebuild':
       return `Rebuild ${instanceName}`;
     case 'clone':
@@ -447,8 +432,6 @@ function getDialogDescription(view: ActionView, instanceName: string) {
       return `Edit configuration keys and YAML for ${instanceName}.`;
     case 'profiles':
       return `Choose which profiles are applied to ${instanceName}.`;
-    case 'logs':
-      return `View and delete log files for ${instanceName}.`;
     case 'rebuild':
       return 'Choose how to rebuild this instance.';
     case 'clone':

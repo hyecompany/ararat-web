@@ -20,6 +20,7 @@ import {
   Terminal,
   Folder,
   Camera,
+  LogsIcon,
   PencilIcon,
   CheckIcon,
   XIcon,
@@ -90,11 +91,7 @@ function InstanceLayoutContent({ children }: { children: React.ReactNode }) {
 
     return (
       <div className="flex h-full min-h-0 flex-col gap-6 p-6">
-        <InstanceHeader
-          instance={instance}
-          fallbackName={name}
-          onMutate={mutate}
-        />
+        <InstanceHeader instance={instance} fallbackName={name} onMutate={mutate} />
 
         <div className="flex min-h-0 flex-1 flex-col gap-4">
           <InstanceTabs />
@@ -102,9 +99,7 @@ function InstanceLayoutContent({ children }: { children: React.ReactNode }) {
             {isError ? (
               <Alert variant="destructive">
                 <AlertTitle>Error</AlertTitle>
-                <AlertDescription>
-                  {isError.message}
-                </AlertDescription>
+                <AlertDescription>{isError.message}</AlertDescription>
               </Alert>
             ) : (
               children
@@ -159,11 +154,7 @@ function InstanceLayoutContent({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function InstanceLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function InstanceLayout({ children }: { children: React.ReactNode }) {
   return (
     <InstanceProvider>
       <InstanceLayoutContent>{children}</InstanceLayoutContent>
@@ -196,8 +187,7 @@ function InstanceHeader({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [actionInFlight, setActionInFlight] =
-    React.useState<InstanceAction | null>(null);
+  const [actionInFlight, setActionInFlight] = React.useState<InstanceAction | null>(null);
   const [actionError, setActionError] = React.useState<string | null>(null);
   const [activeField, setActiveField] = React.useState<EditableField>(null);
   const [hoveredField, setHoveredField] = React.useState<EditableField>(null);
@@ -227,8 +217,7 @@ function InstanceHeader({
       await performInstanceAction({ action, instance });
       await onMutate();
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : `Unable to ${action} instance.`;
+      const message = err instanceof Error ? err.message : `Unable to ${action} instance.`;
       setActionError(message);
     } finally {
       setActionInFlight(null);
@@ -306,8 +295,7 @@ function InstanceHeader({
     }
 
     const nextName = activeField === 'name' ? trimmedValue : instance.name;
-    const nextDescription =
-      activeField === 'description' ? trimmedValue : currentDescription;
+    const nextDescription = activeField === 'description' ? trimmedValue : currentDescription;
 
     if (nextName === instance.name && nextDescription === currentDescription) {
       cancelEditing();
@@ -349,9 +337,7 @@ function InstanceHeader({
       if (err instanceof DOMException && err.name === 'AbortError') {
         return;
       }
-      setFieldError(
-        err instanceof Error ? err.message : 'Unable to update instance field.',
-      );
+      setFieldError(err instanceof Error ? err.message : 'Unable to update instance field.');
     } finally {
       saveAbortControllerRef.current = null;
       setIsSavingField(false);
@@ -414,9 +400,7 @@ function InstanceHeader({
                 }
               }}
               className={inputClassName}
-              aria-label={
-                field === 'name' ? 'Edit instance name' : 'Edit instance description'
-              }
+              aria-label={field === 'name' ? 'Edit instance name' : 'Edit instance description'}
             />
             <Button
               type="button"
@@ -427,11 +411,7 @@ function InstanceHeader({
               onClick={() => void saveField()}
               aria-label={`Save instance ${field}`}
             >
-              {isSavingField ? (
-                <Spinner className="size-4" />
-              ) : (
-                <CheckIcon className="size-4" />
-              )}
+              {isSavingField ? <Spinner className="size-4" /> : <CheckIcon className="size-4" />}
             </Button>
             <Button
               type="button"
@@ -449,18 +429,16 @@ function InstanceHeader({
           <button
             type="button"
             className={cn(
-              'flex max-w-full items-center gap-2 rounded-md text-left transition-colors select-none hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+              'hover:text-foreground focus-visible:ring-ring flex max-w-full items-center gap-2 rounded-md text-left transition-colors select-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none',
               !value && 'text-muted-foreground/80 italic',
             )}
             onClick={() => startEditing(field)}
             disabled={isBusy || !instance}
           >
-            <span className={cn(displayClassName, !value && 'font-normal')}>
-              {displayValue}
-            </span>
+            <span className={cn(displayClassName, !value && 'font-normal')}>{displayValue}</span>
             <PencilIcon
               className={cn(
-                'size-4 shrink-0 text-muted-foreground transition-opacity',
+                'text-muted-foreground size-4 shrink-0 transition-opacity',
                 showPencil ? 'opacity-100' : 'opacity-0',
               )}
               aria-hidden="true"
@@ -475,11 +453,7 @@ function InstanceHeader({
     <div className="space-y-4">
       <div className="flex items-center gap-4">
         {hydrated && instance ? (
-          <InstanceActionsMenu
-            instance={instance}
-            disabled={isBusy}
-            onMutate={onMutate}
-          />
+          <InstanceActionsMenu instance={instance} disabled={isBusy} onMutate={onMutate} />
         ) : (
           <InstanceActionsButtonPending name={displayName} />
         )}
@@ -514,25 +488,27 @@ function InstanceHeader({
         </div>
 
         <div className="flex gap-2">
-          {instance ? availableActions.map((action) => {
-            const { label, Icon } = instanceActionDetails[action];
-            return (
-              <Button
-                key={action}
-                variant="outline"
-                size="sm"
-                disabled={actionInFlight !== null}
-                onClick={() => handleAction(action)}
-              >
-                {actionInFlight === action ? (
-                  <Spinner className="mr-2 size-4" />
-                ) : (
-                  <Icon className="mr-2 size-4" />
-                )}
-                {label}
-              </Button>
-            );
-          }) : null}
+          {instance
+            ? availableActions.map((action) => {
+                const { label, Icon } = instanceActionDetails[action];
+                return (
+                  <Button
+                    key={action}
+                    variant="outline"
+                    size="sm"
+                    disabled={actionInFlight !== null}
+                    onClick={() => handleAction(action)}
+                  >
+                    {actionInFlight === action ? (
+                      <Spinner className="mr-2 size-4" />
+                    ) : (
+                      <Icon className="mr-2 size-4" />
+                    )}
+                    {label}
+                  </Button>
+                );
+              })
+            : null}
         </div>
       </div>
 
@@ -560,12 +536,12 @@ function InstanceActionsButtonPending({ name }: { name?: string | null }) {
       variant="ghost"
       size="icon"
       disabled
-      className="relative h-16 w-16 shrink-0 rounded-lg border bg-muted p-0 shadow-sm"
+      className="bg-muted relative h-16 w-16 shrink-0 rounded-lg border p-0 shadow-sm"
       aria-label={name ? `Manage instance ${name}` : 'Manage instance'}
     >
       <Skeleton className="size-8 rounded-md" />
-      <span className="absolute -right-1 -bottom-1 size-3.75 rounded-full border-2 border-background bg-muted-foreground/30" />
-      <span className="absolute top-1 right-1 rounded-full border bg-background/95 p-1 text-muted-foreground shadow-sm">
+      <span className="border-background bg-muted-foreground/30 absolute -right-1 -bottom-1 size-3.75 rounded-full border-2" />
+      <span className="bg-background/95 text-muted-foreground absolute top-1 right-1 rounded-full border p-1 shadow-sm">
         <Settings2Icon className="size-3" />
       </span>
     </Button>
@@ -578,6 +554,7 @@ const TABS = [
   { value: 'files', label: 'Files', icon: Folder },
   { value: 'snapshots', label: 'Snapshots', icon: Camera },
   { value: 'backups', label: 'Backups', icon: Archive },
+  { value: 'logs', label: 'Logs', icon: LogsIcon },
 ];
 
 function InstanceTabs() {
@@ -602,18 +579,16 @@ function InstanceTabs() {
   return (
     <Tabs value={currentTab} className="w-full">
       <div className="w-full overflow-x-auto">
-        <TabsList className="min-w-full inline-flex">
+        <TabsList className="inline-flex min-w-full">
           {TABS.map((tab) => {
-            const targetPath =
-              tab.value === 'dashboard' ? '/instance' : `/instance/${tab.value}`;
+            const targetPath = tab.value === 'dashboard' ? '/instance' : `/instance/${tab.value}`;
 
-            const query =
-              instanceName
-                ? {
-                    name: instanceName,
-                    ...(project ? { project } : {}),
-                  }
-                : undefined;
+            const query = instanceName
+              ? {
+                  name: instanceName,
+                  ...(project ? { project } : {}),
+                }
+              : undefined;
 
             return (
               <TabsTrigger key={tab.value} value={tab.value} asChild>
