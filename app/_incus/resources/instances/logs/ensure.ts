@@ -28,7 +28,7 @@ export function logIdentity(request: InstanceLogsRequest) {
 
 function logNameFromPath(path: string) {
   const marker = '/logs/';
-  const markerIndex = path.indexOf(marker);
+  const markerIndex = path.lastIndexOf(marker);
   const rawName = markerIndex >= 0 ? path.slice(markerIndex + marker.length) : path;
   return decodeURIComponent(rawName);
 }

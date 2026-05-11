@@ -380,7 +380,10 @@ export function LogViewer({
   const isLxcLog = filename.endsWith('lxc.log');
   const isQmpLog = filename.endsWith('qemu.qmp.log');
   const showToggle = isLxcLog || isQmpLog;
-  const lineCount = React.useMemo(() => (content ? countLogLines(content) : 0), [content]);
+  const lineCount = React.useMemo(
+    () => (showToggle && content ? countLogLines(content) : 0),
+    [showToggle, content],
+  );
   const canUseStructuredView = showToggle && lineCount <= STRUCTURED_LOG_LINE_LIMIT;
   const shouldShowStructuredView = canUseStructuredView && !isRawView;
 
