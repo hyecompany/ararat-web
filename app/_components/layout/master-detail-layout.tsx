@@ -5,8 +5,8 @@ import {
   ResizablePanelGroup,
   ResizablePanel,
   ResizableHandle,
-} from 'ui-web/components/resizable';
-import { useMobile } from 'ui-web/hooks/use-mobile';
+} from '@/components/ui/resizable';
+import { useMobile } from '@/hooks/use-mobile';
 import { toPanelSize, type PanelSize } from '@/app/_components/layout/resizable-size';
 
 interface MasterDetailLayoutProps {

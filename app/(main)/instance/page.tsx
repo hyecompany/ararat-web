@@ -3,17 +3,17 @@
 import React from 'react';
 import { useInstanceContext } from './_context/instance';
 import { useInstance } from './_hooks/instance';
-import { Skeleton } from 'ui-web/components/skeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from 'ui-web/components/card';
-import { Progress } from 'ui-web/components/progress';
-import { Badge } from 'ui-web/components/badge';
-import { cn } from 'ui-web/lib/utils';
+} from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import {
   formatBytes,
   formatDate,

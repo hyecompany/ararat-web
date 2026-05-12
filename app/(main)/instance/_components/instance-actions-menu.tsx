@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 
 import { OSLogo } from '@/app/_components/OSLogo';
-import { Button } from 'ui-web/components/button';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -23,7 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from 'ui-web/components/dialog';
+} from '@/components/ui/dialog';
 import {
   Item,
   ItemContent,
@@ -34,9 +34,9 @@ import {
   ItemMedia,
   ItemSeparator,
   ItemTitle,
-} from 'ui-web/components/item';
-import { Tooltip, TooltipContent, TooltipTrigger } from 'ui-web/components/tooltip';
-import { cn } from 'ui-web/lib/utils';
+} from '@/components/ui/item';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 import type { Instance } from '../../instances/_lib/instances.d';
 import { getBaseImage } from '../_lib/utils';
 import Clone from './management/clone';

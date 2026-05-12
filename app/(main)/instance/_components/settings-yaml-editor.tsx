@@ -4,11 +4,11 @@ import * as React from 'react';
 import Editor from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
 import {
-  cn,
   dashboardMonacoOptions,
   dashboardMonacoTheme,
   defineDashboardMonacoThemes,
-} from 'ui-web/lib/utils';
+} from '@/app/(main)/_lib/monaco';
+import { cn } from '@/lib/utils';
 
 interface SettingsYamlEditorProps {
   value: string;

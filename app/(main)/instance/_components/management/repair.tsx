@@ -3,8 +3,8 @@
 import * as React from 'react';
 
 import type { Instance } from '@/app/(main)/instances/_lib/instances.d';
-import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
-import { Badge } from 'ui-web/components/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { repairInstance } from '../../_lib/instance';
 import { ManagementFooter } from './footer';
 

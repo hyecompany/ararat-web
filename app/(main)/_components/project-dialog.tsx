@@ -12,7 +12,7 @@ import {
   dashboardMonacoOptions,
   dashboardMonacoTheme,
   defineDashboardMonacoThemes,
-} from 'ui-web/lib/utils';
+} from '@/app/(main)/_lib/monaco';
 
 import {
   createProject,
@@ -26,8 +26,8 @@ import GeneralConfiguration from '@/app/(main)/_components/general-configuration
 import { useIncusClient } from '@/app/_incus/provider';
 import { resourceKeys } from '@/app/_incus/resources';
 
-import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
-import { Button } from 'ui-web/components/button';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -35,7 +35,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from 'ui-web/components/dialog';
+} from '@/components/ui/dialog';
 import {
   Form,
   FormControl,
@@ -43,10 +43,10 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from 'ui-web/components/form';
-import { Input } from 'ui-web/components/input';
-import { Spinner } from 'ui-web/components/spinner';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from 'ui-web/components/tabs';
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { Spinner } from '@/components/ui/spinner';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const formSchema = z.object({
   name: z.string().trim().min(1, 'Project name is required'),

@@ -4,7 +4,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from "ui-web/components/card";
+} from "@/components/ui/card";
 import OidcLogin from "./oidcLogin";
 
 export const metadata = {

@@ -4,12 +4,12 @@ import React from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { InstanceProvider, useInstanceContext } from './_context/instance';
 import { useInstance } from './_hooks/instance';
-import { Spinner } from 'ui-web/components/spinner';
-import { Skeleton } from 'ui-web/components/skeleton';
-import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
+import { Spinner } from '@/components/ui/spinner';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Instance } from '../instances/_lib/instances.d';
-import { Button } from 'ui-web/components/button';
-import { Input } from 'ui-web/components/input';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   PlayIcon,
   SquareIcon,
@@ -26,7 +26,7 @@ import {
   XIcon,
   Settings2Icon,
 } from 'lucide-react';
-import { Tabs, TabsList, TabsTrigger } from 'ui-web/components/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   performInstanceAction,
   updateInstanceMetadata,
@@ -41,10 +41,10 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
-} from 'ui-web/components/breadcrumb';
-import { cn } from 'ui-web/lib/utils';
+} from '@/components/ui/breadcrumb';
+import { cn } from '@/lib/utils';
 import Link from 'next/link';
-import { PageTransition, TabContentTransition } from 'ui-web/components/view-transitions';
+import { PageTransition, TabContentTransition } from '@/components/ui/view-transitions';
 
 export const dynamic = 'force-dynamic';
 

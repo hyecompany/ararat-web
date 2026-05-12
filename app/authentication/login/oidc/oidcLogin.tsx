@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Button } from "ui-web/components/button";
+import { Button } from "@/components/ui/button";
 import {
   Alert,
   AlertDescription,
   AlertTitle,
-} from "ui-web/components/alert";
+} from "@/components/ui/alert";
 import { InfoIcon } from "lucide-react";
 import AlreadyAuthenticated from "../../_components/alreadyAuthenticated";
 

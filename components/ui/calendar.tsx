@@ -12,7 +12,7 @@ import {
   type DayButton,
 } from 'react-day-picker';
 
-import { cn } from 'ui-web/lib/utils';
+import { cn } from '@/lib/utils';
 import { Button, buttonVariants } from './button';
 
 function Calendar({

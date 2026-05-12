@@ -18,7 +18,7 @@ import {
 
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { cn } from 'ui-web/lib/utils';
+import { cn } from '@/lib/utils';
 
 function normalizeDefaultValue(value?: string) {
   if (!value) return value;

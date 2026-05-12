@@ -2,9 +2,9 @@
 
 import * as React from 'react';
 import { ChevronDownIcon } from 'lucide-react';
-import { Input } from 'ui-web/components/input';
+import { Input } from '@/components/ui/input';
 import { formatUnitValue, parseUnitValue } from '@/app/_lib/instance-units';
-import { cn } from 'ui-web/lib/utils';
+import { cn } from '@/lib/utils';
 
 type UnitInputProps = {
   id: string;

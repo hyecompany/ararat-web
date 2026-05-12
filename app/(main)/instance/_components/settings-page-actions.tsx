@@ -1,9 +1,9 @@
 'use client';
 
 import * as React from 'react';
-import { Button } from 'ui-web/components/button';
-import { Spinner } from 'ui-web/components/spinner';
-import { cn } from 'ui-web/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
+import { cn } from '@/lib/utils';
 
 interface SettingsPageActionsProps {
   isDirty: boolean;

@@ -4,7 +4,7 @@ import * as React from 'react';
 import stableStringify from 'fast-json-stable-stringify';
 import { CodeXmlIcon } from 'lucide-react';
 
-import { Button } from 'ui-web/components/button';
+import { Button } from '@/components/ui/button';
 
 import type { Device, Instance } from '@/app/(main)/instances/_lib/instances.d';
 import InstanceDevices from '@/app/(main)/instances/_components/devices';

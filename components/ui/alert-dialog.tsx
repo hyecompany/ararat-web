@@ -3,9 +3,9 @@
 import * as React from 'react';
 import * as AlertDialogPrimitive from '@radix-ui/react-alert-dialog';
 
-import { cn } from 'ui-web/lib/utils';
+import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/components/ui/button';
-import { ViewTransitionSurfaceProvider } from 'ui-web/components/view-transitions';
+import { ViewTransitionSurfaceProvider } from '@/components/ui/view-transitions';
 
 function AlertDialog({
   ...props

@@ -11,23 +11,23 @@ import { IconRotateClockwise } from '@tabler/icons-react';
 import Editor from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
 import {
-  cn,
   dashboardMonacoOptions,
   dashboardMonacoTheme,
   defineDashboardMonacoThemes,
-} from 'ui-web/lib/utils';
+} from '@/app/(main)/_lib/monaco';
+import { cn } from '@/lib/utils';
 
-import { Input } from 'ui-web/components/input';
-import { Switch } from 'ui-web/components/switch';
-import { Button } from 'ui-web/components/button';
-import { ScrollArea } from 'ui-web/components/scroll-area';
+import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from 'ui-web/components/select';
+} from '@/components/ui/select';
 
 import { useConfigurableOptions } from '@/app/_hooks/server';
 import { useStoragePools } from '@/app/_incus/resources/storage-pools/hooks';
@@ -44,14 +44,14 @@ import type { Network } from '@/app/(main)/_hooks/networks';
 import { UnitInput } from '@/app/(main)/_components/unit-input';
 import { VerticalTabsLayout } from '@/app/_components/layout/vertical-tabs-layout';
 import { ConfigDescription, collectReferenceOptions } from '@/app/(main)/_components/config-description';
-import { ListItemTransition } from 'ui-web/components/view-transitions';
+import { ListItemTransition } from '@/components/ui/view-transitions';
 import {
   Combobox,
   ComboboxContent,
   ComboboxItem,
   ComboboxTrigger,
-} from 'ui-web/components/combobox';
-import { Field, FieldContent, FieldDescription, FieldLabel } from 'ui-web/components/field';
+} from '@/components/ui/combobox';
+import { Field, FieldContent, FieldDescription, FieldLabel } from '@/components/ui/field';
 import { AutocompleteInput } from '@/components/ui/autocomplete-input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 

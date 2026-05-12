@@ -1,5 +1,5 @@
 import { Skeleton } from './skeleton';
-import { cn } from 'ui-web/lib/utils';
+import { cn } from '@/lib/utils';
 
 function TableSkeleton({
   rows = 3,

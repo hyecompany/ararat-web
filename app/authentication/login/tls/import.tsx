@@ -1,8 +1,8 @@
 'use client';
-import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircleIcon, CircleCheck, InfoIcon } from 'lucide-react';
-import { Button } from 'ui-web/components/button';
-import { Input } from 'ui-web/components/input';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { useState } from 'react';
 import { addCertificate } from '@/app/_lib/certificate';
 

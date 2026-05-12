@@ -9,9 +9,9 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { Spinner } from 'ui-web/components/spinner';
-import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
-import { cn } from 'ui-web/lib/utils';
+import { Spinner } from '@/components/ui/spinner';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { cn } from '@/lib/utils';
 import InstanceClass from '../../../_lib/instance';
 import { useSpiceSession } from '../_hooks/use-spice-session';
 import type { WebDavDirectoryShare } from '../_lib/spice-client/webdav-fs-access';

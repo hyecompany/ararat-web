@@ -1,7 +1,7 @@
 'use client';
 
-import { Separator } from 'ui-web/components/separator';
-import { SidebarTrigger } from 'ui-web/components/sidebar';
+import { Separator } from '@/components/ui/separator';
+import { SidebarTrigger } from '@/components/ui/sidebar';
 import { CheckIcon, ChevronDownIcon, GlobeIcon, PencilIcon, PlusIcon } from 'lucide-react';
 import { use, useMemo, useState, type CSSProperties } from 'react';
 import {
@@ -12,8 +12,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from 'ui-web/components/dropdown-menu';
-import { Button } from 'ui-web/components/button';
+} from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
 import ProjectsContext from '@/app/(main)/_context/projects';
 import ProjectDialog from '@/app/(main)/_components/project-dialog';
 import { ALL_PROJECTS_VALUE } from '@/app/(main)/_context/projects';

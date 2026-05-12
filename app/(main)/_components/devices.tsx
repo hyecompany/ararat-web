@@ -1,39 +1,39 @@
 'use client';
 
 import * as React from 'react';
-import { Button } from 'ui-web/components/button';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from 'ui-web/components/card';
-import { Input } from 'ui-web/components/input';
-import { Label } from 'ui-web/components/label';
-import { ScrollArea } from 'ui-web/components/scroll-area';
-import { Separator } from 'ui-web/components/separator';
-import { Badge } from 'ui-web/components/badge';
-import { Switch } from 'ui-web/components/switch';
+} from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from 'ui-web/components/select';
+} from '@/components/ui/select';
 import {
   Combobox,
   ComboboxTrigger,
   ComboboxContent,
   ComboboxItem,
-} from 'ui-web/components/combobox';
+} from '@/components/ui/combobox';
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from 'ui-web/components/accordion';
+} from '@/components/ui/accordion';
 import {
   IconPlus,
   IconTrash,
@@ -57,7 +57,7 @@ import { UnitInput } from '@/app/(main)/_components/unit-input';
 import { useResources } from '@/app/(main)/_hooks/resources';
 import { VerticalTabsLayout } from '@/app/_components/layout/vertical-tabs-layout';
 import { ConfigDescription, collectReferenceOptions } from '@/app/(main)/_components/config-description';
-import { ListItemTransition } from 'ui-web/components/view-transitions';
+import { ListItemTransition } from '@/components/ui/view-transitions';
 import stableStringify from 'fast-json-stable-stringify';
 import {
   getSelectedStorageVolume,

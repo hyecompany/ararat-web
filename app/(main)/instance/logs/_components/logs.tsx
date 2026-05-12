@@ -4,17 +4,17 @@ import * as React from 'react';
 import { addTransitionType } from 'react';
 import { LogsIcon } from 'lucide-react';
 
-import { ScrollArea } from 'ui-web/components/scroll-area';
-import { cn } from 'ui-web/lib/utils';
-import { ListItemTransition } from 'ui-web/components/view-transitions';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
+import { ListItemTransition } from '@/components/ui/view-transitions';
 
 import { useInstanceLogs } from '../_hooks/logs';
 import { useIncusClient } from '@/app/_incus/provider';
 import { LogViewer, LogViewerSkeleton } from './log-viewer';
-import { Spinner } from 'ui-web/components/spinner';
-import { Skeleton } from 'ui-web/components/skeleton';
-import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from 'ui-web/components/empty';
+import { Spinner } from '@/components/ui/spinner';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 
 import {
   AlertDialog,
@@ -25,7 +25,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from 'ui-web/components/alert-dialog';
+} from '@/components/ui/alert-dialog';
 
 const LOG_TITLES: Record<string, string> = {
   'lxc.log': 'System Events',

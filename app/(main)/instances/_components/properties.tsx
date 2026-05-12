@@ -3,9 +3,9 @@
 import * as React from 'react';
 import { UseFormReturn } from 'react-hook-form';
 
-import { Field, FieldLabel } from 'ui-web/components/field';
-import { FreshnessSurface } from 'ui-web/components/freshness';
-import { Input } from 'ui-web/components/input';
+import { Field, FieldLabel } from '@/components/ui/field';
+import { FreshnessSurface } from '@/components/ui/freshness';
+import { Input } from '@/components/ui/input';
 import { useProfiles } from '@/app/(main)/_hooks/profiles';
 
 import {
@@ -13,21 +13,21 @@ import {
   ComboboxTrigger,
   ComboboxContent,
   ComboboxItem,
-} from 'ui-web/components/combobox';
+} from '@/components/ui/combobox';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from 'ui-web/components/select';
+} from '@/components/ui/select';
 import {
   FormControl,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
-} from 'ui-web/components/form';
+} from '@/components/ui/form';
 import type { CreateInstanceBody } from '@/app/(main)/instances/_lib/instances.d';
 
 interface InstancePropertiesProps {

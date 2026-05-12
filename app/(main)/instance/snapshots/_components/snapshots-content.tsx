@@ -16,10 +16,10 @@ import { useSnapshots } from '../../_hooks/snapshots';
 import { DateTimePicker } from '../../_components/date-time-picker';
 import { toDateTimeLocalValue, toOptionalIsoDateTime } from '../../_lib/date-time';
 import { formatBytes, formatDate, getInstanceResourceShortName } from '../../_lib/utils';
-import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
-import { Button } from 'ui-web/components/button';
-import { Checkbox } from 'ui-web/components/checkbox';
-import DataTable from 'ui-web/components/data-table';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import DataTable from '@/components/ui/data-table';
 import {
   Dialog,
   DialogContent,
@@ -28,7 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from 'ui-web/components/dialog';
+} from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,10 +36,10 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from 'ui-web/components/dropdown-menu';
-import { Input } from 'ui-web/components/input';
-import { Label } from 'ui-web/components/label';
-import { Spinner } from 'ui-web/components/spinner';
+} from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Spinner } from '@/components/ui/spinner';
 
 type SuccessMessage =
   | {

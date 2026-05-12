@@ -4,21 +4,21 @@ import * as React from 'react';
 import { ColumnDef, Row } from '@tanstack/react-table';
 import { DatabaseIcon } from 'lucide-react';
 
-import { Badge } from 'ui-web/components/badge';
-import DataTable from 'ui-web/components/data-table';
+import { Badge } from '@/components/ui/badge';
+import DataTable from '@/components/ui/data-table';
 import {
   Empty,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from 'ui-web/components/empty';
-import { StaleShimmer } from 'ui-web/components/freshness';
-import { Input } from 'ui-web/components/input';
-import { LoadableSurface } from 'ui-web/components/loadable-surface';
-import { Progress } from 'ui-web/components/progress';
-import { Skeleton } from 'ui-web/components/skeleton';
-import { PageTransition } from 'ui-web/components/view-transitions';
+} from '@/components/ui/empty';
+import { StaleShimmer } from '@/components/ui/freshness';
+import { Input } from '@/components/ui/input';
+import { LoadableSurface } from '@/components/ui/loadable-surface';
+import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
+import { PageTransition } from '@/components/ui/view-transitions';
 import { isStaleResourceStatus } from '@/app/_incus/status';
 import {
   Sheet,
@@ -26,7 +26,7 @@ import {
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from 'ui-web/components/sheet';
+} from '@/components/ui/sheet';
 import {
   useStoragePools,
   type StoragePoolRow,

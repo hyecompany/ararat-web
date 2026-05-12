@@ -5,7 +5,7 @@ import {
   ResizablePanelGroup,
   ResizablePanel,
   ResizableHandle,
-} from 'ui-web/components/resizable';
+} from '@/components/ui/resizable';
 import { toPanelSize, type PanelSize } from '@/app/_components/layout/resizable-size';
 
 interface ResizableLayoutProps {

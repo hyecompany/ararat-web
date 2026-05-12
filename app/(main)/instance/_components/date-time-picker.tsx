@@ -7,15 +7,15 @@ import { CalendarIcon } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { Separator } from '@/components/ui/separator';
 import { fromDateToLocalDateTimeValue } from '../_lib/date-time';
-import { Button } from 'ui-web/components/button';
-import { Input } from 'ui-web/components/input';
-import { Label } from 'ui-web/components/label';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from 'ui-web/components/popover';
-import { cn } from 'ui-web/lib/utils';
+} from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 
 function toDateAndTimeParts(value?: string | null) {
   if (!value) {

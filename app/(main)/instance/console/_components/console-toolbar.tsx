@@ -17,7 +17,7 @@ import {
   MenubarMenu,
   MenubarSeparator,
   MenubarTrigger,
-} from 'ui-web/components/menubar';
+} from '@/components/ui/menubar';
 import { CONSOLE_SHORTCUTS, type ConsoleSessionController } from '../_lib/shortcuts';
 
 interface SharedMemoryFastPathControl {

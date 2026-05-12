@@ -4,8 +4,8 @@ import * as React from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { XIcon } from 'lucide-react';
 
-import { cn } from 'ui-web/lib/utils';
-import { ViewTransitionSurfaceProvider } from 'ui-web/components/view-transitions';
+import { cn } from '@/lib/utils';
+import { ViewTransitionSurfaceProvider } from '@/components/ui/view-transitions';
 
 function Dialog({
   ...props

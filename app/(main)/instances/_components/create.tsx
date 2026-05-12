@@ -1,8 +1,8 @@
 'use client';
 
-import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
-import { Button } from 'ui-web/components/button';
-import { Progress } from 'ui-web/components/progress';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 import {
   Dialog,
   DialogContent,
@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from 'ui-web/components/dialog';
+} from '@/components/ui/dialog';
 import {
   Form,
   FormControl,
@@ -19,16 +19,16 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from 'ui-web/components/form';
+} from '@/components/ui/form';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from 'ui-web/components/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from 'ui-web/components/tabs';
-import { Input } from 'ui-web/components/input';
+} from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
 import { useState, useMemo, use, useCallback, useRef, useEffect } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -57,18 +57,18 @@ import ProjectsContext, {
   ALL_PROJECTS_VALUE,
 } from '@/app/(main)/_context/projects';
 import { useServerConfiguration } from '@/app/_hooks/server';
-import { Spinner } from 'ui-web/components/spinner';
+import { Spinner } from '@/components/ui/spinner';
 import { toast } from 'sonner';
 import Editor, { OnMount } from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
 import type * as Monaco from 'monaco-editor';
 import { AlertCircleIcon, CodeXmlIcon, UploadIcon } from 'lucide-react';
 import {
-  cn,
   dashboardMonacoOptions,
   dashboardMonacoTheme,
   defineDashboardMonacoThemes,
-} from 'ui-web/lib/utils';
+} from '@/app/(main)/_lib/monaco';
+import { cn } from '@/lib/utils';
 
 const sourceSchema = z
   .object({

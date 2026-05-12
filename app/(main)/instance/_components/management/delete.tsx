@@ -3,8 +3,8 @@
 import * as React from 'react';
 
 import type { Instance } from '@/app/(main)/instances/_lib/instances.d';
-import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
-import { Checkbox } from 'ui-web/components/checkbox';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   canDeleteInstance,
   deleteInstance,

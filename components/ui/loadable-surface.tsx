@@ -9,7 +9,7 @@ import {
   isStaleResourceStatus,
 } from '@/app/_incus/status';
 import { FreshnessSurface } from './freshness';
-import { cn } from 'ui-web/lib/utils';
+import { cn } from '@/lib/utils';
 
 type LoadableSurfaceProps = {
   status: ResourceStatus;

@@ -4,9 +4,9 @@ import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { useInstanceContext } from '../_context/instance';
 import { useTerminal } from './useTerminal';
 import InstanceClass from '../../_lib/instance';
-import { Button } from 'ui-web/components/button';
-import { Input } from 'ui-web/components/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from 'ui-web/components/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface InstanceExecProps {
   hideTrigger?: boolean;

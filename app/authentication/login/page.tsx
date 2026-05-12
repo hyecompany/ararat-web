@@ -4,7 +4,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from 'ui-web/components/card';
+} from '@/components/ui/card';
 import LoginMethods from './loginMethods';
 import AlreadyAuthenticated from '../_components/alreadyAuthenticated';
 

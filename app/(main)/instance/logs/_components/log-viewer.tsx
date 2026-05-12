@@ -4,32 +4,32 @@ import * as React from 'react';
 import { ViewTransition, addTransitionType } from 'react';
 import Editor from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
-import { Badge } from 'ui-web/components/badge';
+import { Badge } from '@/components/ui/badge';
 import {
-  cn,
   dashboardMonacoOptions,
   dashboardMonacoTheme,
   defineDashboardMonacoThemes,
-} from 'ui-web/lib/utils';
-import { Switch } from 'ui-web/components/switch';
-import { Label } from 'ui-web/components/label';
-import DataTable from 'ui-web/components/data-table';
+} from '@/app/(main)/_lib/monaco';
+import { cn } from '@/lib/utils';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import DataTable from '@/components/ui/data-table';
 import { ColumnDef, Row } from '@tanstack/react-table';
 import { Trash2Icon, ChevronDown, ChevronRight, LogsIcon } from 'lucide-react';
-import { Separator } from 'ui-web/components/separator';
+import { Separator } from '@/components/ui/separator';
 
 import { useInstanceLogContent } from '../_hooks/logs';
-import { Spinner } from 'ui-web/components/spinner';
-import { Button } from 'ui-web/components/button';
-import { Skeleton } from 'ui-web/components/skeleton';
-import { LoadableSurface } from 'ui-web/components/loadable-surface';
+import { Spinner } from '@/components/ui/spinner';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { LoadableSurface } from '@/components/ui/loadable-surface';
 import {
   Empty,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from 'ui-web/components/empty';
+} from '@/components/ui/empty';
 
 // --- Date Formatting Helpers ---
 

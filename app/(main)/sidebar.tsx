@@ -28,7 +28,7 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
   useSidebar,
-} from 'ui-web/components/sidebar';
+} from '@/components/ui/sidebar';
 import {
   BoxesIcon,
   ChevronDownIcon,
@@ -43,7 +43,7 @@ import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from 'ui-web/components/collapsible';
+} from '@/components/ui/collapsible';
 import Link from 'next/link';
 import AuthenticationContext from '../_context/authentication';
 import {
@@ -56,15 +56,15 @@ import {
   DropdownMenuSub,
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
-} from 'ui-web/components/dropdown-menu';
-import { Avatar, AvatarFallback, AvatarImage } from 'ui-web/components/avatar';
+} from '@/components/ui/dropdown-menu';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import UserContext from './_context/user';
-import { Skeleton } from 'ui-web/components/skeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from 'ui-web/components/tooltip';
+} from '@/components/ui/tooltip';
 
 type NavMainItem = {
   title: string;
@@ -209,7 +209,7 @@ export default function Sidebar({
             className="h-full my-auto ml-auto max-h-8 group-data-[collapsible=icon]:max-h-5 group-data-[collapsible=icon]:mr-auto transition-all"
           />
           <div className="text-justify my-auto mr-auto ml-2">
-            <p className="font-semibold font-[Poppins] inline-block text-[28px] leading-0 group-data-[collapsible=icon]:hidden">
+            <p className="font-semibold font-[Poppins] inline-block translate-y-0.5 text-[30px] leading-0 group-data-[collapsible=icon]:hidden">
               Ararat
             </p>
           </div>

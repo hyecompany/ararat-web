@@ -2,8 +2,8 @@
 
 import * as React from 'react';
 
-import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
-import { cn } from 'ui-web/lib/utils';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { cn } from '@/lib/utils';
 
 export function ManagementShell({
   children,

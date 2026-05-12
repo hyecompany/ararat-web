@@ -5,8 +5,8 @@ import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from 'ui-web/components/accordion';
-import { Button } from 'ui-web/components/button';
+} from '@/components/ui/accordion';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogTitle,
@@ -14,10 +14,10 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-} from 'ui-web/components/dialog';
-import { Input } from 'ui-web/components/input';
-import { Label } from 'ui-web/components/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from 'ui-web/components/tabs';
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useEffect, useRef, useState } from 'react';
 
 export default function CreateCertificate() {

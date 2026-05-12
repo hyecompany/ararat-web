@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { ViewTransition } from 'react';
 
-import { cn } from 'ui-web/lib/utils';
+import { cn } from '@/lib/utils';
 
 type PageTransitionProps = {
   children: React.ReactNode;

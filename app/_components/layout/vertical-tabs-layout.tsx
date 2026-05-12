@@ -2,13 +2,13 @@
 
 import * as React from 'react';
 import { addTransitionType } from 'react';
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from 'ui-web/components/resizable';
-import { ScrollArea } from 'ui-web/components/scroll-area';
-import { Badge } from 'ui-web/components/badge';
-import { useMobile } from 'ui-web/hooks/use-mobile';
-import { cn } from 'ui-web/lib/utils';
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
+import { useMobile } from '@/hooks/use-mobile';
+import { cn } from '@/lib/utils';
 import { toPanelSize, type PanelSize } from '@/app/_components/layout/resizable-size';
-import { ListItemTransition, TabContentTransition } from 'ui-web/components/view-transitions';
+import { ListItemTransition, TabContentTransition } from '@/components/ui/view-transitions';
 
 export interface TabItem {
   value: string;

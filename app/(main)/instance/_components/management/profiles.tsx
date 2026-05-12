@@ -7,7 +7,7 @@ import { Combobox, ComboboxContent, ComboboxItem, ComboboxTrigger } from '@/comp
 import { FreshnessSurface } from '@/components/ui/freshness';
 import { useProfiles } from '@/app/(main)/_hooks/profiles';
 import type { Instance } from '@/app/(main)/instances/_lib/instances.d';
-import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { updateInstanceSettings } from '../../_lib/instance';
 import { ManagementFooter } from './footer';
 

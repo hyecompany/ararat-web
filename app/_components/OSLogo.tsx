@@ -17,7 +17,7 @@ import {
   SiAlmalinux,
 } from 'react-icons/si';
 import { FaWindows, FaServer } from 'react-icons/fa';
-import { cn } from 'ui-web/lib/utils';
+import { cn } from '@/lib/utils';
 
 interface OSLogoProps {
   brand?: string | null;
