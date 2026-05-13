@@ -3,30 +3,30 @@
 import { useMemo, useState } from 'react';
 import { ColumnDef, Row } from '@tanstack/react-table';
 
-import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
-import { Badge } from 'ui-web/components/badge';
-import { Button } from 'ui-web/components/button';
-import DataTable from 'ui-web/components/data-table';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import DataTable from '@/components/ui/data-table';
 import {
   Empty,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from 'ui-web/components/empty';
-import { Input } from 'ui-web/components/input';
-import { LoadableSurface } from 'ui-web/components/loadable-surface';
-import { Skeleton } from 'ui-web/components/skeleton';
-import { Spinner } from 'ui-web/components/spinner';
-import { PageTransition } from 'ui-web/components/view-transitions';
-import { cn } from 'ui-web/lib/utils';
+} from '@/components/ui/empty';
+import { Input } from '@/components/ui/input';
+import { LoadableSurface } from '@/components/ui/loadable-surface';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Spinner } from '@/components/ui/spinner';
+import { PageTransition } from '@/components/ui/view-transitions';
+import { cn } from '@/lib/utils';
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from 'ui-web/components/sheet';
+} from '@/components/ui/sheet';
 import { ListChecksIcon } from 'lucide-react';
 import { useOperations } from '@/app/_incus/resources/operations/hooks';
 import type { IncusOperation } from '@/app/_incus/types';

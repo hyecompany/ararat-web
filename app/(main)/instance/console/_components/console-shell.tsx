@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 import type { ConsoleMode } from '../_lib/shortcuts';
-import { Tabs, TabsList, TabsTrigger } from 'ui-web/components/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface ConsoleShellProps {
   activeMode: ConsoleMode;

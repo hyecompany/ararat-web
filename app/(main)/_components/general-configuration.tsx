@@ -11,23 +11,23 @@ import { IconRotateClockwise } from '@tabler/icons-react';
 import Editor from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
 import {
-  cn,
   dashboardMonacoOptions,
   dashboardMonacoTheme,
   defineDashboardMonacoThemes,
-} from 'ui-web/lib/utils';
+} from '@/app/(main)/_lib/monaco';
+import { cn } from '@/lib/utils';
 
-import { Input } from 'ui-web/components/input';
-import { Switch } from 'ui-web/components/switch';
-import { Button } from 'ui-web/components/button';
-import { ScrollArea } from 'ui-web/components/scroll-area';
+import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from 'ui-web/components/select';
+} from '@/components/ui/select';
 
 import { useConfigurableOptions } from '@/app/_hooks/server';
 import { useStoragePools } from '@/app/_incus/resources/storage-pools/hooks';
@@ -44,13 +44,14 @@ import type { Network } from '@/app/(main)/_hooks/networks';
 import { UnitInput } from '@/app/(main)/_components/unit-input';
 import { VerticalTabsLayout } from '@/app/_components/layout/vertical-tabs-layout';
 import { ConfigDescription, collectReferenceOptions } from '@/app/(main)/_components/config-description';
+import { ListItemTransition } from '@/components/ui/view-transitions';
 import {
   Combobox,
   ComboboxContent,
   ComboboxItem,
   ComboboxTrigger,
-} from 'ui-web/components/combobox';
-import { Field, FieldContent, FieldDescription, FieldLabel } from 'ui-web/components/field';
+} from '@/components/ui/combobox';
+import { Field, FieldContent, FieldDescription, FieldLabel } from '@/components/ui/field';
 import { AutocompleteInput } from '@/components/ui/autocomplete-input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -239,9 +240,11 @@ function renderConfigTree(
 
   return (
     <div className="space-y-6">
-      {node.keys.map(({ fullKey, leafName, metadata, templateParts }) =>
-        renderInput(fullKey, metadata, leafName, templateParts),
-      )}
+      {node.keys.map(({ fullKey, leafName, metadata, templateParts }) => (
+        <ListItemTransition key={fullKey} transitionKey={fullKey}>
+          {renderInput(fullKey, metadata, leafName, templateParts)}
+        </ListItemTransition>
+      ))}
 
       {Object.entries(node.children).map(([name, childNode]) => {
         const duplicatedHeading = leafNames.has(name);
@@ -2045,8 +2048,11 @@ export default function GeneralConfiguration({
             placeholder="Search settings..."
             value={searchQuery}
             onChange={(event) => {
-              setSearchQuery(event.target.value);
-              setHighlightedKey(null);
+              const nextSearchQuery = event.target.value;
+              React.startTransition(() => {
+                setSearchQuery(nextSearchQuery);
+                setHighlightedKey(null);
+              });
             }}
             className="h-9 pl-8 text-xs"
           />
@@ -2055,29 +2061,29 @@ export default function GeneralConfiguration({
       sidebarSize={25}
       contentSize={75}
       className={cn('h-full min-h-0 overflow-hidden', className)}
-    >
-      <div className="flex h-full min-h-0 overflow-hidden flex-col">
+      contentHeader={
         <div className="flex h-[57px] items-center border-b p-4">
           <h3 className="text-sm font-semibold select-none">
             {selectedCategory ? formatCategoryName(selectedCategory) : ''}
           </h3>
         </div>
-        <ScrollArea
-          key={selectedCategory || 'empty-category'}
-          ref={scrollAreaRef}
-          className="min-h-0 flex-1"
-        >
-          <div className="space-y-6 p-6">
-            {activeConfigTree ? (
-              renderConfigTree(activeConfigTree, renderInput, formatCategoryName)
-            ) : (
-              <div className="text-muted-foreground py-12 text-center text-sm">
-                Select a category to view settings
-              </div>
-            )}
-          </div>
-        </ScrollArea>
-      </div>
+      }
+    >
+      <ScrollArea
+        key={selectedCategory || 'empty-category'}
+        ref={scrollAreaRef}
+        className="min-h-0 flex-1"
+      >
+        <div className="space-y-6 p-6">
+          {activeConfigTree ? (
+            renderConfigTree(activeConfigTree, renderInput, formatCategoryName)
+          ) : (
+            <div className="text-muted-foreground py-12 text-center text-sm">
+              Select a category to view settings
+            </div>
+          )}
+        </div>
+      </ScrollArea>
     </VerticalTabsLayout>
   );
 }

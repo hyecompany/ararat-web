@@ -15,9 +15,7 @@ function normalizeResourcePath(path: string) {
   const trimmed = path.trim();
   const prefixed = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
   const collapsed = prefixed.replace(/\/+/g, '/');
-  return collapsed.length > 1 && collapsed.endsWith('/')
-    ? collapsed.slice(0, -1)
-    : collapsed;
+  return collapsed.length > 1 && collapsed.endsWith('/') ? collapsed.slice(0, -1) : collapsed;
 }
 
 export function parentResourcePath(path: string) {
@@ -31,8 +29,7 @@ export const resourceKeys = {
   serverConfiguration: 'server:configuration',
   configurableOptions: 'server:configurable-options',
   serverResources: 'server:resources',
-  certificateMetadata: (fingerprint: string) =>
-    `certificates:${fingerprint}:metadata`,
+  certificateMetadata: (fingerprint: string) => `certificates:${fingerprint}:metadata`,
   imagesCollection: (project: string) => `images:${project}:collection`,
   imageMetadata: (key: string) => `images:${key}:metadata`,
   networksCollection: (project: string) => `networks:${project}:collection`,
@@ -40,8 +37,7 @@ export const resourceKeys = {
   networkZonesCollection: 'networkZones:collection',
   networkZoneMetadata: (name: string) => `networkZones:${name}:metadata`,
   networkIntegrationsCollection: 'networkIntegrations:collection',
-  networkIntegrationMetadata: (name: string) =>
-    `networkIntegrations:${name}:metadata`,
+  networkIntegrationMetadata: (name: string) => `networkIntegrations:${name}:metadata`,
   clusterGroupsCollection: 'clusterGroups:collection',
   clusterGroupMetadata: (name: string) => `clusterGroups:${name}:metadata`,
   projectsCollection: 'projects:collection',
@@ -59,8 +55,7 @@ export const resourceKeys = {
     `storagePools:${pool}:buckets:${project}:collection`,
   storageVolumeMetadata: (pool: string, key: string) =>
     `storagePools:${pool}:volumes:${key}:metadata`,
-  storageVolumeState: (pool: string, key: string) =>
-    `storagePools:${pool}:volumes:${key}:state`,
+  storageVolumeState: (pool: string, key: string) => `storagePools:${pool}:volumes:${key}:state`,
   storageBucketMetadata: (pool: string, key: string) =>
     `storagePools:${pool}:buckets:${key}:metadata`,
   instancesCollection: (project: string) => `instances:${project}:collection`,
@@ -74,16 +69,11 @@ export const resourceKeys = {
   instanceSnapshotMetadata: (key: string, snapshot: string) =>
     `instances:${key}:snapshots:${snapshot}:metadata`,
   instanceLogsCollection: (key: string) => `instances:${key}:logs:collection`,
-  instanceLogMetadata: (key: string, log: string) =>
-    `instances:${key}:logs:${log}:metadata`,
-  instanceLogContent: (key: string, log: string) =>
-    `instances:${key}:logs:${log}:content`,
-  instanceFileMetadata: (key: string, path: string) =>
-    `instances:${key}:files:${path}:metadata`,
-  instanceFileChildren: (key: string, path: string) =>
-    `instances:${key}:files:${path}:children`,
-  instanceFileContent: (key: string, path: string) =>
-    `instances:${key}:files:${path}:content`,
+  instanceLogMetadata: (key: string, log: string) => `instances:${key}:logs:${log}:metadata`,
+  instanceLogContent: (key: string, log: string) => `instances:${key}:logs:${log}:content`,
+  instanceFileMetadata: (key: string, path: string) => `instances:${key}:files:${path}:metadata`,
+  instanceFileChildren: (key: string, path: string) => `instances:${key}:files:${path}:children`,
+  instanceFileContent: (key: string, path: string) => `instances:${key}:files:${path}:content`,
 };
 
 export type IncusResourceRef =
@@ -147,6 +137,14 @@ export type IncusResourceRef =
       name: string;
       key: string;
       snapshot: string;
+    }
+  | { kind: 'instanceLogsCollection'; project: string; name: string; key: string }
+  | {
+      kind: 'instanceLog';
+      project: string;
+      name: string;
+      key: string;
+      log: string;
     };
 
 function pathnameAndParams(value: unknown) {
@@ -317,6 +315,14 @@ export function parseIncusResourcePath(
         snapshot: segments[4],
       };
     }
+    if (segments[3] === 'logs') {
+      if (!segments[4]) {
+        return { kind: 'instanceLogsCollection', project, name, key };
+      }
+      const log =
+        segments[4] === 'exec-output' && segments[5] ? `exec-output/${segments[5]}` : segments[4];
+      return { kind: 'instanceLog', project, name, key, log };
+    }
 
     return { kind: 'instance', project, name, key };
   }
@@ -331,10 +337,7 @@ export function keysForResource(resource: IncusResourceRef | null): IncusStoreKe
     case 'projectsCollection':
       return [resourceKeys.projectsCollection];
     case 'project':
-      return [
-        resourceKeys.projectsCollection,
-        resourceKeys.projectMetadata(resource.name),
-      ];
+      return [resourceKeys.projectsCollection, resourceKeys.projectMetadata(resource.name)];
     case 'profilesCollection':
       return [resourceKeys.profilesCollection(resource.project)];
     case 'profile':
@@ -345,10 +348,7 @@ export function keysForResource(resource: IncusResourceRef | null): IncusStoreKe
     case 'operationsCollection':
       return [resourceKeys.operationsCollection];
     case 'operation':
-      return [
-        resourceKeys.operationsCollection,
-        resourceKeys.operationMetadata(resource.id),
-      ];
+      return [resourceKeys.operationsCollection, resourceKeys.operationMetadata(resource.id)];
     case 'certificate':
       return [resourceKeys.certificateMetadata(resource.fingerprint)];
     case 'imagesCollection':
@@ -368,10 +368,7 @@ export function keysForResource(resource: IncusResourceRef | null): IncusStoreKe
     case 'networkZonesCollection':
       return [resourceKeys.networkZonesCollection];
     case 'networkZone':
-      return [
-        resourceKeys.networkZonesCollection,
-        resourceKeys.networkZoneMetadata(resource.name),
-      ];
+      return [resourceKeys.networkZonesCollection, resourceKeys.networkZoneMetadata(resource.name)];
     case 'networkIntegrationsCollection':
       return [resourceKeys.networkIntegrationsCollection];
     case 'networkIntegration':
@@ -397,15 +394,9 @@ export function keysForResource(resource: IncusResourceRef | null): IncusStoreKe
     case 'storagePoolResources':
       return [resourceKeys.storagePoolResources(resource.pool)];
     case 'storageVolumesCollection':
-      return [
-        resourceKeys.storagePoolVolumesCollection(resource.pool, resource.project),
-      ];
+      return [resourceKeys.storagePoolVolumesCollection(resource.pool, resource.project)];
     case 'storageVolume': {
-      const key = storageVolumeKey(
-        resource.project,
-        resource.volumeType,
-        resource.name,
-      );
+      const key = storageVolumeKey(resource.project, resource.volumeType, resource.name);
       return [
         resourceKeys.storagePoolVolumesCollection(resource.pool, resource.project),
         resourceKeys.storageVolumeMetadata(resource.pool, key),
@@ -413,9 +404,7 @@ export function keysForResource(resource: IncusResourceRef | null): IncusStoreKe
       ];
     }
     case 'storageBucketsCollection':
-      return [
-        resourceKeys.storagePoolBucketsCollection(resource.pool, resource.project),
-      ];
+      return [resourceKeys.storagePoolBucketsCollection(resource.pool, resource.project)];
     case 'storageBucket': {
       const key = storageBucketKey(resource.project, resource.name);
       return [
@@ -436,10 +425,7 @@ export function keysForResource(resource: IncusResourceRef | null): IncusStoreKe
       return [resourceKeys.instanceState(resource.key)];
     case 'instanceFile':
       return [
-        resourceKeys.instanceFileChildren(
-          resource.key,
-          parentResourcePath(resource.path),
-        ),
+        resourceKeys.instanceFileChildren(resource.key, parentResourcePath(resource.path)),
         resourceKeys.instanceFileMetadata(resource.key, resource.path),
         resourceKeys.instanceFileChildren(resource.key, resource.path),
         resourceKeys.instanceFileContent(resource.key, resource.path),
@@ -457,6 +443,14 @@ export function keysForResource(resource: IncusResourceRef | null): IncusStoreKe
       return [
         resourceKeys.instanceSnapshotsCollection(resource.key),
         resourceKeys.instanceSnapshotMetadata(resource.key, resource.snapshot),
+      ];
+    case 'instanceLogsCollection':
+      return [resourceKeys.instanceLogsCollection(resource.key)];
+    case 'instanceLog':
+      return [
+        resourceKeys.instanceLogsCollection(resource.key),
+        resourceKeys.instanceLogMetadata(resource.key, resource.log),
+        resourceKeys.instanceLogContent(resource.key, resource.log),
       ];
   }
 }

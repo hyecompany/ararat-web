@@ -10,8 +10,8 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
-import { Skeleton } from 'ui-web/components/skeleton';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Skeleton } from '@/components/ui/skeleton';
 import { InstanceProviderForName, useInstanceContext } from '../../_context/instance';
 import { useInstance } from '../../_hooks/instance';
 import InstanceClass from '../../../_lib/instance';

@@ -27,7 +27,21 @@ export function logIdentity(request: InstanceLogsRequest) {
 }
 
 function logNameFromPath(path: string) {
-  return decodeURIComponent(path.split('/').filter(Boolean).pop() ?? path);
+  const marker = '/logs/';
+  const markerIndex = path.lastIndexOf(marker);
+  const rawName = markerIndex >= 0 ? path.slice(markerIndex + marker.length) : path;
+  return decodeURIComponent(rawName);
+}
+
+function logEndpoint(instanceName: string, filename: string) {
+  const encodedInstance = encodeURIComponent(instanceName);
+  const execOutputPrefix = 'exec-output/';
+
+  if (filename.startsWith(execOutputPrefix)) {
+    return `/1.0/instances/${encodedInstance}/logs/exec-output/${encodeURIComponent(filename.slice(execOutputPrefix.length))}`;
+  }
+
+  return `/1.0/instances/${encodedInstance}/logs/${encodeURIComponent(filename)}`;
 }
 
 async function requestLogList(instanceName: string, project: string) {
@@ -44,42 +58,48 @@ export async function ensureInstanceLogs(
   request: InstanceLogsRequest,
 ) {
   const { project, key, collectionKey } = logIdentity(request);
-  const collection =
-    store.getSnapshot().state.instances.items[key]?.logs.collection ??
-    { status: 'missing' as const };
+  const collection = store.getSnapshot().state.instances.items[key]?.logs.collection ?? {
+    status: 'missing' as const,
+  };
   if (!shouldFetchStoredStatus(collection.status)) return;
 
   await requests.run(`instance:logs:${key}`, [collectionKey], async () => {
     try {
       const logs = await requestLogList(request.instanceName, project);
-      store.update((state) => {
-        const instance = state.instances.items[key] ?? store.ensureInstance(key);
-        instance.logs.collection = { status: 'ready' };
-        for (const log of logs) {
-          instance.logs.items[log] ??= {
-            metadata: { status: 'missing' },
-            content: { status: 'missing' },
-          };
-          instance.logs.items[log].metadata = {
-            status: 'ready',
-            data: { name: log },
-          };
-        }
-      }, [
-        collectionKey,
-        ...logs.map((log) => resourceKeys.instanceLogMetadata(key, log)),
-      ]);
+      const logSet = new Set(logs);
+      store.update(
+        (state) => {
+          const instance = state.instances.items[key] ?? store.ensureInstance(key);
+          instance.logs.collection = { status: 'ready' };
+          for (const existingLog of Object.keys(instance.logs.items)) {
+            if (!logSet.has(existingLog)) {
+              delete instance.logs.items[existingLog];
+            }
+          }
+          for (const log of logs) {
+            instance.logs.items[log] ??= {
+              metadata: { status: 'missing' },
+              content: { status: 'missing' },
+            };
+            instance.logs.items[log].metadata = {
+              status: 'ready',
+              data: { name: log },
+            };
+          }
+        },
+        [collectionKey, ...logs.map((log) => resourceKeys.instanceLogMetadata(key, log))],
+      );
     } catch (error) {
-      store.update((state) => {
-        const instance = state.instances.items[key] ?? store.ensureInstance(key);
-        instance.logs.collection = {
-          status: 'error',
-          error:
-            error instanceof Error
-              ? error.message
-              : 'Unable to load instance logs.',
-        };
-      }, [collectionKey]);
+      store.update(
+        (state) => {
+          const instance = state.instances.items[key] ?? store.ensureInstance(key);
+          instance.logs.collection = {
+            status: 'error',
+            error: error instanceof Error ? error.message : 'Unable to load instance logs.',
+          };
+        },
+        [collectionKey],
+      );
     }
   });
 }
@@ -92,20 +112,16 @@ export async function ensureInstanceLogContent(
   const { project, key } = logIdentity(request);
   const storeKey = resourceKeys.instanceLogContent(key, request.filename);
   const cached =
-    store.getSnapshot().state.instances.items[key]?.logs.items[request.filename]
-      ?.content;
+    store.getSnapshot().state.instances.items[key]?.logs.items[request.filename]?.content;
   if (!shouldFetchStoredStatus(cached?.status ?? 'missing')) return;
 
-  await requests.run(
-    `instance:log-content:${key}:${request.filename}`,
-    [storeKey],
-    async () => {
-      try {
-        const content = await requestText(
-          `/1.0/instances/${encodeURIComponent(request.instanceName)}/logs/${encodeURIComponent(request.filename)}`,
-          { params: { project } },
-        );
-        store.update((state) => {
+  await requests.run(`instance:log-content:${key}:${request.filename}`, [storeKey], async () => {
+    try {
+      const content = await requestText(logEndpoint(request.instanceName, request.filename), {
+        params: { project },
+      });
+      store.update(
+        (state) => {
           const instance = state.instances.items[key] ?? store.ensureInstance(key);
           instance.logs.items[request.filename] ??= {
             metadata: {
@@ -118,9 +134,12 @@ export async function ensureInstanceLogContent(
             status: 'ready',
             data: content,
           };
-        }, [storeKey]);
-      } catch (error) {
-        store.update((state) => {
+        },
+        [storeKey],
+      );
+    } catch (error) {
+      store.update(
+        (state) => {
           const instance = state.instances.items[key] ?? store.ensureInstance(key);
           instance.logs.items[request.filename] ??= {
             metadata: { status: 'missing' },
@@ -129,63 +148,56 @@ export async function ensureInstanceLogContent(
           instance.logs.items[request.filename].content = {
             ...instance.logs.items[request.filename].content,
             status: 'error',
-            error:
-              error instanceof Error
-                ? error.message
-                : 'Unable to load instance log.',
+            error: error instanceof Error ? error.message : 'Unable to load instance log.',
           };
-        }, [storeKey]);
-      }
+        },
+        [storeKey],
+      );
+    }
+  });
+}
+
+export function markInstanceLogsStale(store: IncusStore, request: InstanceLogsRequest) {
+  const { key, collectionKey } = logIdentity(request);
+  store.update(
+    (state) => {
+      const instance = state.instances.items[key] ?? store.ensureInstance(key);
+      instance.logs.collection = {
+        status: Object.keys(instance.logs.items).length ? 'stale' : 'missing',
+      };
     },
+    [collectionKey],
   );
 }
 
-export function markInstanceLogsStale(
-  store: IncusStore,
-  request: InstanceLogsRequest,
-) {
-  const { key, collectionKey } = logIdentity(request);
-  store.update((state) => {
-    const instance = state.instances.items[key] ?? store.ensureInstance(key);
-    instance.logs.collection = {
-      status: Object.keys(instance.logs.items).length ? 'stale' : 'missing',
-    };
-  }, [collectionKey]);
-}
-
-export function createInstanceLogsResource(
-  store: IncusStore,
-  requests: RequestRegistry,
-) {
+export function createInstanceLogsResource(store: IncusStore, requests: RequestRegistry) {
   return {
-    ensure: (request: InstanceLogsRequest) =>
-      ensureInstanceLogs(store, requests, request),
+    ensure: (request: InstanceLogsRequest) => ensureInstanceLogs(store, requests, request),
     ensureContent: (request: InstanceLogContentRequest) =>
       ensureInstanceLogContent(store, requests, request),
     delete: async (request: InstanceLogContentRequest) => {
       const { project, key, collectionKey } = logIdentity(request);
-      await requestJson<unknown>(
-        `/1.0/instances/${encodeURIComponent(request.instanceName)}/logs/${encodeURIComponent(request.filename)}`,
-        {
-          params: { project },
-          init: { method: 'DELETE' },
-        },
-      );
+      await requestJson<unknown>(logEndpoint(request.instanceName, request.filename), {
+        params: { project },
+        init: { method: 'DELETE' },
+      });
 
-      store.update((state) => {
-        const instance = state.instances.items[key];
-        if (!instance) return;
-        delete instance.logs.items[request.filename];
-        instance.logs.collection = {
-          status: Object.keys(instance.logs.items).length ? 'stale' : 'missing',
-        };
-      }, [
-        collectionKey,
-        resourceKeys.instanceLogMetadata(key, request.filename),
-        resourceKeys.instanceLogContent(key, request.filename),
-      ]);
+      store.update(
+        (state) => {
+          const instance = state.instances.items[key];
+          if (!instance) return;
+          delete instance.logs.items[request.filename];
+          instance.logs.collection = {
+            status: Object.keys(instance.logs.items).length ? 'stale' : 'missing',
+          };
+        },
+        [
+          collectionKey,
+          resourceKeys.instanceLogMetadata(key, request.filename),
+          resourceKeys.instanceLogContent(key, request.filename),
+        ],
+      );
     },
-    markStale: (request: InstanceLogsRequest) =>
-      markInstanceLogsStale(store, request),
+    markStale: (request: InstanceLogsRequest) => markInstanceLogsStale(store, request),
   };
 }

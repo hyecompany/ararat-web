@@ -9,7 +9,7 @@ import {
   isStaleResourceStatus,
 } from '@/app/_incus/status';
 import { FreshnessSurface } from './freshness';
-import { cn } from 'ui-web/lib/utils';
+import { cn } from '@/lib/utils';
 
 type LoadableSurfaceProps = {
   status: ResourceStatus;
@@ -24,6 +24,7 @@ type LoadableSurfaceProps = {
   transitionEnter?: Record<string, string>;
   transitionExit?: Record<string, string>;
   className?: string;
+  stageClassName?: string;
 };
 
 type LoadableView = 'skeleton' | 'empty' | 'error' | 'content';
@@ -58,6 +59,7 @@ function LoadableSurface({
   transitionEnter,
   transitionExit,
   className,
+  stageClassName,
 }: LoadableSurfaceProps) {
   const [hydrated, setHydrated] = React.useState(false);
   const view = getLoadableView({ status, hasData });
@@ -120,7 +122,7 @@ function LoadableSurface({
 
   const stage = (
     <div
-      className="loadable-surface__stage"
+      className={cn('loadable-surface__stage', stageClassName)}
       data-loadable-view={renderedView}
     >
       {contentForRenderedView}

@@ -4,7 +4,7 @@ import * as React from 'react';
 import { Slot } from '@radix-ui/react-slot';
 import type { ResourceStatus } from '@/app/_incus/types';
 import { isStaleResourceStatus } from '@/app/_incus/status';
-import { cn } from 'ui-web/lib/utils';
+import { cn } from '@/lib/utils';
 
 function freshnessState(status?: ResourceStatus | boolean) {
   if (status === true) return 'refreshing';

@@ -11,28 +11,28 @@ import {
 } from 'lucide-react';
 
 import CreateInstance from './_components/create';
-import DataTable from 'ui-web/components/data-table';
-import { Input } from 'ui-web/components/input';
-import { LoadableSurface } from 'ui-web/components/loadable-surface';
-import { Skeleton } from 'ui-web/components/skeleton';
+import DataTable from '@/components/ui/data-table';
+import { Input } from '@/components/ui/input';
+import { LoadableSurface } from '@/components/ui/loadable-surface';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useInstances } from '@/app/(main)/instances/_hooks/instances';
 import type { Instance, InstanceState } from './_lib/instances.d';
 import { deleteInstance } from './_lib/instances';
 import { useIncusClient } from '@/app/_incus/provider';
-import { Badge } from 'ui-web/components/badge';
-import { Button } from 'ui-web/components/button';
-import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from 'ui-web/components/sheet';
-import { Spinner } from 'ui-web/components/spinner';
-import { PageTransition } from 'ui-web/components/view-transitions';
+} from '@/components/ui/sheet';
+import { Spinner } from '@/components/ui/spinner';
+import { PageTransition } from '@/components/ui/view-transitions';
 import ProjectsContext from '@/app/(main)/_context/projects';
-import { Progress } from 'ui-web/components/progress';
+import { Progress } from '@/components/ui/progress';
 import IsClientContext from '@/app/_context/isClient';
 import {
   AlertDialog,

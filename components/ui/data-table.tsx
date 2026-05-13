@@ -39,7 +39,7 @@ import {
 } from './empty';
 import { Skeleton } from './skeleton';
 import { ArrowDown } from 'lucide-react';
-import { cn } from 'ui-web/lib/utils';
+import { cn } from '@/lib/utils';
 
 interface DataTableColumnHeaderProps<
   TData,

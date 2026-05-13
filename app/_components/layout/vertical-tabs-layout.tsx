@@ -1,12 +1,14 @@
 'use client';
 
 import * as React from 'react';
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from 'ui-web/components/resizable';
-import { ScrollArea } from 'ui-web/components/scroll-area';
-import { Badge } from 'ui-web/components/badge';
-import { useMobile } from 'ui-web/hooks/use-mobile';
-import { cn } from 'ui-web/lib/utils';
+import { addTransitionType } from 'react';
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
+import { useMobile } from '@/hooks/use-mobile';
+import { cn } from '@/lib/utils';
 import { toPanelSize, type PanelSize } from '@/app/_components/layout/resizable-size';
+import { ListItemTransition, TabContentTransition } from '@/components/ui/view-transitions';
 
 export interface TabItem {
   value: string;
@@ -26,9 +28,13 @@ interface VerticalTabsLayoutProps {
   title?: string;
   header?: React.ReactNode;
   controls?: React.ReactNode; // e.g. Search bar
+  contentHeader?: React.ReactNode;
 
   // Desktop specific
   detailPanel?: React.ReactNode;
+  contentTransition?: boolean;
+  contentTransitionKey?: React.Key;
+  tabItemTransitions?: boolean;
 
   // Sizing
   sidebarSize?: PanelSize;
@@ -51,7 +57,11 @@ export function VerticalTabsLayout({
   title,
   header,
   controls,
+  contentHeader,
   detailPanel,
+  contentTransition = true,
+  contentTransitionKey,
+  tabItemTransitions = true,
   sidebarSize = 20,
   sidebarMinSize = 15,
   sidebarMaxSize = 30,
@@ -74,11 +84,32 @@ export function VerticalTabsLayout({
   }, [isMobile]);
 
   const handleTabClick = (value: string) => {
-    onTabSelect(value);
-    if (isMobile) {
-      setIsMobileDetailOpen(true);
-    }
+    const selectTab = () => {
+      onTabSelect(value);
+      if (isMobile) {
+        setIsMobileDetailOpen(true);
+      }
+    };
+
+    React.startTransition(() => {
+      addTransitionType('side-tab-select');
+      selectTab();
+    });
   };
+
+  const content = (
+    <div className="flex h-full min-h-0 flex-col">
+      {contentHeader ? <div className="shrink-0">{contentHeader}</div> : null}
+      <TabContentTransition
+        transitionKey={contentTransitionKey ?? selectedTab ?? 'empty-tab'}
+        enabled={contentTransition}
+        className="flex min-h-0 flex-1 flex-col overflow-hidden"
+        variant="side-tab-body"
+      >
+        {children}
+      </TabContentTransition>
+    </div>
+  );
 
   const renderTabs = (orientation: 'vertical' | 'horizontal') => (
     <div className={cn('flex', 'flex-col space-y-1 p-2')}>
@@ -87,66 +118,71 @@ export function VerticalTabsLayout({
         const isSelected = selectedTab === tab.value;
 
         return (
-          <button
-            type="button"
+          <ListItemTransition
             key={tab.value}
-            onClick={() => handleTabClick(tab.value)}
-            className={cn(
-              'flex select-none items-center gap-3 rounded-md text-left transition-colors',
-              'w-full p-3',
-              isSelected && !isMobile ? 'bg-primary text-primary-foreground' : 'hover:bg-muted',
-            )}
+            transitionKey={tab.value}
+            enabled={tabItemTransitions}
           >
-            {Icon && <Icon className={cn('h-5 w-5 shrink-0')} />}
+            <button
+              type="button"
+              onClick={() => handleTabClick(tab.value)}
+              className={cn(
+                'flex select-none items-center gap-3 rounded-md text-left transition-colors',
+                'w-full p-3',
+                isSelected && !isMobile ? 'bg-primary text-primary-foreground' : 'hover:bg-muted',
+              )}
+            >
+              {Icon && <Icon className={cn('h-5 w-5 shrink-0')} />}
 
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium">{tab.label}</span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">{tab.label}</span>
+                </div>
+                {tab.description && (
+                  <p
+                    className={cn(
+                      'mt-0.5 truncate text-xs',
+                      isSelected && !isMobile
+                        ? 'text-primary-foreground/80'
+                        : 'text-muted-foreground',
+                    )}
+                  >
+                    {tab.description}
+                  </p>
+                )}
               </div>
-              {tab.description && (
-                <p
+              {tab.count !== undefined && tab.count > 0 && (
+                <Badge
+                  variant={isSelected && !isMobile ? 'secondary' : 'outline'}
                   className={cn(
-                    'mt-0.5 truncate text-xs',
-                    isSelected && !isMobile
-                      ? 'text-primary-foreground/80'
-                      : 'text-muted-foreground',
+                    'justify-center px-1.5',
+                    orientation === 'vertical' ? 'h-5 text-xs' : 'h-4 text-[10px]',
                   )}
                 >
-                  {tab.description}
-                </p>
+                  {tab.count}
+                </Badge>
               )}
-            </div>
-            {tab.count !== undefined && tab.count > 0 && (
-              <Badge
-                variant={isSelected && !isMobile ? 'secondary' : 'outline'}
-                className={cn(
-                  'justify-center px-1.5',
-                  orientation === 'vertical' ? 'h-5 text-xs' : 'h-4 text-[10px]',
-                )}
-              >
-                {tab.count}
-              </Badge>
-            )}
-            {isMobile && (
-              <div className="text-muted-foreground">
-                <svg
-                  width="15"
-                  height="15"
-                  viewBox="0 0 15 15"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-4 w-4"
-                >
-                  <path
-                    d="M6.1584 3.13508C6.35985 2.94621 6.67627 2.95642 6.86514 3.15788L10.6151 7.15788C10.7954 7.3502 10.7954 7.6498 10.6151 7.84212L6.86514 11.8421C6.67627 12.0436 6.35985 12.0538 6.1584 11.8649C5.95694 11.676 5.94673 11.3596 6.1356 11.1581L9.5915 7.50002L6.1356 3.84194C5.94673 3.64048 5.95694 3.32406 6.1584 3.13508Z"
-                    fill="currentColor"
-                    fillRule="evenodd"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </div>
-            )}
-          </button>
+              {isMobile && (
+                <div className="text-muted-foreground">
+                  <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 15 15"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-4 w-4"
+                  >
+                    <path
+                      d="M6.1584 3.13508C6.35985 2.94621 6.67627 2.95642 6.86514 3.15788L10.6151 7.15788C10.7954 7.3502 10.7954 7.6498 10.6151 7.84212L6.86514 11.8421C6.67627 12.0436 6.35985 12.0538 6.1584 11.8649C5.95694 11.676 5.94673 11.3596 6.1356 11.1581L9.5915 7.50002L6.1356 3.84194C5.94673 3.64048 5.95694 3.32406 6.1584 3.13508Z"
+                      fill="currentColor"
+                      fillRule="evenodd"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </div>
+              )}
+            </button>
+          </ListItemTransition>
         );
       })}
     </div>
@@ -186,7 +222,7 @@ export function VerticalTabsLayout({
               {tabs.find((t) => t.value === selectedTab)?.label}
             </h3>
           </div>
-          <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
+          <div className="min-h-0 flex-1 overflow-hidden">{content}</div>
           {/* Mobile Detail Panel Overlay - if detailPanel is active (e.g. adding a device) */}
           {detailPanel && (
             <div className="bg-background absolute inset-0 z-10 flex flex-col">{detailPanel}</div>
@@ -244,7 +280,7 @@ export function VerticalTabsLayout({
           defaultSize={toPanelSize(contentSize)}
           minSize={toPanelSize(contentMinSize)}
         >
-          <div className="h-full min-h-0">{children}</div>
+          <div className="h-full min-h-0">{content}</div>
         </ResizablePanel>
 
         {detailPanel && (

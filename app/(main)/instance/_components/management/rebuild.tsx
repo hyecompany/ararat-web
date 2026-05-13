@@ -9,15 +9,15 @@ import ImageSelector, {
 import { useImages } from '@/app/(main)/images/_hooks/images';
 import type { Instance } from '@/app/(main)/instances/_lib/instances.d';
 import { fromYaml, toYaml } from '@/app/(main)/_lib/yaml';
-import { Button } from 'ui-web/components/button';
+import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from 'ui-web/components/select';
-import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
+} from '@/components/ui/select';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { CodeXmlIcon } from 'lucide-react';
 import { rebuildInstance, type AdvancedInstanceRebuildSource } from '../../_lib/instance';
 import { SettingsYamlEditor } from '../settings-yaml-editor';

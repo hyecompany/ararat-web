@@ -2,8 +2,8 @@
 
 import * as React from 'react';
 
-import { Button } from 'ui-web/components/button';
-import { DialogFooter } from 'ui-web/components/dialog';
+import { Button } from '@/components/ui/button';
+import { DialogFooter } from '@/components/ui/dialog';
 
 export function ManagementFooter({
   left,

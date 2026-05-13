@@ -1,9 +1,9 @@
 'use client';
 import { use } from 'react';
 import AuthenticationContext from '@/app/_context/authentication';
-import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircleIcon } from 'lucide-react';
-import { Button } from 'ui-web/components/button';
+import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 export default function AlreadyAuthenticated() {
   const { data, isStale } = use(AuthenticationContext);

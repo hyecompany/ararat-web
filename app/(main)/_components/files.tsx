@@ -1,8 +1,8 @@
 'use client';
 
 import React, { ViewTransition, addTransitionType, startTransition } from 'react';
-import { Spinner } from 'ui-web/components/spinner';
-import { Button } from 'ui-web/components/button';
+import { Spinner } from '@/components/ui/spinner';
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,14 +10,14 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from 'ui-web/components/dropdown-menu';
+} from '@/components/ui/dropdown-menu';
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
   ContextMenuTrigger,
-} from 'ui-web/components/context-menu';
+} from '@/components/ui/context-menu';
 import {
   Dialog,
   DialogContent,
@@ -25,7 +25,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from 'ui-web/components/dialog';
+} from '@/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -35,9 +35,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Input } from 'ui-web/components/input';
-import { Label } from 'ui-web/components/label';
-import { Progress } from 'ui-web/components/progress';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Progress } from '@/components/ui/progress';
 import {
   Breadcrumb,
   BreadcrumbEllipsis,
@@ -45,7 +45,7 @@ import {
   BreadcrumbLink,
   BreadcrumbList,
   BreadcrumbSeparator,
-} from 'ui-web/components/breadcrumb';
+} from '@/components/ui/breadcrumb';
 import {
   FileIcon,
   FolderIcon,
@@ -72,10 +72,10 @@ import {
   Link2,
   SearchIcon,
 } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import Editor from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
-import DataTable from 'ui-web/components/data-table';
+import DataTable from '@/components/ui/data-table';
 import {
   Empty,
   EmptyContent,
@@ -83,10 +83,10 @@ import {
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from 'ui-web/components/empty';
-import { FreshnessSurface, StaleShimmer } from 'ui-web/components/freshness';
-import { LoadableSurface } from 'ui-web/components/loadable-surface';
-import { Skeleton } from 'ui-web/components/skeleton';
+} from '@/components/ui/empty';
+import { FreshnessSurface, StaleShimmer } from '@/components/ui/freshness';
+import { LoadableSurface } from '@/components/ui/loadable-surface';
+import { Skeleton } from '@/components/ui/skeleton';
 import { ColumnDef, Row } from '@tanstack/react-table';
 import {
   absPathParent,
@@ -124,8 +124,8 @@ import {
   dashboardMonacoOptions,
   dashboardMonacoTheme,
   defineDashboardMonacoThemes,
-  cn,
-} from 'ui-web/lib/utils';
+} from '@/app/(main)/_lib/monaco';
+import { cn } from '@/lib/utils';
 
 interface FileBrowserProps {
   files: (string | FileItem)[];

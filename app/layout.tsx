@@ -1,16 +1,16 @@
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono, Poppins } from 'next/font/google';
+import { Geist_Mono, Inter, Poppins } from 'next/font/google';
 import './globals.css';
 import ThemeProvider from '@/app/_context/theme';
 import { AuthenticationProvider } from '@/app/_context/authentication';
 import Router from './router';
 import { EventEmitterProvider } from '@/app/_context/events';
-import { Toaster } from 'ui-web/components/sonner';
+import { Toaster } from '@/components/ui/sonner';
 import { IsClientProvider } from './_context/isClient';
 import { IncusProvider } from '@/app/_incus/provider';
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
+const inter = Inter({
+  variable: '--font-sans',
   subsets: ['latin'],
 });
 
@@ -36,10 +36,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} ${poppins.variable} h-svh overflow-hidden antialiased`}
-      >
+    <html
+      lang="en"
+      className={`${inter.variable} ${geistMono.variable} ${poppins.variable}`}
+      suppressHydrationWarning
+    >
+      <body className="h-svh overflow-hidden antialiased">
         <IsClientProvider>
           <ThemeProvider>
             <EventEmitterProvider>

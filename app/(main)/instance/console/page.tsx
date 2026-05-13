@@ -20,7 +20,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { MenubarItem } from 'ui-web/components/menubar';
+import { MenubarItem } from '@/components/ui/menubar';
 import { useInstanceContext } from '../_context/instance';
 import { useInstance } from '../_hooks/instance';
 import InstanceExec from './instanceExec';

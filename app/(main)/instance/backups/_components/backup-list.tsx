@@ -15,10 +15,10 @@ import type { InstanceBackup } from '@/app/_incus/types';
 import { DateTimePicker } from '../../_components/date-time-picker';
 import { toOptionalIsoDateTime } from '../../_lib/date-time';
 import { formatDate, getInstanceResourceShortName } from '../../_lib/utils';
-import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
-import { Button } from 'ui-web/components/button';
-import { Checkbox } from 'ui-web/components/checkbox';
-import DataTable from 'ui-web/components/data-table';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import DataTable from '@/components/ui/data-table';
 import {
   Dialog,
   DialogContent,
@@ -27,7 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from 'ui-web/components/dialog';
+} from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,18 +35,18 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from 'ui-web/components/dropdown-menu';
-import { Input } from 'ui-web/components/input';
-import { Label } from 'ui-web/components/label';
+} from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from 'ui-web/components/select';
-import { Spinner } from 'ui-web/components/spinner';
-import { Skeleton } from 'ui-web/components/skeleton';
+} from '@/components/ui/select';
+import { Spinner } from '@/components/ui/spinner';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface BackupListProps {
   backups: InstanceBackup[];

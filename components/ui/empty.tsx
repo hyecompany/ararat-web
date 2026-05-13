@@ -1,6 +1,6 @@
 import * as React from 'react';
 
-import { cn } from 'ui-web/lib/utils';
+import { cn } from '@/lib/utils';
 
 function Empty({
   className,

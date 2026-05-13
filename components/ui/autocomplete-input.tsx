@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 
-import { Input } from 'ui-web/components/input';
+import { Input } from '@/components/ui/input';
 
 import {
   Command,

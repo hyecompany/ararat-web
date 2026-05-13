@@ -4,7 +4,7 @@ import * as React from 'react';
 import stableStringify from 'fast-json-stable-stringify';
 import { CodeXmlIcon } from 'lucide-react';
 
-import { Button } from 'ui-web/components/button';
+import { Button } from '@/components/ui/button';
 
 import GeneralConfiguration from '@/app/(main)/_components/general-configuration';
 import type { Instance } from '@/app/(main)/instances/_lib/instances.d';
@@ -178,7 +178,7 @@ export default function Configuration({
           className="h-full"
         />
       ) : (
-        <div className="h-full overflow-y-auto">
+        <div className="h-full min-h-0 overflow-hidden">
           <GeneralConfiguration
             config={draftConfig}
             expandedConfig={expandedConfig}

@@ -4,7 +4,7 @@ import {
   BreadcrumbItem,
   BreadcrumbList,
   BreadcrumbPage,
-} from 'ui-web/components/breadcrumb';
+} from '@/components/ui/breadcrumb';
 
 export default function InstancesLayout({
   children,

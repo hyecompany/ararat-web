@@ -4,12 +4,12 @@ import React from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { InstanceProvider, useInstanceContext } from './_context/instance';
 import { useInstance } from './_hooks/instance';
-import { Spinner } from 'ui-web/components/spinner';
-import { Skeleton } from 'ui-web/components/skeleton';
-import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
+import { Spinner } from '@/components/ui/spinner';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Instance } from '../instances/_lib/instances.d';
-import { Button } from 'ui-web/components/button';
-import { Input } from 'ui-web/components/input';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   PlayIcon,
   SquareIcon,
@@ -20,12 +20,14 @@ import {
   Terminal,
   Folder,
   Camera,
+  LogsIcon,
   PencilIcon,
   CheckIcon,
   XIcon,
   Settings2Icon,
+  type LucideIcon,
 } from 'lucide-react';
-import { Tabs, TabsList, TabsTrigger } from 'ui-web/components/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   performInstanceAction,
   updateInstanceMetadata,
@@ -40,10 +42,10 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
-} from 'ui-web/components/breadcrumb';
-import { cn } from 'ui-web/lib/utils';
+} from '@/components/ui/breadcrumb';
+import { cn } from '@/lib/utils';
 import Link from 'next/link';
-import { PageTransition } from 'ui-web/components/view-transitions';
+import { PageTransition, TabContentTransition } from '@/components/ui/view-transitions';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,12 +60,12 @@ function InstanceLayoutContent({ children }: { children: React.ReactNode }) {
 
   const getTabFromPathname = (path: string) => {
     const pathSegments = path.split('/').filter(Boolean);
-    const rawTab = pathSegments.length > 1 ? pathSegments[1] : 'Dashboard';
+    const rawTab = pathSegments.length > 1 ? pathSegments[1] : 'dashboard';
     const label = rawTab.charAt(0).toUpperCase() + rawTab.slice(1);
     return { rawTab, label };
   };
 
-  const { label: formattedTab } = getTabFromPathname(pathname);
+  const { rawTab: currentTab, label: formattedTab } = getTabFromPathname(pathname);
   const instanceQuery = React.useMemo(() => {
     if (!name) return undefined;
 
@@ -90,25 +92,25 @@ function InstanceLayoutContent({ children }: { children: React.ReactNode }) {
 
     return (
       <div className="flex h-full min-h-0 flex-col gap-6 p-6">
-        <InstanceHeader
-          instance={instance}
-          fallbackName={name}
-          onMutate={mutate}
-        />
+        <InstanceHeader instance={instance} fallbackName={name} onMutate={mutate} />
 
         <div className="flex min-h-0 flex-1 flex-col gap-4">
           <InstanceTabs />
           <div className="mt-4 min-h-0 flex-1">
-            {isError ? (
-              <Alert variant="destructive">
-                <AlertTitle>Error</AlertTitle>
-                <AlertDescription>
-                  {isError.message}
-                </AlertDescription>
-              </Alert>
-            ) : (
-              children
-            )}
+            <TabContentTransition
+              transitionKey={currentTab}
+              className="h-full"
+              variant="tab"
+            >
+              {isError ? (
+                <Alert variant="destructive">
+                  <AlertTitle>Error</AlertTitle>
+                  <AlertDescription>{isError.message}</AlertDescription>
+                </Alert>
+              ) : (
+                children
+              )}
+            </TabContentTransition>
           </div>
         </div>
       </div>
@@ -159,11 +161,7 @@ function InstanceLayoutContent({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function InstanceLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function InstanceLayout({ children }: { children: React.ReactNode }) {
   return (
     <InstanceProvider>
       <InstanceLayoutContent>{children}</InstanceLayoutContent>
@@ -175,7 +173,7 @@ export default function InstanceLayout({
 
 const instanceActionDetails: Record<
   InstanceAction,
-  { label: string; Icon: React.ComponentType<{ className?: string }> }
+  { label: string; Icon: LucideIcon }
 > = {
   start: { label: 'Start', Icon: PlayIcon },
   stop: { label: 'Stop', Icon: SquareIcon },
@@ -196,8 +194,7 @@ function InstanceHeader({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [actionInFlight, setActionInFlight] =
-    React.useState<InstanceAction | null>(null);
+  const [actionInFlight, setActionInFlight] = React.useState<InstanceAction | null>(null);
   const [actionError, setActionError] = React.useState<string | null>(null);
   const [activeField, setActiveField] = React.useState<EditableField>(null);
   const [hoveredField, setHoveredField] = React.useState<EditableField>(null);
@@ -227,8 +224,7 @@ function InstanceHeader({
       await performInstanceAction({ action, instance });
       await onMutate();
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : `Unable to ${action} instance.`;
+      const message = err instanceof Error ? err.message : `Unable to ${action} instance.`;
       setActionError(message);
     } finally {
       setActionInFlight(null);
@@ -306,8 +302,7 @@ function InstanceHeader({
     }
 
     const nextName = activeField === 'name' ? trimmedValue : instance.name;
-    const nextDescription =
-      activeField === 'description' ? trimmedValue : currentDescription;
+    const nextDescription = activeField === 'description' ? trimmedValue : currentDescription;
 
     if (nextName === instance.name && nextDescription === currentDescription) {
       cancelEditing();
@@ -349,9 +344,7 @@ function InstanceHeader({
       if (err instanceof DOMException && err.name === 'AbortError') {
         return;
       }
-      setFieldError(
-        err instanceof Error ? err.message : 'Unable to update instance field.',
-      );
+      setFieldError(err instanceof Error ? err.message : 'Unable to update instance field.');
     } finally {
       saveAbortControllerRef.current = null;
       setIsSavingField(false);
@@ -414,9 +407,7 @@ function InstanceHeader({
                 }
               }}
               className={inputClassName}
-              aria-label={
-                field === 'name' ? 'Edit instance name' : 'Edit instance description'
-              }
+              aria-label={field === 'name' ? 'Edit instance name' : 'Edit instance description'}
             />
             <Button
               type="button"
@@ -427,11 +418,7 @@ function InstanceHeader({
               onClick={() => void saveField()}
               aria-label={`Save instance ${field}`}
             >
-              {isSavingField ? (
-                <Spinner className="size-4" />
-              ) : (
-                <CheckIcon className="size-4" />
-              )}
+              {isSavingField ? <Spinner className="size-4" /> : <CheckIcon className="size-4" />}
             </Button>
             <Button
               type="button"
@@ -449,18 +436,16 @@ function InstanceHeader({
           <button
             type="button"
             className={cn(
-              'flex max-w-full items-center gap-2 rounded-md text-left transition-colors select-none hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+              'hover:text-foreground focus-visible:ring-ring flex max-w-full items-center gap-2 rounded-md text-left transition-colors select-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none',
               !value && 'text-muted-foreground/80 italic',
             )}
             onClick={() => startEditing(field)}
             disabled={isBusy || !instance}
           >
-            <span className={cn(displayClassName, !value && 'font-normal')}>
-              {displayValue}
-            </span>
+            <span className={cn(displayClassName, !value && 'font-normal')}>{displayValue}</span>
             <PencilIcon
               className={cn(
-                'size-4 shrink-0 text-muted-foreground transition-opacity',
+                'text-muted-foreground size-4 shrink-0 transition-opacity',
                 showPencil ? 'opacity-100' : 'opacity-0',
               )}
               aria-hidden="true"
@@ -475,11 +460,7 @@ function InstanceHeader({
     <div className="space-y-4">
       <div className="flex items-center gap-4">
         {hydrated && instance ? (
-          <InstanceActionsMenu
-            instance={instance}
-            disabled={isBusy}
-            onMutate={onMutate}
-          />
+          <InstanceActionsMenu instance={instance} disabled={isBusy} onMutate={onMutate} />
         ) : (
           <InstanceActionsButtonPending name={displayName} />
         )}
@@ -514,25 +495,27 @@ function InstanceHeader({
         </div>
 
         <div className="flex gap-2">
-          {instance ? availableActions.map((action) => {
-            const { label, Icon } = instanceActionDetails[action];
-            return (
-              <Button
-                key={action}
-                variant="outline"
-                size="sm"
-                disabled={actionInFlight !== null}
-                onClick={() => handleAction(action)}
-              >
-                {actionInFlight === action ? (
-                  <Spinner className="mr-2 size-4" />
-                ) : (
-                  <Icon className="mr-2 size-4" />
-                )}
-                {label}
-              </Button>
-            );
-          }) : null}
+          {instance
+            ? availableActions.map((action) => {
+                const { label, Icon } = instanceActionDetails[action];
+                return (
+                  <Button
+                    key={action}
+                    variant="outline"
+                    size="sm"
+                    disabled={actionInFlight !== null}
+                    onClick={() => handleAction(action)}
+                  >
+                    {actionInFlight === action ? (
+                      <Spinner className="mr-2 size-4" />
+                    ) : (
+                      <Icon data-icon="inline-start" />
+                    )}
+                    {label}
+                  </Button>
+                );
+              })
+            : null}
         </div>
       </div>
 
@@ -560,12 +543,12 @@ function InstanceActionsButtonPending({ name }: { name?: string | null }) {
       variant="ghost"
       size="icon"
       disabled
-      className="relative h-16 w-16 shrink-0 rounded-lg border bg-muted p-0 shadow-sm"
+      className="bg-muted relative h-16 w-16 shrink-0 rounded-lg border p-0 shadow-sm"
       aria-label={name ? `Manage instance ${name}` : 'Manage instance'}
     >
       <Skeleton className="size-8 rounded-md" />
-      <span className="absolute -right-1 -bottom-1 size-3.75 rounded-full border-2 border-background bg-muted-foreground/30" />
-      <span className="absolute top-1 right-1 rounded-full border bg-background/95 p-1 text-muted-foreground shadow-sm">
+      <span className="border-background bg-muted-foreground/30 absolute -right-1 -bottom-1 size-3.75 rounded-full border-2" />
+      <span className="bg-background/95 text-muted-foreground absolute top-1 right-1 rounded-full border p-1 shadow-sm">
         <Settings2Icon className="size-3" />
       </span>
     </Button>
@@ -578,6 +561,7 @@ const TABS = [
   { value: 'files', label: 'Files', icon: Folder },
   { value: 'snapshots', label: 'Snapshots', icon: Camera },
   { value: 'backups', label: 'Backups', icon: Archive },
+  { value: 'logs', label: 'Logs', icon: LogsIcon },
 ];
 
 function InstanceTabs() {
@@ -598,33 +582,45 @@ function InstanceTabs() {
       currentTab = segment;
     }
   }
+  const currentIndex = TABS.findIndex((tab) => tab.value === currentTab);
 
   return (
-    <Tabs value={currentTab} className="w-full">
+    <Tabs value={currentTab}>
       <div className="w-full overflow-x-auto">
-        <TabsList className="min-w-full inline-flex">
+        <TabsList
+          variant="line"
+          underline="baseline"
+          className="h-9 w-full justify-start gap-0"
+        >
           {TABS.map((tab) => {
-            const targetPath =
-              tab.value === 'dashboard' ? '/instance' : `/instance/${tab.value}`;
-
-            const query =
-              instanceName
-                ? {
-                    name: instanceName,
-                    ...(project ? { project } : {}),
-                  }
-                : undefined;
+            const Icon = tab.icon;
+            const targetPath = tab.value === 'dashboard' ? '/instance' : `/instance/${tab.value}`;
+            const targetIndex = TABS.findIndex((candidate) => candidate.value === tab.value);
+            const transitionType =
+              targetIndex > currentIndex ? 'tab-next' : 'tab-prev';
+            const query = instanceName
+              ? {
+                  name: instanceName,
+                  ...(project ? { project } : {}),
+                }
+              : undefined;
 
             return (
-              <TabsTrigger key={tab.value} value={tab.value} asChild>
+              <TabsTrigger
+                key={tab.value}
+                value={tab.value}
+                underline="baseline"
+                className="flex-none rounded-none px-3 has-data-[icon=inline-start]:pl-3 has-data-[icon=inline-end]:pr-3"
+                asChild
+              >
                 <Link
                   href={{
                     pathname: targetPath,
                     query,
                   }}
-                  transitionTypes={['nav-lateral']}
+                  transitionTypes={[transitionType]}
                 >
-                  <tab.icon aria-hidden="true" className="mr-2 h-4 w-4" />
+                  <Icon aria-hidden="true" data-icon="inline-start" />
                   {tab.label}
                 </Link>
               </TabsTrigger>

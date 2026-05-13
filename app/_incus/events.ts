@@ -10,12 +10,7 @@ import {
   type IncusStoreKey,
 } from './resources';
 import { type IncusStore } from './store';
-import type {
-  CacheStatus,
-  IncusOperation,
-  IncusStoreState,
-  InstanceFileMetadata,
-} from './types';
+import type { CacheStatus, IncusOperation, IncusStoreState, InstanceFileMetadata } from './types';
 import type { IncusEvent } from '@/app/_context/events';
 
 type LifecycleMetadata = {
@@ -47,10 +42,7 @@ function markCachedStatusStale<T extends { status: CacheStatus }>(cached: T) {
 
 function storageVolumeCollectionStatuses(
   state: IncusStoreState,
-  resource: Extract<
-    IncusResourceRef,
-    { kind: 'storageVolume' | 'storageVolumesCollection' }
-  >,
+  resource: Extract<IncusResourceRef, { kind: 'storageVolume' | 'storageVolumesCollection' }>,
 ) {
   const collection = state.storagePools.items[resource.pool]?.volumes.collection;
   if (!collection) return [];
@@ -63,10 +55,7 @@ function storageVolumeCollectionStatuses(
 
 function eventKeysForResource(resource: IncusResourceRef | null): IncusStoreKey[] {
   const keys = new Set(keysForResource(resource));
-  if (
-    resource?.kind === 'storageVolume' ||
-    resource?.kind === 'storageVolumesCollection'
-  ) {
+  if (resource?.kind === 'storageVolume' || resource?.kind === 'storageVolumesCollection') {
     keys.add(resourceKeys.storagePoolVolumesCollection(resource.pool, 'all'));
   }
   return Array.from(keys);
@@ -182,11 +171,7 @@ function markResourceStale(state: IncusStoreState, resource: IncusResourceRef) {
       return;
     }
     case 'storageVolume': {
-      const key = storageVolumeKey(
-        resource.project,
-        resource.volumeType,
-        resource.name,
-      );
+      const key = storageVolumeKey(resource.project, resource.volumeType, resource.name);
       const pool = state.storagePools.items[resource.pool];
       for (const collection of storageVolumeCollectionStatuses(state, resource)) {
         markCachedStatusStale(collection);
@@ -199,9 +184,7 @@ function markResourceStale(state: IncusStoreState, resource: IncusResourceRef) {
     }
     case 'storageBucketsCollection': {
       const collection =
-        state.storagePools.items[resource.pool]?.buckets.collection.byProject[
-          resource.project
-        ];
+        state.storagePools.items[resource.pool]?.buckets.collection.byProject[resource.project];
       if (collection) markCachedStatusStale(collection);
       return;
     }
@@ -267,6 +250,21 @@ function markResourceStale(state: IncusStoreState, resource: IncusResourceRef) {
       markCachedStatusStale(item.snapshots.collection);
       const snapshot = item.snapshots.items[resource.snapshot];
       if (snapshot) markCachedStatusStale(snapshot.metadata);
+      return;
+    }
+    case 'instanceLogsCollection': {
+      const item = state.instances.items[resource.key];
+      if (item) markCachedStatusStale(item.logs.collection);
+      return;
+    }
+    case 'instanceLog': {
+      const item = state.instances.items[resource.key];
+      if (!item) return;
+      markCachedStatusStale(item.logs.collection);
+      const log = item.logs.items[resource.log];
+      if (!log) return;
+      markCachedStatusStale(log.metadata);
+      markCachedStatusStale(log.content);
       return;
     }
   }
@@ -377,16 +375,11 @@ function addShellForCreatedResource(state: IncusStoreState, resource: IncusResou
 
   if (resource.kind === 'storageVolume') {
     const pool = state.storagePools.items[resource.pool];
-    const loadedCollections = storageVolumeCollectionStatuses(
-      state,
-      resource,
-    ).filter((collection) => collection.status !== 'missing');
+    const loadedCollections = storageVolumeCollectionStatuses(state, resource).filter(
+      (collection) => collection.status !== 'missing',
+    );
     if (pool && loadedCollections.length > 0) {
-      const key = storageVolumeKey(
-        resource.project,
-        resource.volumeType,
-        resource.name,
-      );
+      const key = storageVolumeKey(resource.project, resource.volumeType, resource.name);
       pool.volumes.items[key] ??= {
         metadata: { status: 'missing' },
         state: { status: 'missing' },
@@ -435,6 +428,18 @@ function addShellForCreatedResource(state: IncusStoreState, resource: IncusResou
         metadata: { status: 'missing' },
       };
       item.snapshots.collection.status = 'stale';
+    }
+    return;
+  }
+
+  if (resource.kind === 'instanceLog') {
+    const item = state.instances.items[resource.key];
+    if (item && item.logs.collection.status !== 'missing') {
+      item.logs.items[resource.log] ??= {
+        metadata: { status: 'missing' },
+        content: { status: 'missing' },
+      };
+      item.logs.collection.status = 'stale';
     }
   }
 }
@@ -523,11 +528,7 @@ function removeDeletedResource(store: IncusStore, resource: IncusResourceRef) {
     store.update((state) => {
       const pool = state.storagePools.items[resource.pool];
       if (!pool) return;
-      const key = storageVolumeKey(
-        resource.project,
-        resource.volumeType,
-        resource.name,
-      );
+      const key = storageVolumeKey(resource.project, resource.volumeType, resource.name);
       delete pool.volumes.items[key];
       for (const collection of storageVolumeCollectionStatuses(state, resource)) {
         if (collection.status === 'ready') {
@@ -585,6 +586,19 @@ function removeDeletedResource(store: IncusStore, resource: IncusResourceRef) {
       delete item.snapshots.items[resource.snapshot];
       if (item.snapshots.collection.status === 'ready') {
         item.snapshots.collection.status = 'stale';
+      }
+    }, keysForResource(resource));
+    return true;
+  }
+
+  if (resource.kind === 'instanceLog') {
+    store.update((state) => {
+      const item = state.instances.items[resource.key];
+      if (!item) return;
+
+      delete item.logs.items[resource.log];
+      if (item.logs.collection.status === 'ready') {
+        item.logs.collection.status = 'stale';
       }
     }, keysForResource(resource));
     return true;
@@ -702,9 +716,7 @@ function applyInstanceFileWriteEvent(
     if (parent?.children && childName) {
       const names = parent.children.names.includes(childName)
         ? parent.children.names
-        : [...parent.children.names, childName].sort((a, b) =>
-            a.localeCompare(b),
-          );
+        : [...parent.children.names, childName].sort((a, b) => a.localeCompare(b));
       parent.children = {
         status: parent.children.status === 'error' ? 'stale' : 'ready',
         names,
@@ -758,18 +770,13 @@ function oldStorageVolumeFromContext(
 
 function instanceFilesPathFromSource(source: string, filePath: string) {
   const [rawPath = '', rawSearch = ''] = source.split('?');
-  const path = rawPath.endsWith('/files')
-    ? rawPath
-    : `${rawPath.replace(/\/$/, '')}/files`;
+  const path = rawPath.endsWith('/files') ? rawPath : `${rawPath.replace(/\/$/, '')}/files`;
   const params = new URLSearchParams(rawSearch);
   params.set('path', filePath);
   return `${path}?${params.toString()}`;
 }
 
-function fileResourceFromLifecycle(
-  metadata: LifecycleMetadata,
-  eventProject?: string,
-) {
+function fileResourceFromLifecycle(metadata: LifecycleMetadata, eventProject?: string) {
   if (typeof metadata.action !== 'string') return null;
   if (!metadata.action.startsWith('instance-file-')) return null;
 
@@ -782,20 +789,17 @@ function fileResourceFromLifecycle(
   );
 }
 
-function fileResourceFromOperation(
-  metadata: OperationMetadata,
-  eventProject?: string,
-) {
+function fileResourceFromOperation(metadata: OperationMetadata, eventProject?: string) {
   const operationContext = recordFrom(metadata.metadata);
   const nestedContext = recordFrom(operationContext?.context);
-  const filePath =
-    contextFilePath(operationContext) ?? contextFilePath(nestedContext);
+  const filePath = contextFilePath(operationContext) ?? contextFilePath(nestedContext);
   if (!filePath) return null;
 
   const instanceResource = operationResourcePaths(metadata)
     .map((path) => parseIncusResourcePath(path, eventProject))
-    .find((resource): resource is Extract<IncusResourceRef, { kind: 'instance' }> =>
-      resource?.kind === 'instance',
+    .find(
+      (resource): resource is Extract<IncusResourceRef, { kind: 'instance' }> =>
+        resource?.kind === 'instance',
     );
   if (!instanceResource) return null;
 
@@ -879,16 +883,12 @@ function operationFromMetadata(metadata: OperationMetadata): IncusOperation | nu
   return {
     id: metadata.id,
     class: typeof metadata.class === 'string' ? metadata.class : undefined,
-    description:
-      typeof metadata.description === 'string' ? metadata.description : undefined,
-    created_at:
-      typeof metadata.created_at === 'string' ? metadata.created_at : undefined,
-    updated_at:
-      typeof metadata.updated_at === 'string' ? metadata.updated_at : undefined,
+    description: typeof metadata.description === 'string' ? metadata.description : undefined,
+    created_at: typeof metadata.created_at === 'string' ? metadata.created_at : undefined,
+    updated_at: typeof metadata.updated_at === 'string' ? metadata.updated_at : undefined,
     err: typeof metadata.err === 'string' ? metadata.err : undefined,
     location: typeof metadata.location === 'string' ? metadata.location : undefined,
-    may_cancel:
-      typeof metadata.may_cancel === 'boolean' ? metadata.may_cancel : undefined,
+    may_cancel: typeof metadata.may_cancel === 'boolean' ? metadata.may_cancel : undefined,
     metadata: metadata.metadata,
     resources:
       metadata.resources && typeof metadata.resources === 'object'
@@ -915,8 +915,7 @@ function applyOperationEvent(store: IncusStore, event: IncusEvent) {
   if (fileResource) {
     parsed.push(fileResource);
   }
-  const resources = parsed
-    .filter((resource): resource is IncusResourceRef => Boolean(resource));
+  const resources = parsed.filter((resource): resource is IncusResourceRef => Boolean(resource));
 
   const keys = new Set<IncusStoreKey>();
   if (operation) {

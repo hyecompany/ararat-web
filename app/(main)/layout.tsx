@@ -1,7 +1,7 @@
 import AppSidebar from '@/app/(main)/sidebar';
 import { ProjectsProvider } from '@/app/(main)/_context/projects';
 import { UserProvider } from '@/app/(main)/_context/user';
-import { SidebarInset, SidebarProvider } from 'ui-web/components/sidebar';
+import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 
 export default function DashboardLayout({
   children,

@@ -6,9 +6,9 @@ import { Combobox, ComboboxContent, ComboboxItem, ComboboxTrigger } from '@/comp
 import { useStoragePools } from '@/app/_incus/resources/storage-pools/hooks';
 import type { StoragePool } from '@/app/_incus/types';
 import type { Instance } from '@/app/(main)/instances/_lib/instances.d';
-import { Alert, AlertDescription, AlertTitle } from 'ui-web/components/alert';
-import { Checkbox } from 'ui-web/components/checkbox';
-import { Input } from 'ui-web/components/input';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
 import { cloneInstance } from '../../_lib/instance';
 import { ManagementFooter } from './footer';
 

@@ -11,11 +11,11 @@ import {
 } from 'react';
 import { Row } from '@tanstack/react-table';
 
-import { Badge } from 'ui-web/components/badge';
-import { Button } from 'ui-web/components/button';
-import DataTable from 'ui-web/components/data-table';
-import { FreshnessSurface } from 'ui-web/components/freshness';
-import { LoadableSurface } from 'ui-web/components/loadable-surface';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import DataTable from '@/components/ui/data-table';
+import { FreshnessSurface } from '@/components/ui/freshness';
+import { LoadableSurface } from '@/components/ui/loadable-surface';
 import {
   Dialog,
   DialogContent,
@@ -24,17 +24,17 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from 'ui-web/components/dialog';
-import { Input } from 'ui-web/components/input';
-import { Label } from 'ui-web/components/label';
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from 'ui-web/components/select';
-import { Skeleton } from 'ui-web/components/skeleton';
+} from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useImages } from '@/app/(main)/images/_hooks/images';
 import { Image } from '@/app/(main)/images/_lib/images';
 import ProjectsContext from '@/app/(main)/_context/projects';

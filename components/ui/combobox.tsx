@@ -12,7 +12,7 @@ import {
   CommandList,
   CommandSeparator,
 } from './command';
-import { cn } from 'ui-web/lib/utils';
+import { cn } from '@/lib/utils';
 import { Badge } from './badge';
 import { XIcon } from 'lucide-react';
 import { ComboboxOptionsSkeleton } from './skeleton-patterns';
