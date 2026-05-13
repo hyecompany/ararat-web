@@ -25,6 +25,7 @@ import {
   CheckIcon,
   XIcon,
   Settings2Icon,
+  type LucideIcon,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -172,7 +173,7 @@ export default function InstanceLayout({ children }: { children: React.ReactNode
 
 const instanceActionDetails: Record<
   InstanceAction,
-  { label: string; Icon: React.ComponentType<{ className?: string }> }
+  { label: string; Icon: LucideIcon }
 > = {
   start: { label: 'Start', Icon: PlayIcon },
   stop: { label: 'Stop', Icon: SquareIcon },
@@ -508,7 +509,7 @@ function InstanceHeader({
                     {actionInFlight === action ? (
                       <Spinner className="mr-2 size-4" />
                     ) : (
-                      <Icon className="mr-2 size-4" />
+                      <Icon data-icon="inline-start" />
                     )}
                     {label}
                   </Button>
@@ -584,15 +585,19 @@ function InstanceTabs() {
   const currentIndex = TABS.findIndex((tab) => tab.value === currentTab);
 
   return (
-    <Tabs value={currentTab} className="w-full">
+    <Tabs value={currentTab}>
       <div className="w-full overflow-x-auto">
-        <TabsList className="inline-flex min-w-full">
+        <TabsList
+          variant="line"
+          underline="baseline"
+          className="h-9 w-full justify-start gap-0"
+        >
           {TABS.map((tab) => {
+            const Icon = tab.icon;
             const targetPath = tab.value === 'dashboard' ? '/instance' : `/instance/${tab.value}`;
             const targetIndex = TABS.findIndex((candidate) => candidate.value === tab.value);
             const transitionType =
               targetIndex > currentIndex ? 'tab-next' : 'tab-prev';
-
             const query = instanceName
               ? {
                   name: instanceName,
@@ -601,7 +606,13 @@ function InstanceTabs() {
               : undefined;
 
             return (
-              <TabsTrigger key={tab.value} value={tab.value} asChild>
+              <TabsTrigger
+                key={tab.value}
+                value={tab.value}
+                underline="baseline"
+                className="flex-none rounded-none px-3 has-data-[icon=inline-start]:pl-3 has-data-[icon=inline-end]:pr-3"
+                asChild
+              >
                 <Link
                   href={{
                     pathname: targetPath,
@@ -609,7 +620,7 @@ function InstanceTabs() {
                   }}
                   transitionTypes={[transitionType]}
                 >
-                  <tab.icon aria-hidden="true" className="mr-2 h-4 w-4" />
+                  <Icon aria-hidden="true" data-icon="inline-start" />
                   {tab.label}
                 </Link>
               </TabsTrigger>
