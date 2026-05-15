@@ -6,6 +6,8 @@ Hye Ararat provides a clean, intuitive dashboard for managing your Incus deploym
 
 **Current Release:** v3.0.0-beta.4
 
+**Community Forum:** [Ararat Incus Discourse](https://discuss.linuxcontainers.org/tag/ararat)
+
 ## Roadmap
 
 Hye Ararat is currently in public beta. Below is a high-level summary of our progress on supporting the foundational Incus primitives:
