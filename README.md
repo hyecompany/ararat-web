@@ -24,7 +24,7 @@ Hye Ararat is currently in public beta. Below is a high-level summary of our pro
 
 We are actively working on completing the UI implementation for all Incus primitives to provide a comprehensive management experience.
 
-We aim to support all core primitives by July 24th. Our planned release schedule is available on our [GitHub Milestones](https://github.com/hyecompany/ararat-web/milestones).
+A rewrite is currently underway, so we are not shipping on our regular release cadence. See the [Hye Ararat Rewrite thread](https://discuss.linuxcontainers.org/t/hye-ararat-rewrite/26912) on the Linux Containers discourse for more details and up-to-date information.
 
 ## Some Instance Screenshots
 
