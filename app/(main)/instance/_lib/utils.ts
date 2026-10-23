@@ -93,13 +93,18 @@ export function calcResourcePercent(current?: number, peak?: number) {
   return Math.min(100, Math.max(0, ((current ?? 0) / peak) * 100));
 }
 
-export function getCPUCount(instance: Instance): number {
-  const limit = instance.config?.['limits.cpu'];
+export function calcCpuPercent(usageDelta: number, timeDelta: number, cpuCount: number) {
+  if (timeDelta <= 0 || cpuCount <= 0 || usageDelta < 0) return 0;
+  return ((usageDelta / timeDelta) * 100) / cpuCount;
+}
+
+export function getCPUCount(instance: Instance, hostCpus?: number): number {
+  const limit =
+    instance.config?.['limits.cpu'] ?? instance.expanded_config?.['limits.cpu'];
   // If no limit is set, it technically has access to all host CPUs.
-  // However, for calculation purposes, defaulting to 1 avoids division by zero
-  // and provides a baseline, though it might show >100% usage.
-  // Ideally we would know the host CPU count.
-  if (!limit) return 1;
+  // Dividing by 1 would show e.g. 400% on a 4-core host; use the host core
+  // count when we have it.
+  if (!limit) return Math.max(1, hostCpus ?? 1);
 
   // If it's a simple number (e.g. "2"), it's the count.
   if (!isNaN(Number(limit))) {

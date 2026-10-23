@@ -22,8 +22,10 @@ import {
   getBaseImage,
   getRootDiskPool,
   calcResourcePercent,
+  calcCpuPercent,
   getCPUCount,
 } from './_lib/utils';
+import { useServerResourcesResource } from '@/app/_incus/resources/server/hooks';
 
 export default function InstancePage() {
   const { name, project } = useInstanceContext();
@@ -31,45 +33,59 @@ export default function InstancePage() {
     metadata: true,
     state: true,
   });
+  const { data: serverResources } = useServerResourcesResource();
   const [cpuPercent, setCpuPercent] = React.useState<number>(0);
   const lastCpuUsage = React.useRef<number | null>(null);
-  const lastTime = React.useRef<number | null>(null);
+  const latestInstanceRef = React.useRef<typeof instance>(undefined);
+  const hostCpusRef = React.useRef<number | undefined>(undefined);
+  React.useEffect(() => {
+    latestInstanceRef.current = instance;
+    hostCpusRef.current = serverResources?.cpu?.total;
+  });
 
-  const currentCpuUsage = instance?.state?.cpu?.usage;
+  const hasInstance = Boolean(instance);
 
   React.useEffect(() => {
-    if (!instance) {
+    if (!hasInstance) {
       lastCpuUsage.current = null;
-      lastTime.current = null;
       setCpuPercent(0);
       return;
     }
 
-    const currentUsage = instance.state?.cpu?.usage;
-    const currentTime = Date.now();
+    // Sample on a fixed client timer instead of on store-render times: state
+    // updates can coalesce or lag (fetch latency, bursts), while the CPU
+    // counter comes from Incus at a known ~5s poll cadence (Issue #68).
+    // Delta time must be the spacing between two *readings*, not between
+    // renders, otherwise percent explodes.
+    const timer = setInterval(() => {
+      const inst = latestInstanceRef.current;
+      if (!inst) return;
+      const currentUsage = inst.state?.cpu?.usage;
+      if (typeof currentUsage !== 'number') return;
 
-    if (
-      currentUsage !== undefined &&
-      lastCpuUsage.current !== null &&
-      lastTime.current !== null
-    ) {
-      const usageDelta = currentUsage - lastCpuUsage.current;
-      const timeDelta = (currentTime - lastTime.current) * 1000000; // ms to ns
-
-      if (timeDelta > 0) {
-        const cpuCount = getCPUCount(instance);
-        // percent is total usage across all cores (e.g. 200% for 2 cores)
-        // we want to normalize to 0-100%
-        const percent = ((usageDelta / timeDelta) * 100) / cpuCount;
-        setCpuPercent(Math.max(0, percent));
+      if (lastCpuUsage.current === null) {
+        lastCpuUsage.current = currentUsage;
+        return;
       }
-    }
 
-    if (currentUsage !== undefined) {
+      const usageDelta = currentUsage - lastCpuUsage.current;
+      // Repeated sample without a fetch in between observes nothing, and a
+      // lower counter means the instance restarted; both must not move percent.
+      if (usageDelta > 0) {
+        // The store polls /state every 5s; readings are one poll apart.
+        // shortcut: a missed poll briefly halves the window and doubles the
+        // percent; upgrade when state data carries a sampledAt timestamp.
+        const percent = calcCpuPercent(
+          usageDelta,
+          5 * 1_000_000_000,
+          getCPUCount(inst, hostCpusRef.current),
+        );
+        if (Number.isFinite(percent)) setCpuPercent(Math.max(0, percent));
+      }
       lastCpuUsage.current = currentUsage;
-      lastTime.current = currentTime;
-    }
-  }, [currentCpuUsage, instance]);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [hasInstance]);
 
   if (!name || isError) {
     return null; // Layout handles error display

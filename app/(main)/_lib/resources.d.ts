@@ -25,8 +25,13 @@ export interface ResourcesGPU {
   total?: number;
 }
 
+export interface ResourcesCPU {
+  total?: number;
+}
+
 export interface ResourcesMetadata {
   gpu?: ResourcesGPU;
+  cpu?: ResourcesCPU;
   // Other sections intentionally partial; extend as needed.
 }
 

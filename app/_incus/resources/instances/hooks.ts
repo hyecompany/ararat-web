@@ -66,6 +66,28 @@ export function useInstanceResource(
     }).catch(() => undefined);
   }, [client, include.access, include.metadata, include.state, key, selectedProject]);
 
+  React.useEffect(() => {
+    // Incus pushes no events for state changes (CPU, memory, …); without a
+    // timer `cpu.usage` stays frozen for quiet instances and deltas jitter to 0
+    // (Issue #68). Poll state-only; metadata/access stay event-backed.
+    if (!key || !include.state) return;
+    const stateInclude = { metadata: false, state: true } as const;
+    const timer = setInterval(() => {
+      client.instances.markStale(key, stateInclude);
+      void ensureInstances(
+        client.store,
+        client.requestRegistry,
+        selectedProject,
+        {
+          visibleKeys: [key],
+          include: stateInclude,
+          collection: false,
+        },
+      ).catch(() => undefined);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [client, include.state, key, selectedProject]);
+
   const metadataStatus = deriveResourceStatus({
     storedStatus: cached?.status ?? 'missing',
     hasData: instance !== undefined,
