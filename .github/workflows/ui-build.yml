@@ -46,7 +46,7 @@ jobs:
         run: tar -C out -czf ararat.tar.gz .
 
       - name: Upload static UI archive
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ararat.tar.gz
           path: ararat.tar.gz
