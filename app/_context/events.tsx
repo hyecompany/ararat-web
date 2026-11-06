@@ -165,6 +165,28 @@ function isInstanceResourcePath(path: string) {
   return path.startsWith('/1.0/instances/');
 }
 
+// Suppress toasts for operations whose target resource is already being viewed
+// on the current page. Long-running operations (e.g. console connections) stay
+// "Running" for the session's lifetime, so a loading toast there is persistent
+// noise — the page already reflects the operation's progress.
+export function isOperationOnViewedResource(
+  op: OperationMetadata,
+  rawPathname: string,
+  instanceName: string | null,
+): boolean {
+  if (!instanceName) return false;
+  // Next.js serves the app under basePath '/ui'; window.location.pathname
+  // includes that prefix in production, so strip it before matching routes.
+  const pathname = rawPathname.replace(/^\/ui(?=\/|$)/, '');
+  if (!pathname.startsWith('/instance/console')) return false;
+
+  const instanceResourcePrefix = `/1.0/instances/${encodeURIComponent(instanceName)}`;
+  return getResourcePaths(op.resources).some(
+    (path) =>
+      path === instanceResourcePrefix || path.startsWith(`${instanceResourcePrefix}/`),
+  );
+}
+
 function hasMatchingCollectionKey(cache: Cache, collectionPath: string, project?: string) {
   for (const key of cache.keys()) {
     const parsed = parseCacheKey(key);
@@ -267,6 +289,14 @@ export function EventEmitterProvider({ children }: { children: React.ReactNode }
       const toastId = op.id;
       const description = op.description || 'Operation';
       const isTerminalStatus = TERMINAL_OPERATION_STATUSES.has(op.status);
+
+      // Skip toasts for operations on resources the user is already viewing
+      // (e.g. console connections on the console page). These operations are
+      // inherently visible in the active view, so a notification adds noise.
+      const currentInstance = new URLSearchParams(window.location.search).get('name');
+      if (isOperationOnViewedResource(op, window.location.pathname, currentInstance)) {
+        return;
+      }
 
       // If it's a new operation we haven't seen, or an update to one we are tracking
       if (op.status === 'Pending' || op.status === 'Running') {
